@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import { AppError, ErrorCode } from './types/errors.js';
+import { ConfigStore } from './services/configStore.js';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
@@ -119,6 +120,21 @@ server.get('/api/version', async () => {
     buildHash: process.env.BUILD_HASH || 'dev',
     buildTime: process.env.BUILD_TIME || new Date().toISOString(),
   };
+});
+
+// Initialize config store
+const configStore = new ConfigStore();
+
+// Get config endpoint
+server.get('/api/config', async (request, reply) => {
+  const config = await configStore.readConfig();
+  return config;
+});
+
+// Put config endpoint
+server.put('/api/config', async (request, reply) => {
+  await configStore.writeConfig(request.body);
+  return { success: true };
 });
 
 const start = async () => {

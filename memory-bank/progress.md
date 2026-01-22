@@ -29,9 +29,19 @@
   - Fixed Vite proxy to use IPv4 (`127.0.0.1:3000`) to avoid IPv6 issues
   - All tests passing: 13 server tests, 1 client placeholder test
 
+- [x] **MVP-2: Config Persistence API (File I/O)** (2026-01-22)
+  - Created ConfigStore service with atomic write operations (write to .tmp, then rename)
+  - Implemented `GET /api/config` endpoint (reads config from disk)
+  - Implemented `PUT /api/config` endpoint (saves config with validation)
+  - Config-specific error codes (NOT_FOUND, INVALID_JSON, TOO_LARGE, WRITE_FAILED)
+  - Size limit enforcement (default 1MB, configurable)
+  - Comprehensive test coverage: 21 new tests (17 ConfigStore + 4 route tests)
+  - Atomic write behavior verified (no temp file remnants on errors)
+  - All tests passing: 34 server tests (33 + 1 client placeholder)
+
 ## Current Status
-**Phase:** MVP-2 - Config Persistence API (File I/O)
-**State:** Ready to implement config storage and REST endpoints
+**Phase:** MVP-3 - Mock WebSocket Service + Client WS Plumbing
+**State:** Ready to implement mock WebSocket service for critical risk reduction
 
 ## Planned Milestones
 

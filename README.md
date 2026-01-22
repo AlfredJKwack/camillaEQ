@@ -81,6 +81,15 @@ npm test
 ### Version Info
 - **GET** `/api/version` - Returns version, build hash, and build time
 
+### Config Persistence
+- **GET** `/api/config` - Reads the current config file from disk
+  - Returns: Config JSON object
+  - Error: 404 if config file not found
+- **PUT** `/api/config` - Saves config to disk with atomic write
+  - Body: Config JSON object (max 1MB)
+  - Returns: `{ success: true }`
+  - Errors: 400 (invalid), 413 (too large), 500 (write failed)
+
 ## Development Workflow
 
 1. The client proxies API requests to the backend during development
@@ -89,7 +98,7 @@ npm test
 
 ## Project Status
 
-**Current Milestone:** MVP-1 Complete ✓
+**Current Milestone:** MVP-2 Complete ✓
 
 ### MVP-0: Repo + Dev Environment (Complete)
 - [x] Monorepo structure established
@@ -107,7 +116,15 @@ npm test
 - [x] Unit tests for `shellExec` with full coverage
 - [x] Fixed Vite proxy to use IPv4 (`127.0.0.1:3000`)
 
-**Next Milestone:** MVP-2 - Config Persistence API (File I/O)
+### MVP-2: Config Persistence API (Complete)
+- [x] ConfigStore service with atomic write operations
+- [x] GET /api/config endpoint (read config from disk)
+- [x] PUT /api/config endpoint (save config to disk)
+- [x] Config-specific error codes (NOT_FOUND, INVALID_JSON, TOO_LARGE, WRITE_FAILED)
+- [x] Comprehensive test coverage (21 new tests)
+- [x] Atomic write behavior verified (no partial files on interruption)
+
+**Next Milestone:** MVP-3 - Mock WebSocket Service + Client WS Plumbing
 
 ## Documentation
 

@@ -1,39 +1,44 @@
 # Active Context
 
 ## Current Focus
-**MVP-0 and MVP-1 complete** - Backend foundation established with error handling, logging, and testing infrastructure. Ready for config persistence implementation.
+**MVP-0, MVP-1, and MVP-2 complete** - Backend foundation and config persistence operational. Ready for mock WebSocket service to de-risk real CamillaDSP integration.
 
 ## Current Milestone
-**MVP-2: Config Persistence API (File I/O)**
+**MVP-3: Mock WebSocket Service + Client WS Plumbing**
 
-Implementing deterministic config storage without CamillaDSP dependency.
+Critical risk reduction: prove WebSocket connection/reconnection logic before touching real CamillaDSP hardware.
 
 ## Immediate Next Steps
 
-### 1. Create Config Storage Service
-- Create `server/src/services/configStore.ts`
-- Implement atomic write operations (write to temp, then rename)
-- Default config location: `./data/config.json`
-- Handle file I/O errors gracefully
+### 1. Create Mock WebSocket Services
+- Create `server/src/services/mockCamillaDSP.ts`
+  - Mock control WebSocket (port configurable, default 3146)
+  - Mock spectrum WebSocket (port configurable, default 6413)
+- Implement basic protocol responses:
+  - `GetConfig` → return sample config
+  - `SetConfig` → accept and store config
+  - `GetState` → return "Running" / "Paused"
+  - Spectrum data generation (mock sine waves or noise)
 
-### 2. Add Config Endpoints
-- Implement `GET /api/config` - returns current config file contents
-- Implement `PUT /api/config` - validates and persists config
-  - Validate: payload size limit (1MB)
-  - Validate: JSON parse succeeds
-  - Validate: basic shape checks (not full DSP validation yet)
+### 2. Client CamillaDSP Module
+- Create `client/src/lib/camillaDSP.ts`
+- WebSocket connection manager:
+  - `connect()` / `disconnect()`
+  - Exponential backoff reconnection (1s, 2s, 4s, 8s, max 30s)
+  - State machine: disconnected → connecting → connected → error
+  - Event emitter for state changes
 
-### 3. Add Config-Specific Error Codes
-Already defined in `server/src/types/errors.ts`:
-- `ERR_CONFIG_NOT_FOUND`
-- `ERR_CONFIG_INVALID_JSON`
-- `ERR_CONFIG_TOO_LARGE`
-- `ERR_CONFIG_WRITE_FAILED`
+### 3. ConnectionStatus UI Component
+- Create `client/src/components/ConnectionStatus.svelte`
+- Display connection state (disconnected, connecting, connected, error)
+- Show reconnection countdown
+- Manual reconnect button
 
-### 4. Write Tests
-- Unit/integration tests using temp directory
-- Test atomic write behavior (interrupted write doesn't corrupt)
-- Test error cases (invalid JSON, missing file, etc.)
+### 4. E2E Tests (Playwright)
+- Test connection lifecycle
+- Test reconnection on disconnect
+- Test config upload/download
+- Test spectrum data reception
 
 ## Decisions Made (see ADR-003)
 - ✅ **Frontend framework:** Svelte (confirmed)
