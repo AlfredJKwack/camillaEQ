@@ -1,0 +1,1 @@
+The finest EQ editor for camillaDSP.

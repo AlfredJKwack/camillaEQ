@@ -1,0 +1,40 @@
+# .cline-rules
+
+## Prime directive
+- Follow the Memory Bank and /docs/design-spec.md as source of truth.
+- If a requested change conflicts with those docs, stop and ask.
+- If the /docs/design-spec.md exposes internal inconsistencies, stop and ask so it can be updated.
+
+## Documentation Requirements
+-   Update relevant documentation in /docs when modifying features
+-   Keep README.md in sync with new capabilities
+-   Maintain changelog entries in CHANGELOG.md
+
+## Architecture boundaries
+- Keep DSP/audio processing isolated from UI concerns.
+- UI must not call DSP internals directly; use a single control/API layer.
+- No circular dependencies between UI, control layer, and DSP.
+
+## State + messaging
+- Single source of truth for DSP pipeline configuration on the backend.
+- All UI interactions update state via explicit messages/commands.
+- Messages must be typed and versioned; avoid ad-hoc structures.
+
+## Error handling & logging
+- No silent failures.
+- All errors must include subsystem tag and a stable error code/string.
+- Define and respect fatal vs recoverable error paths.
+- Startup/shutdown must be deterministic and idempotent.
+
+## Code style & maintainability
+- Prefer simple, explicit code over clever abstractions.
+- Functions should be small and testable; avoid deep nesting.
+- Do not introduce new dependencies without stating why.
+- Keep modules focused: one responsibility per file where practical.
+
+## Testing expectations
+- Add tests for:
+  - parameter mapping/validation
+  - message schema round-trip
+  - DSP unit behavior where feasible
+- Any bug fix must include a regression test when practical.
