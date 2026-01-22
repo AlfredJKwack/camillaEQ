@@ -175,6 +175,12 @@ Make config load/save deterministic and testable without touching WebSocket.
 ### Goal
 De-risk the **direct browser ↔ WebSocket** topology and reconnection logic early.
 
+### Implementation Note
+**Actual file locations** (completed 2026-01-23):
+- Mock WebSocket service: `server/src/services/mockCamillaDSP.ts`
+- Client CamillaDSP module: `client/src/lib/camillaDSP.ts`
+- Integration tests: `client/src/lib/__tests__/camillaDSP.integration.test.ts`
+
 ### Deliverables
 1. **Mock WebSocket service (dev tool, `tools/mock-camilla-ws/`):**
    - Two WebSocket servers:

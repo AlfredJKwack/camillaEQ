@@ -1,44 +1,46 @@
 # Active Context
 
 ## Current Focus
-**MVP-0, MVP-1, and MVP-2 complete** - Backend foundation and config persistence operational. Ready for mock WebSocket service to de-risk real CamillaDSP integration.
+**MVP-0, MVP-1, MVP-2, and MVP-3 complete** - Backend + client foundation established with working WebSocket client module. Ready for UI implementation.
 
 ## Current Milestone
-**MVP-3: Mock WebSocket Service + Client WS Plumbing**
+**MVP-4: EQ Editor Layout (Static) + Band Theming Contract**
 
-Critical risk reduction: prove WebSocket connection/reconnection logic before touching real CamillaDSP hardware.
+Lock down UI structure and CSS contracts before adding interaction logic.
 
 ## Immediate Next Steps
 
-### 1. Create Mock WebSocket Services
-- Create `server/src/services/mockCamillaDSP.ts`
-  - Mock control WebSocket (port configurable, default 3146)
-  - Mock spectrum WebSocket (port configurable, default 6413)
-- Implement basic protocol responses:
-  - `GetConfig` → return sample config
-  - `SetConfig` → accept and store config
-  - `GetState` → return "Running" / "Paused"
-  - Spectrum data generation (mock sine waves or noise)
+### 1. Create EQ Editor Page Structure
+- Create `client/src/pages/EqEditor.svelte`
+- Main panel:
+  - Top: Band index indicators (C1-C9 labels)
+  - Row 2: Frequency region labels (SUB, BASS, LOW MID, etc.)
+  - Row 3: Main equalizer graph area (placeholder SVG)
+  - Row 4: Frequency scale indicators (20, 50, 100, etc.)
+  - Row 5: Visualization options bar (toggles for spectrum/curves)
+- Right panel:
+  - N band columns (start with 5, test with 12)
+  - Each column: filter type icon, slope icon, fader, mute button, freq/Q controls
 
-### 2. Client CamillaDSP Module
-- Create `client/src/lib/camillaDSP.ts`
-- WebSocket connection manager:
-  - `connect()` / `disconnect()`
-  - Exponential backoff reconnection (1s, 2s, 4s, 8s, max 30s)
-  - State machine: disconnected → connecting → connected → error
-  - Event emitter for state changes
+### 2. Implement CSS Theme System
+- Create `client/src/styles/theme.css`
+- Global theme variables (backgrounds, text, grid, curves)
+- Band color palette (10 hues: `--band-1` through `--band-10`)
+- Band theming contract using color-mix:
+  - `--band-color`, `--band-ink`, `--band-dim`, `--band-muted`, `--band-outline`
+- State modifiers: `[data-enabled]`, `[data-selected]`
 
-### 3. ConnectionStatus UI Component
-- Create `client/src/components/ConnectionStatus.svelte`
-- Display connection state (disconnected, connecting, connected, error)
-- Show reconnection countdown
-- Manual reconnect button
+### 3. Create Filter Icons
+- Create `client/src/components/icons/`
+- SVG components for each filter type (LPF, HPF, Peaking, Shelf, etc.)
+- Stroke-only, using `currentColor`
+- Exactly as specified in design-spec
 
-### 4. E2E Tests (Playwright)
-- Test connection lifecycle
-- Test reconnection on disconnect
-- Test config upload/download
-- Test spectrum data reception
+### 4. Visual Tests
+- Playwright snapshot tests:
+  - 5 bands rendered with distinct colors
+  - 12 bands rendered (layout remains functional)
+  - Band columns have correct CSS custom properties
 
 ## Decisions Made (see ADR-003)
 - ✅ **Frontend framework:** Svelte (confirmed)

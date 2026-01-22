@@ -98,7 +98,7 @@ npm test
 
 ## Project Status
 
-**Current Milestone:** MVP-2 Complete ✓
+**Current Milestone:** MVP-3 Complete ✓
 
 ### MVP-0: Repo + Dev Environment (Complete)
 - [x] Monorepo structure established
@@ -124,7 +124,17 @@ npm test
 - [x] Comprehensive test coverage (21 new tests)
 - [x] Atomic write behavior verified (no partial files on interruption)
 
-**Next Milestone:** MVP-3 - Mock WebSocket Service + Client WS Plumbing
+### MVP-3: Client CamillaDSP Module (Complete)
+- [x] CamillaDSP client module (`client/src/lib/camillaDSP.ts`)
+- [x] Dual WebSocket connections (control + spectrum)
+- [x] Config I/O: download, upload, validation
+- [x] Spectrum data retrieval
+- [x] Mock WebSocket server for testing (`server/src/services/mockCamillaDSP.ts`)
+- [x] 9 integration tests with clean output
+- [x] Memory leak fix: event listeners properly removed
+- [x] Compliant with API contract (`docs/api-contract-camillaDSP.md`)
+
+**Next Milestone:** MVP-4 - EQ Editor Layout (Static) + Band Theming Contract
 
 ## Documentation
 

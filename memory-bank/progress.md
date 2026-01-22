@@ -39,9 +39,22 @@
   - Atomic write behavior verified (no temp file remnants on errors)
   - All tests passing: 34 server tests (33 + 1 client placeholder)
 
+- [x] **MVP-3: Client CamillaDSP Module** (2026-01-23)
+  - Created CamillaDSP client module (`client/src/lib/camillaDSP.ts`)
+  - Dual WebSocket connections (control + spectrum)
+  - Connection management with localStorage persistence
+  - Config I/O: `downloadConfig()`, `uploadConfig()` with validation
+  - Spectrum data retrieval: `getSpectrumData()`
+  - Memory leak fix: Event listeners properly removed after use (per API contract spec)
+  - Created mock WebSocket server (`server/src/services/mockCamillaDSP.ts`)
+  - Implements control + spectrum protocol per `docs/api-contract-camillaDSP.md`
+  - 9 integration tests added (`client/src/lib/__tests__/camillaDSP.integration.test.ts`)
+  - Clean test output with console mocking
+  - All tests passing: 34 server tests + 10 client tests (1 App + 9 CamillaDSP)
+
 ## Current Status
-**Phase:** MVP-3 - Mock WebSocket Service + Client WS Plumbing
-**State:** Ready to implement mock WebSocket service for critical risk reduction
+**Phase:** MVP-4 - EQ Editor Layout (Static) + Band Theming Contract
+**State:** Ready to implement UI structure and CSS contracts
 
 ## Planned Milestones
 
