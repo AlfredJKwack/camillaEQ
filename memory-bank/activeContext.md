@@ -1,37 +1,39 @@
 # Active Context
 
 ## Current Focus
-**Implementation planning complete** - Sequential MVP roadmap established with risk mitigation strategy.
+**MVP-0 and MVP-1 complete** - Backend foundation established with error handling, logging, and testing infrastructure. Ready for config persistence implementation.
 
 ## Current Milestone
-**MVP-0: Repo + Dev Environment Baseline (Scaffolding)**
+**MVP-2: Config Persistence API (File I/O)**
 
-Establishing monorepo structure, build tooling, and development workflow.
+Implementing deterministic config storage without CamillaDSP dependency.
 
 ## Immediate Next Steps
 
-### 1. Create Monorepo Structure
-- Initialize root `package.json` with workspaces for `server/` and `client/`
-- Add root scripts: `dev`, `build`, `test`
-- Create `.env.example` with port and WebSocket URL configuration
+### 1. Create Config Storage Service
+- Create `server/src/services/configStore.ts`
+- Implement atomic write operations (write to temp, then rename)
+- Default config location: `./data/config.json`
+- Handle file I/O errors gracefully
 
-### 2. Server Setup (`server/`)
-- Initialize `package.json` with: `fastify`, `pino`, `dotenv`, TypeScript tooling
-- Create `tsconfig.json` for Node.js
-- Create `src/index.ts` - Fastify bootstrap with `/health` placeholder
-- Create `src/logger.ts` - Pino configuration
+### 2. Add Config Endpoints
+- Implement `GET /api/config` - returns current config file contents
+- Implement `PUT /api/config` - validates and persists config
+  - Validate: payload size limit (1MB)
+  - Validate: JSON parse succeeds
+  - Validate: basic shape checks (not full DSP validation yet)
 
-### 3. Client Setup (`client/`)
-- Initialize `package.json` with: `vite`, `svelte`, `typescript`, testing tools
-- Create `vite.config.ts` and `tsconfig.json` for browser/ESM
-- Create `src/App.svelte` - Placeholder with "CamillaEQ" text
-- Create `src/main.ts` - Entry point
+### 3. Add Config-Specific Error Codes
+Already defined in `server/src/types/errors.ts`:
+- `ERR_CONFIG_NOT_FOUND`
+- `ERR_CONFIG_INVALID_JSON`
+- `ERR_CONFIG_TOO_LARGE`
+- `ERR_CONFIG_WRITE_FAILED`
 
-### 4. Validate Development Workflow
-- Run `npm install` to install all dependencies
-- Run `npm run dev` - verify both server and client start
-- Verify HMR works for client changes
-- Create placeholder tests to validate test runner
+### 4. Write Tests
+- Unit/integration tests using temp directory
+- Test atomic write behavior (interrupted write doesn't corrupt)
+- Test error cases (invalid JSON, missing file, etc.)
 
 ## Decisions Made (see ADR-003)
 - ✅ **Frontend framework:** Svelte (confirmed)

@@ -8,29 +8,34 @@
   - Aligned memory bank with authoritative design specification
   - Captured key architectural decisions (ADR-001 through ADR-006)
 
+- [x] **MVP-0: Repo + Dev Environment Baseline** (2026-01-22)
+  - Created monorepo structure with server/ and client/ workspaces
+  - Initialized root package.json with npm workspaces
+  - Set up server: Fastify + Pino logging + TypeScript + tsx watch
+  - Set up client: Vite + Svelte + TypeScript
+  - Created .env.example with configuration schema
+  - Validated `npm run dev` starts both server and client
+  - Verified HMR works for client changes
+  - Build pipeline functional (`npm run build`)
+
+- [x] **MVP-1: Backend REST Foundation + Hardening Primitives** (2026-01-22)
+  - Implemented `GET /health` and `GET /api/version` endpoints
+  - Established error response contract with structured JSON and ErrorCode enum
+  - Added 404 handler with proper error structure (`setNotFoundHandler`)
+  - Set up request logging with correlation IDs (custom hooks, disabled default logging)
+  - Created `shellExec` utility with timeout, output limits, and command whitelist
+  - Wrote route tests using `fastify.inject()` (3 tests)
+  - Wrote `shellExec` unit tests with full coverage (10 tests)
+  - Fixed Vite proxy to use IPv4 (`127.0.0.1:3000`) to avoid IPv6 issues
+  - All tests passing: 13 server tests, 1 client placeholder test
+
 ## Current Status
-**Phase:** M1 - Project scaffolding and development environment setup
-**State:** Memory bank complete, ready to begin implementation
+**Phase:** MVP-2 - Config Persistence API (File I/O)
+**State:** Ready to implement config storage and REST endpoints
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
-
-### MVP-0: Repo + Dev Environment Baseline (Next - In Progress)
-- [ ] Create monorepo structure (`server/` and `client/` workspaces)
-- [ ] Initialize root package.json with workspaces and scripts
-- [ ] Server setup: Fastify + Pino + TypeScript
-- [ ] Client setup: Vite + Svelte + TypeScript
-- [ ] Create `.env.example` with configuration schema
-- [ ] Validate `npm run dev` starts both server and client
-- [ ] Verify HMR works for client changes
-
-### MVP-1: Backend REST Foundation + Hardening Primitives
-- [ ] Implement `GET /health` and `GET /api/version` endpoints
-- [ ] Establish error response contract (structured JSON + error codes)
-- [ ] Set up request logging with correlation IDs (Pino)
-- [ ] Create shell-out utility with timeout/whitelist/max-output enforcement
-- [ ] Write route tests using `fastify.inject()`
 
 ### MVP-2: Config Persistence API (File I/O)
 - [ ] Create config storage service (atomic writes)
