@@ -1,14 +1,22 @@
 <script lang="ts">
   import FilterIcon from '../components/icons/FilterIcons.svelte';
   import KnobDial from '../components/KnobDial.svelte';
+  import type { EqBand } from '../dsp/filterResponse';
+  import { generateCurvePath, generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
 
-  // Mock data for testing - 5 bands initially
-  const bands = [
-    { id: 1, type: 'Peaking', enabled: true, freq: 100, gain: 3, q: 1.0 },
-    { id: 2, type: 'Peaking', enabled: true, freq: 500, gain: -2, q: 1.5 },
-    { id: 3, type: 'LowShelf', enabled: true, freq: 1000, gain: 1, q: 0.8 },
-    { id: 4, type: 'HighShelf', enabled: true, freq: 3000, gain: 2, q: 1.2 },
-    { id: 5, type: 'Peaking', enabled: true, freq: 8000, gain: -1, q: 1.0 },
+  // Reference config: Tangzu Waner (10 peaking filters)
+  // Note: EQ graph shows filter bank response only (excludes preamp/output gain)
+  const bands: EqBand[] = [
+    { enabled: true, type: 'Peaking', freq: 24, gain: 1.2, q: 0.5 },
+    { enabled: true, type: 'Peaking', freq: 170, gain: -2.9, q: 0.5 },
+    { enabled: true, type: 'Peaking', freq: 880, gain: 1, q: 1 },
+    { enabled: true, type: 'Peaking', freq: 1400, gain: -1.5, q: 2 },
+    { enabled: true, type: 'Peaking', freq: 2000, gain: -2.8, q: 1.5 },
+    { enabled: true, type: 'Peaking', freq: 5200, gain: -1.8, q: 2 },
+    { enabled: true, type: 'Peaking', freq: 6500, gain: 5.4, q: 0.6 },
+    { enabled: true, type: 'Peaking', freq: 6600, gain: 4.1, q: 2 },
+    { enabled: true, type: 'Peaking', freq: 8200, gain: -8.1, q: 2 },
+    { enabled: true, type: 'Peaking', freq: 10000, gain: 7.6, q: 2 },
   ];
 
   let showPerBandCurves = false;
@@ -29,6 +37,21 @@
     });
     observer.observe(plotElement);
   }
+
+  // Generate EQ curve paths (reactive to bands changes)
+  $: sumCurvePath = generateCurvePath(bands, {
+    width: 1000,
+    height: 400,
+    numPoints: 256,
+  });
+
+  $: perBandCurvePaths = bands.map((band) =>
+    generateBandCurvePath(band, {
+      width: 1000,
+      height: 400,
+      numPoints: 128,
+    })
+  );
 
   // Base-10 logarithmic frequency mapping (per spec)
   function freqToX(freq: number, width: number): number {
@@ -221,11 +244,31 @@
           <!-- Placeholder: Analyzer layer -->
           <g class="analyzer"></g>
 
-          <!-- Placeholder: Curves (sum + per-band) -->
-          <g class="curves">
-            <text x="500" y="200" fill="var(--ui-text-dim)" text-anchor="middle" font-size="14">
-              EQ curves will render here (MVP-5)
-            </text>
+          <!-- Curves: Per-band (optional) -->
+          {#if showPerBandCurves}
+            <g class="curves-per-band">
+              {#each perBandCurvePaths as path, i}
+                <path
+                  d={path}
+                  fill="none"
+                  stroke="var(--band-{(i % 10) + 1})"
+                  stroke-width="1.25"
+                  opacity="0.4"
+                  class="eq-curve-band"
+                />
+              {/each}
+            </g>
+          {/if}
+
+          <!-- Curves: Sum curve -->
+          <g class="curves-sum">
+            <path
+              d={sumCurvePath}
+              fill="none"
+              stroke="var(--sum-curve)"
+              stroke-width="2.25"
+              class="eq-curve-sum"
+            />
           </g>
 
           <!-- Tokens (band handles) - compensated ellipses to remain circular when stretched -->
@@ -340,12 +383,12 @@
     <!-- Band columns -->
     {#each bands as band, i}
       <div class="band-column band" style="--band-color: var(--band-{(i % 10) + 1});" data-enabled={band.enabled}>
-        <div class="filter-type-icon" title="Band {band.id} — {band.type}">
+        <div class="filter-type-icon" title="Band {i + 1} — {band.type}">
           <FilterIcon type={band.type} />
         </div>
 
         <div class="slope-icon">
-          <div class="icon-placeholder" style="font-size: 0.875rem;">24dB</div>
+          <div class="icon-placeholder">24dB</div>
         </div>
 
         <div class="gain-fader">
@@ -355,7 +398,7 @@
               style="bottom: {((band.gain + 12) / 24) * 100}%;"
             ></div>
           </div>
-          <span class="fader-value">{band.gain > 0 ? '+' : ''}{band.gain} dB</span>
+          <span class="fader-value">{band.gain > 0 ? '+' : ''}{band.gain.toFixed(1)} dB</span>
         </div>
 
         <button class="mute-btn" class:muted={!band.enabled} title={band.enabled ? 'Mute' : 'Unmute'}>
@@ -614,7 +657,7 @@
     row-gap: 0.5rem;
     align-items: center;
     justify-items: center;
-    padding: 0.5rem 0.375rem;
+    /* padding: 0.5rem 0.375rem; */
     max-width: 80px;
     background: var(--ui-panel);
     border: 1px solid var(--ui-border);
@@ -648,7 +691,7 @@
   }
 
   .icon-placeholder {
-    font-size: 0.875rem;
+    font-size: 0.625rem;
     opacity: 0.8;
     color: var(--band-ink);
   }

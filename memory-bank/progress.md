@@ -67,9 +67,24 @@
   - Created `client/src/pages/EqPage.test.ts` with 5 source-based structural tests
   - All tests passing: 34 server tests + 15 client tests (1 App + 5 EqPage + 9 CamillaDSP)
 
+- [x] **MVP-5: SVG EQ Curve Rendering (Sum + Per-Band)** (2026-01-24)
+  - Created `client/src/dsp/filterResponse.ts` with RBJ Audio EQ Cookbook peaking filter implementation
+  - Biquad frequency response calculation with complex magnitude at any frequency
+  - `sumResponseDb()` combines all enabled bands (filter bank only, excludes preamp per spec)
+  - `generateLogFrequencies()` creates log-spaced sampling arrays
+  - Created `client/src/ui/rendering/EqSvgRenderer.ts` for SVG path generation
+  - `freqToX()` - Log10 frequency mapping (20 Hz - 20 kHz)
+  - `gainToY()` - Linear gain mapping (-24 to +24 dB, inverted for SVG coordinates)
+  - `generateCurvePath()` - Samples 256 frequencies, generates SVG path `d` attribute
+  - `generateBandCurvePath()` - Individual band curve paths
+  - Updated EqPage with Tangzu Waner reference config (10 peaking filters)
+  - Reactive curve generation: sum curve (white, 2.25px) + optional per-band curves (band-tinted, 1.25px, 40% opacity)
+  - Created `client/src/ui/rendering/EqSvgRenderer.test.ts` with 15 comprehensive tests
+  - All tests passing: 34 server tests + 30 client tests (1 App + 5 EqPage + 9 CamillaDSP + 15 EqSvgRenderer)
+
 ## Current Status
-**Phase:** MVP-5 - SVG EQ Curve Rendering (Sum + Per-Band)
-**State:** Ready to implement curve rendering pipeline and DSP math
+**Phase:** MVP-6 - Interactive Tokens + Bidirectional Sync
+**State:** Ready to implement drag interaction and state synchronization
 
 ## Planned Milestones
 
