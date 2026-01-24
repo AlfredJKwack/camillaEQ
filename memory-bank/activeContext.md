@@ -1,49 +1,39 @@
 # Active Context
 
 ## Current Focus
-**MVP-0 through MVP-6 complete** - Full interactive EQ editor with bidirectional sync implemented and tested.
+**MVP-0 through MVP-7 complete** - Full interactive EQ editor with real-time spectrum overlay implemented and tested.
 
 ## Current Milestone
-**MVP-7: Canvas Spectrum Renderer with Mode Toggles**
+**MVP-8: Real CamillaDSP Integration + Upload Policy**
 
-Implement high-frequency spectrum visualization with Canvas rendering.
+Implement full CamillaDSP protocol integration with debounced config uploads.
 
 ## Immediate Next Steps
 
-### 1. Create Canvas Rendering Module
-- Create `client/src/ui/rendering/SpectrumCanvasRenderer.ts`
-- `init(canvas, width, height)` - Set up 2D context
-- `render(spectrumData, mode)` - Draw vertical bars
-- `clear()` - Clear canvas
-- Use `requestAnimationFrame` for smooth 10Hz updates
+### 1. Implement Full CamillaDSP Protocol
+- Review `docs/api-contract-camillaDSP.md` for complete protocol coverage
+- Ensure all control socket commands are implemented
+- Add error handling for all CamillaDSP operations
+- Verify config normalization (`getDefaultConfig()`) is complete
 
-### 2. Implement Spectrum Data Parsing
-- Create `client/src/dsp/spectrumParser.ts`
-- Parse WebSocket spectrum frames from mockCamillaDSP
-- Normalize magnitude values to dB scale
-- Bin frequencies to match graph's log scale
+### 2. Implement Upload-on-Commit with Debounce
+- Add debounce utility (150-300ms delay)
+- Hook into eqStore parameter changes
+- Upload config to CamillaDSP when changes settle
+- Show upload status indicator (pending/success/error)
+- Handle upload failures gracefully
 
-### 3. Integrate Canvas Layer in EqPage
-- Position canvas behind SVG layer (z-index)
-- Overlay on EQ graph without blocking interactions
-- Connect to mock WebSocket spectrum data stream
-- Handle resize events (ResizeObserver)
+### 3. Improve Connection Management UI
+- Enhance ConnectPage with better error messages
+- Add connection status indicator on EqPage
+- Handle disconnections gracefully (reconnect logic)
+- Display CamillaDSP version and state
 
-### 4. Implement Mode Toggles
-- Wire up existing spectrum mode buttons (off/pre/post)
-- Store mode in eqStore or local component state
-- Change bar color based on mode (pre = blue, post = green)
-- Hide/show canvas based on "off" state
-
-### 5. Add Freeze/Fade Behavior
-- Track last frame timestamp
-- If >500ms elapsed, fade out or show "stale" indicator
-- Optional: Display dropped frame counter (debug mode)
-
-### 6. Performance Testing
-- Measure frame rate under continuous updates
-- Verify 10Hz target on low-power hardware simulation
-- Check CPU usage doesn't interfere with UI responsiveness
+### 4. Write Integration Tests
+- Test config upload flow (eqStore → CamillaDSP)
+- Test config download flow (CamillaDSP → eqStore)
+- Test debounce behavior (multiple rapid changes → single upload)
+- Optional: Add gated tests for real CamillaDSP device
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)
@@ -52,23 +42,28 @@ Implement high-frequency spectrum visualization with Canvas rendering.
 - ✅ **Layout pattern:** 4-zone grid with shared right-side column (44px) for axis labels
 - ✅ **Curve rendering:** RBJ biquad formulas, 256 sample points, reactive SVG paths
 - ✅ **EQ graph semantics:** Filter bank response only (excludes preamp/output gain)
+- ✅ **Spectrum rendering:** Canvas layer with pluggable architecture, filled curve + outline (not bars)
+- ✅ **Spectrum smoothing:** Catmull-Rom spline + moving-average filter, toggle in UI, strength parameter ready
+- ✅ **Canvas resolution:** Use DPR scaling for retina displays (decided during MVP-7)
+- ✅ **Layer architecture:** `CanvasVisualizationLayer` interface for extendable background visualizations
 
 ## Open Questions
-- **Spectrum data format:** Binary vs JSON for spectrum frames?
-- **Canvas resolution:** Match CSS pixels or use higher DPR for retina displays?
-- **Frame dropping strategy:** Skip frames or queue/interpolate?
+- **Upload debounce timing:** 150ms vs 300ms - balance responsiveness vs. CamillaDSP load
+- **Error recovery:** Retry failed uploads automatically or require user action?
+- **Connection persistence:** Auto-reconnect on disconnect, or require manual reconnect?
 
 ## Current Risks
-- **Canvas performance** - 10Hz updates with full redraw may impact low-power devices
+- **CamillaDSP overload** - Rapid parameter changes could overwhelm WebSocket with config uploads
+- **Network latency** - Upload lag could create confusing UX (out-of-sync state)
 
 ## Risk Mitigation Strategy (per implementation plan)
 - **MVP-7 (current):** Validate Canvas performance in isolation before adding complexity
 - **MVP-8:** Add upload debouncing to avoid overwhelming CamillaDSP with rapid updates
 - **MVP-9:** Prove full persistence roundtrip before considering production-ready
 
-## Next Milestones (after MVP-7)
-1. **MVP-8:** Real CamillaDSP integration + upload policy (debounced config uploads)
-2. **MVP-9:** Config persistence roundtrip (load/save via backend)
+## Next Milestones (after MVP-8)
+1. **MVP-9:** Config persistence roundtrip (load/save via backend)
+2. **Future:** Multi-channel pipeline editor, preset management, operator lock
 
 ## Context References
 - **`docs/implementation-plan.md`** - Sequential MVP roadmap (NEW - authoritative)

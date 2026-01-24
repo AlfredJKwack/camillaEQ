@@ -118,7 +118,11 @@ export class CamillaDSP {
   async connect(server?: string, port?: number, spectrumPort?: number): Promise<boolean> {
     // Use provided params or try localStorage
     this.server = server || localStorage.getItem('camillaDSP.server') || '';
-    this.port = port || Number(localStorage.getItem('camillaDSP.port')) || 0;
+    // Support both 'controlPort' (new) and 'port' (legacy) keys
+    this.port = port || 
+                Number(localStorage.getItem('camillaDSP.controlPort')) || 
+                Number(localStorage.getItem('camillaDSP.port')) || 
+                0;
     this.spectrumPort = spectrumPort || Number(localStorage.getItem('camillaDSP.spectrumPort')) || 0;
 
     if (!this.server) {
@@ -149,9 +153,9 @@ export class CamillaDSP {
         return false;
       }
 
-      // Save to localStorage
+      // Save to localStorage (use 'controlPort' as primary key)
       localStorage.setItem('camillaDSP.server', this.server);
-      localStorage.setItem('camillaDSP.port', String(this.port));
+      localStorage.setItem('camillaDSP.controlPort', String(this.port));
       localStorage.setItem('camillaDSP.spectrumPort', String(this.spectrumPort));
 
       return true;

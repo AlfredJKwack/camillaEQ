@@ -130,11 +130,17 @@ describe('CamillaDSP Integration Tests', () => {
         const message = data.toString().replace(/"/g, '');
 
         if (message === 'GetPlaybackSignalPeak') {
+          // Return 256 bins (mock spectrum data)
+          const bins = Array.from({ length: 256 }, (_, i) => {
+            const freq = i / 256;
+            return 0.3 + Math.sin(freq * Math.PI * 4) * 0.2;
+          });
+          
           ws.send(
             JSON.stringify({
               GetPlaybackSignalPeak: {
                 result: 'Ok',
-                value: [0.3, 0.4],
+                value: bins,
               },
             })
           );
@@ -254,7 +260,8 @@ describe('CamillaDSP Integration Tests', () => {
 
       expect(data).toBeDefined();
       expect(Array.isArray(data)).toBe(true);
-      expect(data).toHaveLength(2);
+      expect(data.length).toBeGreaterThan(2); // Should be 256 bins
+      expect(data.length).toBe(256);
     });
   });
 

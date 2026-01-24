@@ -88,6 +88,9 @@ Frontend
 
 Rendering split (critical architectural decision)
 	•	Canvas: spectrum analyzer layer (10 Hz redraw)
+		•	Rendered as filled area curve with visible outline (not vertical bars)
+		•	Pluggable layer architecture via `CanvasVisualizationLayer` interface
+		•	Support for smoothing: geometric (spline) + data (moving average filter)
 	•	SVG: curves, filter tokens/handles, selectable/stylable UI elements
 	•	Optional HTML overlay: tooltips, menus, numeric editors
 
@@ -658,10 +661,25 @@ Purpose: Toggle display features.
 
 Icons / Toggles
 	•	Show spectrum:
-	•	Pre-EQ
-	•	Post-EQ
-	•	Off
-	•	Show / hide band tokens
+		•	Pre-EQ (blue filled curve)
+		•	Post-EQ (green filled curve)
+		•	Off
+	•	Smooth spectrum (checkbox):
+		•	When enabled: applies Catmull-Rom spline + moving-average data filter
+		•	Smoothing strength configurable internally (default window size: 5)
+	•	Show / hide band tokens (checkbox)
+
+Visual specification
+	•	Spectrum is rendered as filled area curve with visible outline stroke
+	•	Fill opacity: ~15% (dimmer)
+	•	Stroke opacity: ~50-55% (brighter for visibility)
+	•	Pre-EQ: blue hues
+	•	Post-EQ: green hues
+
+Technical requirements
+	•	Canvas layer architecture must be extendable via `CanvasVisualizationLayer` interface
+	•	Allows future addition of alternative background visualizations (gradients, particle effects, etc.)
+	•	Smooth fill path must properly close to graph corners (bottom-left → curve → bottom-right)
 
 Behavior
 	•	Changes visualization only

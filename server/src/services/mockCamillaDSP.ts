@@ -192,13 +192,42 @@ export class MockCamillaDSP {
 
   /**
    * Generate mock spectrum data
+   * Returns 256 frequency bins with a realistic-looking curve
    */
   private generateMockSpectrumData(): number[] {
-    // Generate 2 channels of random spectrum data
-    return [
-      Math.random() * 0.5,  // Channel 0 peak
-      Math.random() * 0.5,  // Channel 1 peak
-    ];
+    const numBins = 256;
+    const bins: number[] = [];
+    const time = Date.now() / 1000; // Use time for gentle animation
+    
+    for (let i = 0; i < numBins; i++) {
+      const freq = i / numBins; // Normalized frequency [0..1]
+      
+      // Create a multi-band spectrum curve
+      // Low frequencies: stronger
+      const lowBand = Math.exp(-freq * 3) * 0.6;
+      
+      // Mid frequencies: moderate with a bump around 0.3-0.5
+      const midBump = Math.exp(-Math.pow((freq - 0.4) * 4, 2)) * 0.4;
+      
+      // High frequencies: weaker, rolling off
+      const highBand = Math.exp(-Math.pow((freq - 0.7) * 2, 2)) * 0.3;
+      
+      // Combine bands
+      let magnitude = lowBand + midBump + highBand;
+      
+      // Add gentle time-based variation (breathing effect)
+      const breathe = 0.8 + 0.2 * Math.sin(time * 0.5 + freq * Math.PI);
+      magnitude *= breathe;
+      
+      // Add subtle noise for realism
+      const noise = (Math.random() - 0.5) * 0.05;
+      magnitude += noise;
+      
+      // Clamp to valid range
+      bins.push(Math.max(0, Math.min(1, magnitude)));
+    }
+    
+    return bins;
   }
 
   /**

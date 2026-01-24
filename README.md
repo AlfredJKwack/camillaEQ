@@ -73,6 +73,49 @@ Run all tests:
 npm test
 ```
 
+## Visualizing MVP-7 (Spectrum Analyzer)
+
+To see the real-time spectrum overlay without a real CamillaDSP device, use the included **MockCamillaDSP** WebSocket server:
+
+### 1. Start the Mock CamillaDSP Server
+
+In a separate terminal, run:
+
+```bash
+npm -w server exec -- tsx -e "import { MockCamillaDSP } from './src/services/mockCamillaDSP'; (async () => { const s = new MockCamillaDSP(); await s.start(); console.log('Mock CamillaDSP running: control=3146 spectrum=6413'); setInterval(() => {}, 1<<30); })().catch(e => { console.error(e); process.exit(1); });"
+```
+
+This starts:
+- **Control WebSocket**: `ws://localhost:3146`
+- **Spectrum WebSocket**: `ws://localhost:6413`
+
+### 2. Start the Development Server
+
+In another terminal:
+
+```bash
+npm run dev
+```
+
+### 3. Configure Connection
+
+1. Open `http://localhost:5173/#/connect`
+2. Set connection parameters:
+   - **Server**: `localhost`
+   - **Control Port**: `3146`
+   - **Spectrum Port**: `6413`
+3. Click **Save & Go to EQ**
+
+### 4. Enable Spectrum Overlay
+
+On the EQ page, under **Spectrum** options, click:
+- **Pre-EQ** (blue filled curve) or
+- **Post-EQ** (green filled curve)
+
+You should see an animated spectrum curve with area fill rendering behind the EQ curve at ~10Hz.
+
+**Optional:** Enable the **Smooth spectrum** checkbox for visually smoother curves (applies data smoothing + Catmull-Rom spline interpolation).
+
 ## API Endpoints
 
 ### Health Check
@@ -98,7 +141,7 @@ npm test
 
 ## Project Status
 
-**Current Milestone:** MVP-6 Complete ✓ — Full interactive EQ editor operational
+**Current Milestone:** MVP-7 Complete ✓ — Canvas spectrum overlay operational
 
 ### Completed Milestones
 
@@ -130,10 +173,38 @@ RBJ biquad filter response calculation, `EqSvgRenderer` module, reactive curve g
 - Layout refinements (viz options alignment, selection styling)
 - 49 client tests passing (5 test suites)
 
+#### MVP-7: Canvas Spectrum Renderer + Mode Toggles ✓
+**Real-time spectrum visualization with:**
+- **Pluggable layer architecture** for extendable background visualizations
+  - `CanvasVisualizationLayer` interface for modular rendering
+  - `SpectrumAreaLayer` renders filled curve with visible outline
+- **Canvas-based rendering** (~10Hz) with zero DOM churn and DPR-aware sizing
+- **Filled spectrum curve** (area fill + brighter outline) replaces vertical bars
+- **Smoothing system:**
+  - Catmull-Rom spline interpolation for geometric smoothing
+  - Moving-average data filter (default window size: 5, configurable 1-20)
+  - Toggle: "Smooth spectrum" checkbox in viz options
+  - Internal `smoothingStrength` parameter (not yet wired to GUI, ready for future control)
+- Spectrum data parser supporting multiple formats (256+ bins, legacy 2-channel)
+- Integration into EqPage with automatic CamillaDSP connection
+- Mode toggles: Off / Pre-EQ / Post-EQ with distinct colors
+- Stale frame detection (>500ms → fade indicator)
+- MockCamillaDSP updated to generate realistic 256-bin spectrum data
+- **Bug fixes:**
+  - Fixed resize scaling accumulation (`ctx.setTransform()` reset)
+  - Fixed smooth fill path closure (proper bottom-left anchor)
+- Full test coverage (19 spectrumParser tests, updated integration tests)
+- All 68 client tests passing
+
 ### Current Capabilities
 
 The application now provides a **fully interactive equalizer editor** with:
 - Real-time EQ curve visualization (sum + per-band)
+- **Real-time spectrum overlay** (Canvas, ~10Hz):
+  - Filled area curve with visible outline
+  - Pre-EQ / Post-EQ / Off modes with distinct colors
+  - Optional smoothing (spline + data filter)
+  - Extendable layer system for future visualizations
 - Drag tokens to adjust frequency and gain
 - Shift+drag or mouse wheel to adjust Q/bandwidth
 - Right panel controls (faders, mute buttons, parameter dials)
@@ -144,7 +215,7 @@ The application now provides a **fully interactive equalizer editor** with:
 
 ### Next Milestone
 
-**MVP-7:** Canvas Spectrum Renderer with Mode Toggles (Pre/Post/Off)
+**MVP-8:** Real CamillaDSP Integration + Upload Policy (debounced config uploads)
 
 ## Documentation
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import FilterIcon from '../components/icons/FilterIcons.svelte';
   import KnobDial from '../components/KnobDial.svelte';
   import {
@@ -12,9 +13,27 @@
     toggleBandEnabled,
     selectBand,
   } from '../state/eqStore';
+  import { CamillaDSP } from '../lib/camillaDSP';
+  import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
+  import { SpectrumAreaLayer } from '../ui/rendering/canvasLayers/SpectrumAreaLayer';
+  import { parseSpectrumData } from '../dsp/spectrumParser';
 
   let showPerBandCurves = false;
   let spectrumMode = 'off'; // 'off' | 'pre' | 'post'
+  let spectrumSmooth = false; // Spectrum curve smoothing
+  
+  // CamillaDSP connection
+  let dsp: CamillaDSP | null = null;
+  let dspConnected = false;
+  
+  // Spectrum rendering
+  let canvasElement: HTMLCanvasElement;
+  let spectrumRenderer: SpectrumCanvasRenderer | null = null;
+  let spectrumAreaLayer: SpectrumAreaLayer | null = null;
+  let spectrumPollingInterval: number | null = null;
+  let lastSpectrumFrame: number = 0;
+  const SPECTRUM_POLL_INTERVAL = 100; // 10 Hz
+  const SPECTRUM_STALE_THRESHOLD = 500; // ms
   
   // Token drag state
   let dragState: {
@@ -32,15 +51,114 @@
   let plotHeight = 400;
   let plotElement: HTMLDivElement;
 
-  // Track plot size for token compensation
+  // Track plot size for token compensation and canvas resize
   $: if (plotElement) {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         plotWidth = entry.contentRect.width;
         plotHeight = entry.contentRect.height;
+        
+        // Resize spectrum canvas
+        if (spectrumRenderer) {
+          spectrumRenderer.resize(plotWidth, plotHeight);
+        }
       }
     });
     observer.observe(plotElement);
+  }
+  
+  // Lifecycle: Connect to CamillaDSP and start spectrum rendering
+  onMount(async () => {
+    // Initialize CamillaDSP client
+    dsp = new CamillaDSP();
+    
+    // Attempt connection with stored credentials
+    const server = localStorage.getItem('camillaDSP.server');
+    const controlPort = localStorage.getItem('camillaDSP.controlPort');
+    const spectrumPort = localStorage.getItem('camillaDSP.spectrumPort');
+    
+    if (server && controlPort && spectrumPort) {
+      const connected = await dsp.connect(
+        server,
+        Number(controlPort),
+        Number(spectrumPort)
+      );
+      
+      dspConnected = connected && dsp.spectrumConnected;
+      
+      if (dspConnected) {
+        console.log('CamillaDSP connected with spectrum support');
+      }
+    }
+    
+    // Initialize canvas renderer with spectrum area layer
+    if (canvasElement) {
+      spectrumAreaLayer = new SpectrumAreaLayer({ smooth: spectrumSmooth });
+      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [spectrumAreaLayer]);
+      spectrumRenderer.resize(plotWidth, plotHeight);
+    }
+  });
+  
+  // Reactive: Update layer smoothing when toggle changes
+  $: if (spectrumAreaLayer) {
+    spectrumAreaLayer.setSmooth(spectrumSmooth);
+  }
+  
+  onDestroy(() => {
+    // Clean up polling interval
+    if (spectrumPollingInterval !== null) {
+      clearInterval(spectrumPollingInterval);
+    }
+    
+    // Disconnect from DSP
+    if (dsp) {
+      dsp.disconnect();
+    }
+  });
+  
+  // Reactive: Start/stop spectrum polling based on mode
+  $: {
+    if (spectrumMode !== 'off' && dspConnected && !spectrumPollingInterval) {
+      // Start polling
+      spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
+      console.log('Spectrum polling started');
+    } else if (spectrumMode === 'off' && spectrumPollingInterval !== null) {
+      // Stop polling
+      clearInterval(spectrumPollingInterval);
+      spectrumPollingInterval = null;
+      
+      // Clear canvas
+      if (spectrumRenderer) {
+        spectrumRenderer.clear();
+      }
+      console.log('Spectrum polling stopped');
+    }
+  }
+  
+  // Poll spectrum data and render
+  async function pollSpectrum() {
+    if (!dsp || !spectrumRenderer) return;
+    
+    try {
+      const rawData = await dsp.getSpectrumData();
+      const spectrumData = parseSpectrumData(rawData);
+      
+      if (spectrumData) {
+        lastSpectrumFrame = Date.now();
+        spectrumRenderer.resetOpacity();
+        spectrumRenderer.render(spectrumData.bins, {
+          mode: spectrumMode as 'pre' | 'post',
+        });
+      }
+    } catch (error) {
+      console.error('Spectrum poll error:', error);
+    }
+    
+    // Check for stale data
+    const timeSinceLastFrame = Date.now() - lastSpectrumFrame;
+    if (timeSinceLastFrame > SPECTRUM_STALE_THRESHOLD && spectrumRenderer) {
+      spectrumRenderer.fadeOut(0.3);
+    }
   }
 
   // Coordinate mapping functions
@@ -300,6 +418,9 @@
       <!-- Zone 3: Main Graph Area (2 columns: plot + gain scale) -->
       <div class="eq-plot-area">
         <div class="eq-plot" bind:this={plotElement}>
+          <!-- Canvas spectrum layer (behind SVG) -->
+          <canvas class="spectrum-canvas" bind:this={canvasElement}></canvas>
+          
           <svg viewBox="0 0 1000 400" preserveAspectRatio="none">
           <!-- Grid: Horizontal lines -->
           <g class="grid-horizontal">
@@ -469,6 +590,12 @@
           <label>
             <input type="checkbox" bind:checked={showPerBandCurves} />
             Show per-band curves
+          </label>
+        </div>
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={spectrumSmooth} />
+            Smooth spectrum
           </label>
         </div>
       </div>
@@ -681,6 +808,19 @@
     width: 100%;
     height: 100%;
     display: block;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Spectrum canvas layer (behind SVG) */
+  .spectrum-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
   }
 
   /* Gain Scale Column (right side) */

@@ -110,21 +110,60 @@
   - Created `client/src/state/eqStore.test.ts` with 19 comprehensive unit tests
   - All tests passing: 34 server tests + 49 client tests (1 App + 5 EqPage + 9 CamillaDSP + 15 EqSvgRenderer + 19 eqStore)
 
+- [x] **MVP-7: Canvas Spectrum Renderer + Mode Toggles** (2026-01-24)
+  - **Pluggable layer architecture for extendable visualizations:**
+    - Created `client/src/ui/rendering/canvasLayers/CanvasVisualizationLayer.ts` interface
+    - Created `client/src/ui/rendering/canvasLayers/SpectrumAreaLayer.ts` for filled curve rendering
+    - Refactored `SpectrumCanvasRenderer` to orchestrate multiple layers
+  - **Filled spectrum curve with visible outline** (replaces vertical bars):
+    - Area fill with lower opacity (~15%)
+    - Outline stroke with higher opacity (~50-55%) for better visibility
+    - Distinct colors for Pre-EQ (blue) and Post-EQ (green) modes
+  - **Smoothing system:**
+    - Catmull-Rom spline interpolation for geometric smoothing
+    - Moving-average data filter to reduce bin-to-bin noise
+    - `smoothingStrength` parameter (default: 5, range: 1-20, not yet wired to GUI)
+    - UI toggle: "Smooth spectrum" checkbox in viz options
+  - **Canvas rendering engine:**
+    - High-frequency rendering (~10Hz, 100ms poll interval) with zero DOM churn
+    - DPR-aware canvas sizing for retina displays (proper backing store scaling)
+    - Fixed resize scaling accumulation bug (`ctx.setTransform()` reset)
+    - Fixed smooth fill path closure (proper bottom-left anchor)
+  - **Spectrum data processing:**
+    - Created `client/src/dsp/spectrumParser.ts` for spectrum data normalization
+    - Handles multiple formats: 256+ bins (real), 2 values (legacy per-channel peaks → fake spectrum)
+    - Utility functions: `dbToLinear()`, `decimateBins()` for decimation
+  - **Integration and testing:**
+    - Updated `server/src/services/mockCamillaDSP.ts` to generate realistic 256-bin spectrum
+    - Multi-band curve with time-based "breathing" animation
+    - Fixed port/localStorage mismatch (`controlPort` vs `port` backward compatibility)
+    - Integrated Canvas layer into EqPage with automatic CamillaDSP connection
+    - Mode buttons: Off / Pre-EQ / Post-EQ
+    - Stale frame detection with visual feedback (>500ms → fade to 30% opacity)
+    - Proper cleanup on component destruction
+  - **Test coverage:**
+    - Created `client/src/dsp/__tests__/spectrumParser.test.ts` with 19 unit tests
+    - Updated `client/src/lib/__tests__/camillaDSP.integration.test.ts` for 256-bin spectrum
+    - All tests passing: 34 server tests + 68 client tests
+  - **Documentation:**
+    - Updated README.md with filled curve visualization description and smoothing toggle
+    - Updated design-spec.md with pluggable layer architecture and smoothing requirements
+
 ## Current Status
-**Phase:** MVP-7 - Canvas Spectrum Renderer with Mode Toggles
-**State:** Ready to implement high-frequency spectrum rendering
+**Phase:** MVP-8 - Real CamillaDSP Integration + Upload Policy
+**State:** Ready to implement debounced config uploads and full protocol integration
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-### MVP-7: Canvas Spectrum Renderer with Mode Toggles
-- [ ] Create Canvas rendering layer (10Hz update loop)
-- [ ] Implement spectrum data parsing from WebSocket
-- [ ] Add spectrum bar rendering (vertical bars)
-- [ ] Implement mode toggles (off, pre-EQ, post-EQ)
-- [ ] Add freeze/fade behavior when frames stall
-- [ ] Write performance tests for frame rate
+### MVP-7: Canvas Spectrum Renderer with Mode Toggles ✓
+- [x] Create Canvas rendering layer (10Hz update loop)
+- [x] Implement spectrum data parsing from WebSocket
+- [x] Add spectrum bar rendering (vertical bars)
+- [x] Implement mode toggles (off, pre-EQ, post-EQ)
+- [x] Add freeze/fade behavior when frames stall
+- [x] Write comprehensive unit tests (19 spectrum parser tests)
 
 ### MVP-8: Real CamillaDSP Integration + Upload Policy
 - [ ] Implement full protocol per API contract
