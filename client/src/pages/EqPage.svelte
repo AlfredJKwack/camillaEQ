@@ -1,26 +1,31 @@
 <script lang="ts">
   import FilterIcon from '../components/icons/FilterIcons.svelte';
   import KnobDial from '../components/KnobDial.svelte';
-  import type { EqBand } from '../dsp/filterResponse';
-  import { generateCurvePath, generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
-
-  // Reference config: Tangzu Waner (10 peaking filters)
-  // Note: EQ graph shows filter bank response only (excludes preamp/output gain)
-  const bands: EqBand[] = [
-    { enabled: true, type: 'Peaking', freq: 24, gain: 1.2, q: 0.5 },
-    { enabled: true, type: 'Peaking', freq: 170, gain: -2.9, q: 0.5 },
-    { enabled: true, type: 'Peaking', freq: 880, gain: 1, q: 1 },
-    { enabled: true, type: 'Peaking', freq: 1400, gain: -1.5, q: 2 },
-    { enabled: true, type: 'Peaking', freq: 2000, gain: -2.8, q: 1.5 },
-    { enabled: true, type: 'Peaking', freq: 5200, gain: -1.8, q: 2 },
-    { enabled: true, type: 'Peaking', freq: 6500, gain: 5.4, q: 0.6 },
-    { enabled: true, type: 'Peaking', freq: 6600, gain: 4.1, q: 2 },
-    { enabled: true, type: 'Peaking', freq: 8200, gain: -8.1, q: 2 },
-    { enabled: true, type: 'Peaking', freq: 10000, gain: 7.6, q: 2 },
-  ];
+  import {
+    bands,
+    selectedBandIndex,
+    sumCurvePath,
+    perBandCurvePaths,
+    setBandFreq,
+    setBandGain,
+    setBandQ,
+    toggleBandEnabled,
+    selectBand,
+  } from '../state/eqStore';
 
   let showPerBandCurves = false;
   let spectrumMode = 'off'; // 'off' | 'pre' | 'post'
+  
+  // Token drag state
+  let dragState: {
+    bandIndex: number;
+    startX: number;
+    startY: number;
+    startFreq: number;
+    startGain: number;
+    startQ: number;
+    shiftKey: boolean;
+  } | null = null;
   
   // Plot dimensions for responsive tokens
   let plotWidth = 1000;
@@ -38,27 +43,139 @@
     observer.observe(plotElement);
   }
 
-  // Generate EQ curve paths (reactive to bands changes)
-  $: sumCurvePath = generateCurvePath(bands, {
-    width: 1000,
-    height: 400,
-    numPoints: 256,
-  });
-
-  $: perBandCurvePaths = bands.map((band) =>
-    generateBandCurvePath(band, {
-      width: 1000,
-      height: 400,
-      numPoints: 128,
-    })
-  );
-
+  // Coordinate mapping functions
+  
   // Base-10 logarithmic frequency mapping (per spec)
   function freqToX(freq: number, width: number): number {
     const fMin = 20;
     const fMax = 20000;
     const xNorm = (Math.log10(freq) - Math.log10(fMin)) / (Math.log10(fMax) - Math.log10(fMin));
     return xNorm * width;
+  }
+
+  // Inverse: X coordinate to frequency
+  function xToFreq(x: number, width: number): number {
+    const fMin = 20;
+    const fMax = 20000;
+    const xNorm = x / width;
+    const logFreq = xNorm * (Math.log10(fMax) - Math.log10(fMin)) + Math.log10(fMin);
+    return Math.pow(10, logFreq);
+  }
+
+  // Gain to Y coordinate (linear, inverted for SVG)
+  function gainToY(gain: number): number {
+    const gainRange = 48; // -24 to +24
+    return 200 - (gain / gainRange) * 400;
+  }
+
+  // Inverse: Y coordinate to gain
+  function yToGain(y: number): number {
+    const gainRange = 48;
+    return (200 - y) / 400 * gainRange;
+  }
+
+  // Token interaction handlers
+  function handleTokenPointerDown(event: PointerEvent, bandIndex: number) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const target = event.currentTarget as SVGElement;
+    target.setPointerCapture(event.pointerId);
+    
+    const band = $bands[bandIndex];
+    dragState = {
+      bandIndex,
+      startX: event.clientX,
+      startY: event.clientY,
+      startFreq: band.freq,
+      startGain: band.gain,
+      startQ: band.q,
+      shiftKey: event.shiftKey,
+    };
+    
+    selectBand(bandIndex);
+  }
+
+  function handleTokenPointerMove(event: PointerEvent) {
+    if (!dragState || !plotElement) return;
+    
+    const rect = plotElement.getBoundingClientRect();
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    
+    if (event.shiftKey) {
+      // Shift + drag Y = adjust Q
+      const qSensitivity = 0.01; // Q units per pixel
+      const newQ = dragState.startQ - deltaY * qSensitivity;
+      setBandQ(dragState.bandIndex, newQ);
+    } else {
+      // Normal drag: X = freq, Y = gain
+      const pixelToViewBoxX = 1000 / rect.width;
+      const pixelToViewBoxY = 400 / rect.height;
+      
+      const deltaViewBoxX = deltaX * pixelToViewBoxX;
+      const deltaViewBoxY = deltaY * pixelToViewBoxY;
+      
+      const currentX = freqToX(dragState.startFreq, 1000);
+      const newX = currentX + deltaViewBoxX;
+      const newFreq = xToFreq(newX, 1000);
+      
+      const currentY = gainToY(dragState.startGain);
+      const newY = currentY + deltaViewBoxY;
+      const newGain = yToGain(newY);
+      
+      setBandFreq(dragState.bandIndex, newFreq);
+      setBandGain(dragState.bandIndex, newGain);
+    }
+  }
+
+  function handleTokenPointerUp(event: PointerEvent) {
+    if (!dragState) return;
+    
+    const target = event.currentTarget as SVGElement;
+    target.releasePointerCapture(event.pointerId);
+    dragState = null;
+  }
+
+  function handleTokenWheel(event: WheelEvent, bandIndex: number) {
+    event.preventDefault();
+    
+    const band = $bands[bandIndex];
+    const delta = event.deltaY > 0 ? -0.1 : 0.1; // Wheel up = increase Q
+    setBandQ(bandIndex, band.q + delta);
+  }
+
+  // Fader interaction
+  function handleFaderPointerDown(event: PointerEvent, bandIndex: number) {
+    event.preventDefault();
+    event.stopPropagation(); // Prevent band selection from triggering
+    
+    // Get the track (parent of thumb)
+    const thumb = event.currentTarget as HTMLElement;
+    const track = thumb.closest('.fader-track') as HTMLElement;
+    if (!track) return;
+    
+    const rect = track.getBoundingClientRect();
+    
+    const updateGainFromPointer = (clientY: number) => {
+      const relY = (clientY - rect.top) / rect.height;
+      const gain = 24 - relY * 48; // Fader: top = +24, bottom = -24
+      setBandGain(bandIndex, gain);
+    };
+    
+    updateGainFromPointer(event.clientY);
+    
+    const onMove = (e: PointerEvent) => {
+      updateGainFromPointer(e.clientY);
+    };
+    
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
   // Calculate octave column widths (musical C starting frequencies)
@@ -247,7 +364,7 @@
           <!-- Curves: Per-band (optional) -->
           {#if showPerBandCurves}
             <g class="curves-per-band">
-              {#each perBandCurvePaths as path, i}
+              {#each $perBandCurvePaths as path, i}
                 <path
                   d={path}
                   fill="none"
@@ -263,7 +380,7 @@
           <!-- Curves: Sum curve -->
           <g class="curves-sum">
             <path
-              d={sumCurvePath}
+              d={$sumCurvePath}
               fill="none"
               stroke="var(--sum-curve)"
               stroke-width="2.25"
@@ -273,19 +390,25 @@
 
           <!-- Tokens (band handles) - compensated ellipses to remain circular when stretched -->
           <g class="tokens">
-            {#each bands as band, i}
+            {#each $bands as band, i}
               {@const sx = plotWidth / 1000}
               {@const sy = plotHeight / 400}
               {@const r = 8}
               <ellipse
                 cx={freqToX(band.freq, 1000)}
-                cy={200 - (band.gain / (GAIN_MAX - GAIN_MIN)) * 400}
+                cy={gainToY(band.gain)}
                 rx={r / sx}
                 ry={r / sy}
                 fill="var(--ui-panel)"
                 stroke="var(--band-{(i % 10) + 1})"
-                stroke-width="2"
+                stroke-width={$selectedBandIndex === i ? '3.5' : '2'}
                 class="band-token"
+                data-band-index={i}
+                data-selected={$selectedBandIndex === i}
+                on:pointerdown={(e) => handleTokenPointerDown(e, i)}
+                on:pointermove={handleTokenPointerMove}
+                on:pointerup={handleTokenPointerUp}
+                on:wheel={(e) => handleTokenWheel(e, i)}
               />
             {/each}
           </g>
@@ -328,25 +451,28 @@
     </div>
 
     <!-- Visualization Options Bar -->
-    <div class="viz-options">
-      <div class="option-group">
-        <label>Spectrum:</label>
-        <button class:active={spectrumMode === 'off'} on:click={() => (spectrumMode = 'off')}>
-          Off
-        </button>
-        <button class:active={spectrumMode === 'pre'} on:click={() => (spectrumMode = 'pre')}>
-          Pre-EQ
-        </button>
-        <button class:active={spectrumMode === 'post'} on:click={() => (spectrumMode = 'post')}>
-          Post-EQ
-        </button>
+    <div class="viz-options-area">
+      <div class="viz-options">
+        <div class="option-group">
+          <label>Spectrum:</label>
+          <button class:active={spectrumMode === 'off'} on:click={() => (spectrumMode = 'off')}>
+            Off
+          </button>
+          <button class:active={spectrumMode === 'pre'} on:click={() => (spectrumMode = 'pre')}>
+            Pre-EQ
+          </button>
+          <button class:active={spectrumMode === 'post'} on:click={() => (spectrumMode = 'post')}>
+            Post-EQ
+          </button>
+        </div>
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={showPerBandCurves} />
+            Show per-band curves
+          </label>
+        </div>
       </div>
-      <div class="option-group">
-        <label>
-          <input type="checkbox" bind:checked={showPerBandCurves} />
-          Show per-band curves
-        </label>
-      </div>
+      <div class="viz-options-spacer"></div>
     </div>
   </div>
 
@@ -381,9 +507,15 @@
     </div>
     
     <!-- Band columns -->
-    {#each bands as band, i}
-      <div class="band-column band" style="--band-color: var(--band-{(i % 10) + 1});" data-enabled={band.enabled}>
-        <div class="filter-type-icon" title="Band {i + 1} — {band.type}">
+    {#each $bands as band, i}
+      <div 
+        class="band-column band" 
+        style="--band-color: var(--band-{(i % 10) + 1});" 
+        data-enabled={band.enabled}
+        data-selected={$selectedBandIndex === i}
+        on:pointerdown|capture={() => selectBand(i)}
+      >
+        <div class="filter-type-icon" title="Band {i + 1} — {band.type}" on:click={() => selectBand(i)}>
           <FilterIcon type={band.type} />
         </div>
 
@@ -395,22 +527,38 @@
           <div class="fader-track">
             <div
               class="fader-thumb"
-              style="bottom: {((band.gain + 12) / 24) * 100}%;"
+              style="bottom: {((band.gain + 24) / 48) * 100}%;"
+              on:pointerdown={(e) => handleFaderPointerDown(e, i)}
             ></div>
           </div>
           <span class="fader-value">{band.gain > 0 ? '+' : ''}{band.gain.toFixed(1)} dB</span>
         </div>
 
-        <button class="mute-btn" class:muted={!band.enabled} title={band.enabled ? 'Mute' : 'Unmute'}>
+        <button 
+          class="mute-btn" 
+          class:muted={!band.enabled} 
+          title={band.enabled ? 'Mute' : 'Unmute'}
+          on:click={() => toggleBandEnabled(i)}
+        >
           <span class="mute-indicator"></span>
         </button>
 
         <div class="knob-wrapper">
-          <KnobDial value={band.freq} mode="frequency" size={19} />
+          <KnobDial 
+            value={band.freq} 
+            mode="frequency" 
+            size={19} 
+            on:change={(e) => setBandFreq(i, e.detail.value)}
+          />
         </div>
 
         <div class="knob-wrapper">
-          <KnobDial value={band.q} mode="q" size={19} />
+          <KnobDial 
+            value={band.q} 
+            mode="q" 
+            size={19}
+            on:change={(e) => setBandQ(i, e.detail.value)}
+          />
         </div>
       </div>
     {/each}
@@ -591,12 +739,26 @@
 
   /* Band tokens */
   .band-token {
-    cursor: pointer;
-    transition: all 0.15s ease;
+    cursor: grab;
+    transition: stroke-width 0.15s ease;
+    touch-action: none;
   }
 
   .band-token:hover {
     stroke-width: 3;
+  }
+
+  .band-token:active {
+    cursor: grabbing;
+  }
+
+  .band-token[data-selected='true'] {
+    filter: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
+  }
+
+  .viz-options-area {
+    display: grid;
+    grid-template-columns: 1fr 32px; /* Matches .eq-plot-area and .eq-freqscale-area */
   }
 
   .viz-options {
@@ -606,6 +768,10 @@
     background: var(--ui-panel);
     border: 1px solid var(--ui-border);
     border-radius: 4px;
+  }
+
+  .viz-options-spacer {
+    /* Empty gutter column to align with plot area */
   }
 
   .option-group {
@@ -659,13 +825,20 @@
     justify-items: center;
     /* padding: 0.5rem 0.375rem; */
     max-width: 80px;
-    background: var(--ui-panel);
-    border: 1px solid var(--ui-border);
+    /* background: var(--ui-panel); */
+    /* border: 1px solid var(--ui-border); */
     border-radius: 8px;
+    border: 1px solid transparent; /* modified through .band-column[data-selected='true'] */
   }
 
   .band-column[data-enabled='false'] {
     opacity: 0.5;
+  }
+
+  .band-column[data-selected='true'] {
+    border-color: color-mix(in oklab, var(--band-color) 44%, var(--ui-border));
+    background: color-mix(in oklab, var(--band-color) 2%, var(--ui-panel));
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--band-color) 7%, transparent);
   }
 
   .master-band {
@@ -709,10 +882,12 @@
 
   .fader-track {
     position: relative;
-    width: 4px;
+    width: 24px;
     flex: 1;
-    background: var(--ui-border);
+    /* background: var(--ui-border); */
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 2px;
+    touch-action: none;
   }
 
   .fader-thumb {
@@ -724,7 +899,12 @@
     background: var(--band-ink);
     border: 2px solid var(--band-outline);
     border-radius: 50%;
-    cursor: pointer;
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .fader-thumb:active {
+    cursor: grabbing;
   }
 
   .fader-value {

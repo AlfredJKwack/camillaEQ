@@ -1,7 +1,16 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+
   export let value: number; // frequency (20-20000) or Q (0.1-10)
   export let mode: 'frequency' | 'q' = 'frequency';
   export let size: number = 32; // knob diameter in px
+
+  const dispatch = createEventDispatcher<{ change: { value: number } }>();
+
+  // Drag state
+  let isDragging = false;
+  let startY = 0;
+  let startValue = 0;
 
   // Mapping functions
   function mapLog(value: number, inMin: number, inMax: number, outMin: number, outMax: number): number {
@@ -61,9 +70,58 @@
   })();
 
   $: viewBoxSize = size + 12;
+
+  // Interaction handlers
+  function handlePointerDown(event: PointerEvent) {
+    event.preventDefault();
+    const target = event.currentTarget as SVGElement;
+    target.setPointerCapture(event.pointerId);
+    
+    isDragging = true;
+    startY = event.clientY;
+    startValue = value;
+  }
+
+  function handlePointerMove(event: PointerEvent) {
+    if (!isDragging) return;
+
+    const deltaY = startY - event.clientY; // Inverted: up = increase
+    const sensitivity = event.shiftKey ? 0.2 : 1.0; // Shift = fine adjustment
+
+    let newValue: number;
+    if (mode === 'frequency') {
+      // Frequency: logarithmic adjustment
+      // Use multiplicative factor based on pixel movement
+      const factor = Math.pow(1.01, deltaY * sensitivity);
+      newValue = startValue * factor;
+    } else {
+      // Q: linear adjustment
+      const step = event.shiftKey ? 0.01 : 0.05;
+      newValue = startValue + (deltaY * step);
+    }
+
+    dispatch('change', { value: newValue });
+  }
+
+  function handlePointerUp(event: PointerEvent) {
+    if (!isDragging) return;
+    
+    const target = event.currentTarget as SVGElement;
+    target.releasePointerCapture(event.pointerId);
+    isDragging = false;
+  }
 </script>
 
-<svg class="knob-dial" viewBox="0 0 {viewBoxSize} {viewBoxSize}" width={viewBoxSize} height={viewBoxSize}>
+<svg 
+  class="knob-dial" 
+  class:dragging={isDragging}
+  viewBox="0 0 {viewBoxSize} {viewBoxSize}" 
+  width={viewBoxSize} 
+  height={viewBoxSize}
+  on:pointerdown={handlePointerDown}
+  on:pointermove={handlePointerMove}
+  on:pointerup={handlePointerUp}
+>
   <!-- Knob body (neutral) -->
   <circle
     cx={size / 2 + 6}
@@ -83,6 +141,13 @@
 <style>
   .knob-dial {
     display: block;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .knob-dial.dragging {
+    cursor: ns-resize;
   }
 
   :global(.knob-body) {
@@ -96,6 +161,11 @@
     stroke-linecap: butt;
     fill: none;
     opacity: 0.95;
+    transition: opacity 0.15s ease;
+  }
+
+  .knob-dial:hover :global(.knob-arc) {
+    opacity: 1;
   }
 
   :global(.band[data-enabled='false'] .knob-arc) {

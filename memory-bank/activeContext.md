@@ -1,52 +1,49 @@
 # Active Context
 
 ## Current Focus
-**MVP-0 through MVP-5 complete** - Backend + WebSocket client + EQ layout + curve rendering all implemented. Ready for user interaction.
+**MVP-0 through MVP-6 complete** - Full interactive EQ editor with bidirectional sync implemented and tested.
 
 ## Current Milestone
-**MVP-6: Interactive Tokens + Bidirectional Sync**
+**MVP-7: Canvas Spectrum Renderer with Mode Toggles**
 
-Implement drag interaction and synchronization between tokens, faders, and dials.
+Implement high-frequency spectrum visualization with Canvas rendering.
 
 ## Immediate Next Steps
 
-### 1. Implement State Management
-- Create `client/src/state/eqStore.ts` or use Svelte stores
-- Single source of truth for band parameters (freq, gain, q, enabled, type)
-- Derived values: token positions, curve paths
-- Updates propagate to all UI elements reactively
+### 1. Create Canvas Rendering Module
+- Create `client/src/ui/rendering/SpectrumCanvasRenderer.ts`
+- `init(canvas, width, height)` - Set up 2D context
+- `render(spectrumData, mode)` - Draw vertical bars
+- `clear()` - Clear canvas
+- Use `requestAnimationFrame` for smooth 10Hz updates
 
-### 2. Make Tokens Interactive
-- Add drag handlers to band tokens in EqPage
-- Mouse down → capture initial position and band index
-- Mouse move → calculate new freq/gain from coordinates (inverse of `freqToX`/`gainToY`)
-- Constrain to graph bounds (20-20000 Hz, ±24 dB)
-- Mouse up → commit changes to store
-- Update cursor styles (grab/grabbing)
+### 2. Implement Spectrum Data Parsing
+- Create `client/src/dsp/spectrumParser.ts`
+- Parse WebSocket spectrum frames from mockCamillaDSP
+- Normalize magnitude values to dB scale
+- Bin frequencies to match graph's log scale
 
-### 3. Make Right Panel Controls Functional
-- **Gain fader:** Click/drag to adjust, update store on change
-- **Mute button:** Toggle band enabled state
-- **Frequency dial:** Update on interaction (KnobDial already exists)
-- **Q dial:** Update on interaction
-- All controls read from and write to shared store
+### 3. Integrate Canvas Layer in EqPage
+- Position canvas behind SVG layer (z-index)
+- Overlay on EQ graph without blocking interactions
+- Connect to mock WebSocket spectrum data stream
+- Handle resize events (ResizeObserver)
 
-### 4. Implement Bidirectional Sync
-- Token drag → store update → right panel reflects change
-- Right panel change → store update → token moves, curve updates
-- Mute → band excluded from sum curve
-- Ensure no circular update loops
+### 4. Implement Mode Toggles
+- Wire up existing spectrum mode buttons (off/pre/post)
+- Store mode in eqStore or local component state
+- Change bar color based on mode (pre = blue, post = green)
+- Hide/show canvas based on "off" state
 
-### 5. Add Q Adjustment via Mouse Wheel
-- Wheel event on token → adjust Q parameter
-- Up = increase Q (narrower band)
-- Down = decrease Q (wider band)
-- Constrain to reasonable Q range (0.1 - 10?)
+### 5. Add Freeze/Fade Behavior
+- Track last frame timestamp
+- If >500ms elapsed, fade out or show "stale" indicator
+- Optional: Display dropped frame counter (debug mode)
 
-### 6. Unit Tests
-- Parameter clamping (freq, gain, Q within bounds)
-- Coordinate-to-parameter conversion (inverse mapping)
-- Store updates propagate correctly
+### 6. Performance Testing
+- Measure frame rate under continuous updates
+- Verify 10Hz target on low-power hardware simulation
+- Check CPU usage doesn't interfere with UI responsiveness
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)
@@ -57,22 +54,21 @@ Implement drag interaction and synchronization between tokens, faders, and dials
 - ✅ **EQ graph semantics:** Filter bank response only (excludes preamp/output gain)
 
 ## Open Questions
-- **State management:** Use simple Svelte stores or create custom store with validation?
-- **Drag constraints:** Should freq/gain snap to grid or be continuous?
-- **Q range:** What are sensible min/max Q values for user adjustment?
+- **Spectrum data format:** Binary vs JSON for spectrum frames?
+- **Canvas resolution:** Match CSS pixels or use higher DPR for retina displays?
+- **Frame dropping strategy:** Skip frames or queue/interpolate?
 
 ## Current Risks
-- **Interaction performance** - Need to ensure drag updates don't cause lag with curve recalculation
+- **Canvas performance** - 10Hz updates with full redraw may impact low-power devices
 
 ## Risk Mitigation Strategy (per implementation plan)
-- **MVP-6 (current):** Prove bidirectional sync and interaction performance before real WS uploads
-- **MVP-7:** Validate Canvas performance in isolation
+- **MVP-7 (current):** Validate Canvas performance in isolation before adding complexity
 - **MVP-8:** Add upload debouncing to avoid overwhelming CamillaDSP with rapid updates
+- **MVP-9:** Prove full persistence roundtrip before considering production-ready
 
-## Next Milestones (after MVP-6)
-1. **MVP-7:** Canvas spectrum renderer with mode toggles (pre/post/off)
-2. **MVP-8:** Real CamillaDSP integration + upload policy
-3. **MVP-9:** Config persistence roundtrip
+## Next Milestones (after MVP-7)
+1. **MVP-8:** Real CamillaDSP integration + upload policy (debounced config uploads)
+2. **MVP-9:** Config persistence roundtrip (load/save via backend)
 
 ## Context References
 - **`docs/implementation-plan.md`** - Sequential MVP roadmap (NEW - authoritative)

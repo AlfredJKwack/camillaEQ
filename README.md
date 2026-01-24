@@ -98,43 +98,53 @@ npm test
 
 ## Project Status
 
-**Current Milestone:** MVP-3 Complete ✓
+**Current Milestone:** MVP-6 Complete ✓ — Full interactive EQ editor operational
 
-### MVP-0: Repo + Dev Environment (Complete)
-- [x] Monorepo structure established
-- [x] Server scaffolding (Fastify + Pino logging)
-- [x] Client scaffolding (Svelte + Vite)
-- [x] Development workflow operational
-- [x] Build pipeline functional
+### Completed Milestones
 
-### MVP-1: Backend REST Foundation + Hardening (Complete)
-- [x] Structured JSON error responses with error codes
-- [x] 404 handler with proper error structure
-- [x] Request logging with correlation IDs
-- [x] `shellExec` utility with timeout, output limits, and command whitelist
-- [x] Route tests using `fastify.inject()`
-- [x] Unit tests for `shellExec` with full coverage
-- [x] Fixed Vite proxy to use IPv4 (`127.0.0.1:3000`)
+#### MVP-0: Repo + Dev Environment ✓
+Monorepo structure, Fastify backend, Svelte frontend, dev workflow, build pipeline
 
-### MVP-2: Config Persistence API (Complete)
-- [x] ConfigStore service with atomic write operations
-- [x] GET /api/config endpoint (read config from disk)
-- [x] PUT /api/config endpoint (save config to disk)
-- [x] Config-specific error codes (NOT_FOUND, INVALID_JSON, TOO_LARGE, WRITE_FAILED)
-- [x] Comprehensive test coverage (21 new tests)
-- [x] Atomic write behavior verified (no partial files on interruption)
+#### MVP-1: Backend REST Foundation + Hardening ✓
+Structured error responses, request logging with correlation IDs, `shellExec` utility, comprehensive test coverage
 
-### MVP-3: Client CamillaDSP Module (Complete)
-- [x] CamillaDSP client module (`client/src/lib/camillaDSP.ts`)
-- [x] Dual WebSocket connections (control + spectrum)
-- [x] Config I/O: download, upload, validation
-- [x] Spectrum data retrieval
-- [x] Mock WebSocket server for testing (`server/src/services/mockCamillaDSP.ts`)
-- [x] 9 integration tests with clean output
-- [x] Memory leak fix: event listeners properly removed
-- [x] Compliant with API contract (`docs/api-contract-camillaDSP.md`)
+#### MVP-2: Config Persistence API ✓
+ConfigStore service with atomic writes, GET/PUT endpoints, config validation, error handling
 
-**Next Milestone:** MVP-4 - EQ Editor Layout (Static) + Band Theming Contract
+#### MVP-3: Client CamillaDSP Module ✓
+WebSocket client for CamillaDSP control + spectrum, mock server for testing, 9 integration tests
+
+#### MVP-4: EQ Editor Layout (Static) + Band Theming ✓
+4-zone EQ graph layout (octaves, regions, plot, frequency scale), log10 frequency mapping, decade-based grid, band tokens with compensated ellipses, right panel with band columns, band theming contract with CSS custom properties
+
+#### MVP-5: SVG EQ Curve Rendering (Sum + Per-Band) ✓
+RBJ biquad filter response calculation, `EqSvgRenderer` module, reactive curve generation (256 sample points), sum curve + optional per-band curves, Tangzu Waner reference config (10 bands)
+
+#### MVP-6: Interactive Tokens + Bidirectional Sync ✓
+**Fully functional EQ editor with:**
+- State management via Svelte stores (`eqStore.ts`)
+- Interactive drag on tokens (freq/gain/Q adjustment)
+- Functional right panel controls (fader, mute, frequency/Q dials)
+- Bidirectional synchronization (token ↔ controls ↔ curves)
+- Band selection sync across all UI elements
+- Layout refinements (viz options alignment, selection styling)
+- 49 client tests passing (5 test suites)
+
+### Current Capabilities
+
+The application now provides a **fully interactive equalizer editor** with:
+- Real-time EQ curve visualization (sum + per-band)
+- Drag tokens to adjust frequency and gain
+- Shift+drag or mouse wheel to adjust Q/bandwidth
+- Right panel controls (faders, mute buttons, parameter dials)
+- Live curve updates as parameters change
+- Band selection and visual feedback
+- Log-scale frequency axis (20 Hz - 20 kHz)
+- Linear gain axis (±24 dB)
+
+### Next Milestone
+
+**MVP-7:** Canvas Spectrum Renderer with Mode Toggles (Pre/Post/Off)
 
 ## Documentation
 

@@ -82,28 +82,41 @@
   - Created `client/src/ui/rendering/EqSvgRenderer.test.ts` with 15 comprehensive tests
   - All tests passing: 34 server tests + 30 client tests (1 App + 5 EqPage + 9 CamillaDSP + 15 EqSvgRenderer)
 
+- [x] **MVP-6: Interactive Tokens + Bidirectional Sync** (2026-01-24)
+  - Created `client/src/state/eqStore.ts` with Svelte stores for reactive band parameters
+  - State management: writable stores for bands, derived stores for curves/positions/selection
+  - Action functions: `setBandFreq()`, `setBandGain()`, `setBandQ()`, `toggleBandEnabled()`, `selectBand()`
+  - Automatic curve regeneration on parameter changes
+  - Interactive token drag handlers integrated in EqPage:
+    - Horizontal drag → adjust frequency (log scale with `xToFreq()`)
+    - Vertical drag → adjust gain (linear scale with `yToGain()`)
+    - Shift + drag → adjust Q/bandwidth
+    - Mouse wheel on token → adjust Q
+  - Pointer capture for smooth dragging outside element bounds
+  - Functional right panel controls:
+    - Gain fader with draggable thumb (only thumb interactive, track is not)
+    - Mute button toggles band enabled state
+    - KnobDial components for frequency and Q (19px, mode-specific)
+    - Filter type icon (clickable, selects band)
+  - Bidirectional synchronization proven:
+    - Token drag → eqStore → right panel updates
+    - Right panel change → eqStore → token moves + curve updates
+    - Mute toggle → band excluded from sum curve
+    - Band selection syncs across all UI elements
+  - Selection UX: Any interaction in band column selects it (capture phase handler)
+  - Layout refinements:
+    - Viz options area uses 2-column grid (32px gutter matches plot)
+    - Band column selection styling (transparent base border, colored when selected)
+  - Created `client/src/state/eqStore.test.ts` with 19 comprehensive unit tests
+  - All tests passing: 34 server tests + 49 client tests (1 App + 5 EqPage + 9 CamillaDSP + 15 EqSvgRenderer + 19 eqStore)
+
 ## Current Status
-**Phase:** MVP-6 - Interactive Tokens + Bidirectional Sync
-**State:** Ready to implement drag interaction and state synchronization
+**Phase:** MVP-7 - Canvas Spectrum Renderer with Mode Toggles
+**State:** Ready to implement high-frequency spectrum rendering
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
-
-### MVP-5: SVG EQ Curve Rendering (Sum + Per-Band)
-- [ ] Create curve rendering module (path generation, scaling)
-- [ ] Implement DSP math for filter frequency response
-- [ ] Render sum curve (white, thick) and per-band curves (tinted, thin)
-- [ ] Add toggle for per-band curve visibility
-- [ ] Write unit tests for scaling and path generation
-
-### MVP-6: Interactive Tokens + Bidirectional Sync
-- [ ] Render band tokens (SVG circles, up to 20)
-- [ ] Implement drag interaction (freq/gain) with constraints
-- [ ] Add mouse-wheel handler for Q/bandwidth
-- [ ] Create functional right panel controls (fader, mute, inputs)
-- [ ] Implement state management (single source of truth)
-- [ ] Write E2E tests for bidirectional sync
 
 ### MVP-7: Canvas Spectrum Renderer with Mode Toggles
 - [ ] Create Canvas rendering layer (10Hz update loop)
