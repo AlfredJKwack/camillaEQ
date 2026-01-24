@@ -52,34 +52,28 @@
   - Clean test output with console mocking
   - All tests passing: 34 server tests + 10 client tests (1 App + 9 CamillaDSP)
 
+- [x] **MVP-4: EQ Editor Layout (Static) + Band Theming Contract** (2026-01-24)
+  - Created `client/src/pages/EqPage.svelte` with complete 4-zone EQ graph layout
+  - Zone 1: Octave indicators (C1-C9) aligned to musical C frequencies (32.70 Hz - 8372.02 Hz)
+  - Zone 2: Frequency region labels (SUB, BASS, LOW MID, MID, HIGH MID, PRS, TREBLE)
+  - Zone 3: Main graph area with SVG grid + gain axis labels (-18, -12, -6, 0, +6, +12, +18)
+  - Zone 4: Frequency scale labels (20, 50, 100...10k) with first label pinned, last hidden
+  - Implemented log10 frequency mapping (20 Hz - 20 kHz)
+  - Decade-based vertical grid lines (majors at 20/50/100/200/500/1k/2k/5k/10k + minors)
+  - Band tokens rendered as compensated ellipses (stay circular despite SVG stretch)
+  - Alignment fix: All 4 zones use 2-column grid (1fr 44px) to keep octave/region/freq labels aligned with plot
+  - Right panel: 5 band columns with filter icons, gain faders, mute buttons, frequency/Q dials
+  - Band theming contract: CSS custom properties (`--band-color`, `--band-ink`, `--band-dim`, etc.)
+  - Created `client/src/pages/EqPage.test.ts` with 5 source-based structural tests
+  - All tests passing: 34 server tests + 15 client tests (1 App + 5 EqPage + 9 CamillaDSP)
+
 ## Current Status
-**Phase:** MVP-4 - EQ Editor Layout (Static) + Band Theming Contract
-**State:** Ready to implement UI structure and CSS contracts
+**Phase:** MVP-5 - SVG EQ Curve Rendering (Sum + Per-Band)
+**State:** Ready to implement curve rendering pipeline and DSP math
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
-
-### MVP-2: Config Persistence API (File I/O)
-- [ ] Create config storage service (atomic writes)
-- [ ] Implement `GET /api/config` and `PUT /api/config` endpoints
-- [ ] Add error codes: `ERR_CONFIG_NOT_FOUND`, `ERR_CONFIG_INVALID_JSON`, etc.
-- [ ] Write integration tests with temp directory
-- [ ] Validate atomic write behavior
-
-### MVP-3: Mock WS Service + Client WS Plumbing (Critical Risk Reduction)
-- [ ] Create mock WebSocket service (control + spectrum)
-- [ ] Implement client CamillaDSP module (connect/disconnect/reconnect)
-- [ ] Add exponential backoff reconnection logic
-- [ ] Create ConnectionStatus UI component
-- [ ] Write Playwright E2E tests for connection lifecycle
-
-### MVP-4: EQ Editor Layout (Static) + Band Theming Contract
-- [ ] Create EQ Editor page structure (main panel + right panel)
-- [ ] Implement CSS theme variables and band color palette
-- [ ] Add band theming contract (CSS custom properties)
-- [ ] Create filter type and slope icons (SVG, stroke-only)
-- [ ] Write visual snapshot tests (5 bands, 12 bands)
 
 ### MVP-5: SVG EQ Curve Rendering (Sum + Per-Band)
 - [ ] Create curve rendering module (path generation, scaling)

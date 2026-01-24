@@ -1,0 +1,80 @@
+/**
+ * Global theme variables and base styles
+ * Per design-spec.md Style Guide
+ */
+
+:root {
+  /* Core dark theme */
+  --ui-bg: #0b0d10;
+  --ui-panel: #10141a;
+  --ui-panel-2: #25303f;
+  --ui-border: rgba(255, 255, 255, 0.08);
+
+  /* Text */
+  --ui-text: rgba(255, 255, 255, 0.88);
+  --ui-text-muted: rgba(255, 255, 255, 0.62);
+  --ui-text-dim: rgba(255, 255, 255, 0.38);
+
+  /* Graph */
+  --grid-line: rgba(255, 255, 255, 0.06);
+  --grid-line-major: rgba(255, 255, 255, 0.1);
+  --zero-line: rgba(255, 255, 255, 0.22);
+
+  /* Combined EQ curve */
+  --sum-curve: rgba(255, 255, 255, 0.92);
+
+  /* Analyzer (independent, muted) */
+  --analyzer-pre: rgba(120, 160, 255, 0.18);
+  --analyzer-post: rgba(120, 255, 190, 0.16);
+
+  /* Focus */
+  --focus-ring: rgba(255, 255, 255, 0.25);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* Band color palette (comfortable for 10) */
+  --band-1: hsl(205 90% 62%);
+  --band-2: hsl(45 95% 58%);
+  --band-3: hsl(140 70% 55%);
+  --band-4: hsl(285 80% 65%);
+  --band-5: hsl(18 90% 60%);
+  --band-6: hsl(190 85% 55%);
+  --band-7: hsl(330 80% 66%);
+  --band-8: hsl(95 70% 55%);
+  --band-9: hsl(260 85% 68%);
+  --band-10: hsl(0 0% 72%); /* reserved: use only if needed */
+}
+
+/* Base reset and styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Band theming contract */
+.band {
+  --band-color: var(--band-1); /* overridden per band */
+  --band-ink: color-mix(in oklab, var(--band-color) 70%, white 30%);
+  --band-dim: color-mix(in oklab, var(--band-color) 35%, transparent 65%);
+  --band-muted: color-mix(in oklab, var(--band-color) 18%, transparent 82%);
+  --band-outline: color-mix(in oklab, var(--band-color) 55%, white 10%);
+}
+
+.band[data-enabled='false'] {
+  --band-ink: color-mix(in oklab, var(--band-color) 35%, white 10%);
+  --band-outline: rgba(255, 255, 255, 0.14);
+}
+
+.band[data-selected='true'] {
+  --band-ink: color-mix(in oklab, var(--band-color) 78%, white 22%);
+}

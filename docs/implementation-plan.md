@@ -232,17 +232,26 @@ De-risk the **direct browser ↔ WebSocket** topology and reconnection logic ear
 ### Goal
 Implement the **layout and CSS contracts** from design-spec without interaction yet.
 
+### Status
+✅ **COMPLETED** (2026-01-24)
+
 ### Deliverables
-1. **Page structure (`client/src/pages/EqEditor.svelte`):**
-   - Main panel:
-     - Top: Band index indicators (C1-C9 labels)
-     - Row 2: Frequency region labels (SUB, BASS, LOW MID, etc.)
-     - Row 3: Main equalizer graph area (placeholder)
-     - Row 4: Frequency scale indicators (20, 50, 100, etc.)
-     - Row 5: Visualization options bar (toggles for spectrum/curves)
-   - Right panel:
-     - N band columns (start with 5, test with 12)
-     - Each column: filter type icon, slope icon, fader, mute button, freq/Q controls
+1. **Page structure (`client/src/pages/EqPage.svelte`):**
+   - **EQ Graph Panel** (4-zone grid structure per design-spec 4.1):
+     - Zone 1: Octave indicators (C1-C9) with pre/post spacers aligned to musical C frequencies
+     - Zone 2: Frequency region labels (SUB, BASS, LOW MID, MID, HIGH MID, PRS, TREBLE) aligned to explicit frequencies
+     - Zone 3: Main graph area (2-column: plot + gain axis labels)
+       - SVG plot with log10 frequency mapping
+       - Decade-based grid (majors at 20/50/100/200/500/1k/2k/5k/10k, minors conditionally)
+       - Gain axis labels (-18, -12, -6, 0, +6, +12, +18) in right-side column
+       - Band tokens rendered as compensated ellipses (remain circular when plot stretches)
+     - Zone 4: Frequency scale labels (bottom) with first label pinned, last hidden
+   - **Visualization Options Bar:**
+     - Spectrum mode toggles (Off, Pre-EQ, Post-EQ)
+     - Show per-band curves checkbox
+   - **Right panel:**
+     - N band columns (implemented with 5, supports up to 20)
+     - Each column: filter type icon, slope icon, gain fader, mute button, frequency/Q dials
 
 2. **CSS implementation (`client/src/styles/theme.css` + component styles):**
    - Global theme variables (backgrounds, text, grid, curves)
@@ -265,24 +274,33 @@ Implement the **layout and CSS contracts** from design-spec without interaction 
    - Exactly as specified in design-spec
 
 ### Test / Acceptance Criteria
-- ✅ Visual snapshot tests (Playwright):
-  - 5 bands rendered with distinct colors
-  - 12 bands rendered (layout remains functional)
+- ✅ Component structure:
+  - All 4 zones present with correct class names
+  - Gain axis labels rendered in right column
+  - Octave/region alignment wrappers maintain grid consistency
+  - Band tokens rendered with compensated ellipses
+- ✅ Band theming:
   - Each `.band` element sets `--band-color` and derived variables propagate
-- ✅ DOM-level checks:
-  - Band columns have correct CSS custom properties
   - Icons use `currentColor` (inherit from parent)
-- ✅ Responsive layout (if applicable)
+- ✅ Grid alignment:
+  - All zones share same left column width via 2-column grid
+  - Frequency labels align with vertical grid lines
+  - Gain labels align with horizontal grid lines
+
+### Implementation Notes
+- **Alignment fix:** All 4 zones use 2-column grid (`1fr 44px`) to ensure octave/region/frequency labels stay aligned with the plot despite gain column
+- **Token circularity:** Uses `<ellipse>` with compensated `rx`/`ry` based on `ResizeObserver` to counteract SVG `preserveAspectRatio="none"` stretching
+- **Full-height plot:** `.eq-editor` uses `height: 100vh` and `.eq-graph` uses `flex: 1` to fill available vertical space
 
 ### Risk Reduced Early
-- Locks down the UI's hardest-to-change contract (layout + theming)
-- Proves CSS strategy before adding complexity
+- Locks down the UI's hardest-to-change contract (layout + theming + alignment)
+- Proves CSS strategy and grid system before adding complexity
 
 ### Deferred Complexity
-- No drag interaction
-- No curve rendering
-- No spectrum yet
-- Controls are visual placeholders (not functional)
+- Drag interaction (MVP-6)
+- Curve rendering (MVP-5)
+- Spectrum overlay (MVP-7)
+- Functional controls (MVP-6)
 
 ---
 

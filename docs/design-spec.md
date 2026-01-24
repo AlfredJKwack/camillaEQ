@@ -13,10 +13,10 @@ Real-time: Spectrum frames ~ every 100ms (10 Hz) via WebSocket to browser
 Primary Functional goals
 	•	Serve a browser-based application on a LAN device.
 	•	Provide a set of pages to connect to and control a camillaDSP instance.
-	•	Provide an ineterative pipeline editor UI with:
+	•	Provide a page serving as ineteractive pipeline editor UI with:
 		•	ability to add/edit/remove filters and connections between them.
 		•	visualize this across multiple channels.
-	•	Provide an interactive equalizer UI with:
+	•	Provide a page serving as an interactive equalizer UI with:
 		•	Spectrum overlay updated at ~10 Hz.
 		•	EQ response curve and per-filter curves updated on user interaction.
 		•	Filter controls (tokens/handles) with strong interactivity and styling.
@@ -356,22 +356,23 @@ This application is composed of few screens
 	•	Parametric EQ : The main view through which we manage the CamillaDSP device.
 	•	Connection parameters : Used to establish a connection to the CamillaDSP device.
 	•	Configuration: Provides a list of pre-made DSP configurations the user can load (or save the current configuration)
+	•	Pipeline editor: Allows the user to edit the camillaDSP pipeline. This is a complex editor that is not part of the MVP 0-9
 
 ⸻
 
 3. Layout Overview of the Parametic EQ 
 
 ```
-┌───────────────────────────────────────────────┬───────────────────────────────┐
-│ MAIN PANEL (Graph + Tokens + Analyzer)        │ BAND PANEL (N columns)        │
-│ - Top labels (octaves + regions)              │ Each band column contains:    │
-│ - EQ graph (log freq / dB gain)               │ 1) Filter type icon           │
-│ - Sum curve + optional per-band curves        │ 2) Slope/order icon           │
-│ - Tokens (max 20)                             │ 3) Gain fader (vertical)      │
-│ - Freq axis labels                            │ 4) Mute button                │
-│ - Visualization options bar                   │ 5) Frequency dial/value       │
-│                                               │ 6) Q/Bandwidth dial/value     │
-└───────────────────────────────────────────────┴───────────────────────────────┘
+┌───────────────────────────────┬────────────────────────────────────────────────┬───────────────────────────────┐
+│ LEFT COLUMN (Page Navigation) │  MAIN PANEL (Graph + Tokens + Analyzer)        │ BAND PANEL (N columns)        │
+│ - Connection (icon only)      │ - Top labels (octaves + regions)               │ Each band column contains:    │
+│ - Presets (icon only)         │ - EQ graph (log freq / dB gain)                │ 1) Filter type icon           │
+│ - Parametric EQ (active icon) │ - Sum curve + optional per-band curves         │ 2) Slope/order icon           │
+│ - Pipeline Editor (icon only) │ - Tokens (max 20)                              │ 3) Gain fader (vertical)      │
+│                               │ - Freq axis labels                             │ 4) Mute button                │
+│                               │  - Visualization options bar                   │ 5) Frequency dial/value       │
+│                               │                                                │ 6) Q/Bandwidth dial/value     │
+└───────────────────────────────┴────────────────────────────────────────────────┴───────────────────────────────┘
 ```
 
 Band panel color binding (strict)
@@ -383,51 +384,174 @@ Band panel color binding (strict)
 
 4. Main Panel (Visualization & Direct Manipulation)
 
-4.1 Row 1 – Band Index Indicators
+4.1 EQ Graph Panel Specification
 
-Purpose: Visual mapping of musical/octave bands.
-	•	Horizontal labels: C1, C2, C3, C4, C5, C6, C7, C8, C9
-	•	Passive indicators (non-interactive)
-	•	Span entire width of center section
+0) Coordinate System and Frequency Domain
+
+0.1 Frequency domain
+	•	The graph X-axis represents frequency from 20 Hz to 20 kHz.
+	•	The horizontal mapping MUST be logarithmic (base 10).
+
+Mapping function
+	•	Let fMin = 20, fMax = 20000.
+	•	Normalized x in [0..1] is:
+
+xNorm = (log10(f) - log10(fMin)) / (log10(fMax) - log10(fMin))
+
+All vertical grid lines and token positions use this mapping.
 
 ⸻
 
-4.2 Row 2 – Frequency Region Labels
+1) Layout: 4 Horizontal Zones (Top-to-Bottom)
 
-Purpose: Semantic frequency grouping.
-	•	Labels: SUB, BASS, LOW MID, MID, HIGH MID, PRS, TREBLE
-	•	Aligned horizontally with the grid below
-	•	Non-interactive
+The panel is one rectangular card containing four stacked zones:
+	1.	Octave Indicator Row (C1–C9)
+	2.	Frequency Region Label Row (SUB…TREBLE)
+	3.	Main Graph Area (grid + tokens + curves + analyzer)
+	4.	Frequency Scale Row (numeric ticks: 20 … 10k)
+
+All zones share the same left/right inner padding and exact X alignment.
+
+1.1 Recommended CSS grid skeleton
+```css
+.eq-graph {
+  display: grid;
+  grid-template-rows:
+    var(--row-octaves)
+    var(--row-regions)
+    1fr
+    var(--row-freqscale);
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:root{
+  --row-octaves: 34px;
+  --row-regions: 34px;
+  --row-freqscale: 34px;
+  --pad-x: 14px;
+}
+```
 
 ⸻
 
-4.3 Row 3 – Main Equalizer Graph (Primary Interaction Area)
+2) Zone 1: Octave Indicators Row (C1…C9)
 
-Description
-A large 2D grid representing:
-	•	X-axis: Frequency (logarithmic scale)
-	•	Y-axis: Gain (dB)
+2.1 Structure
+	•	A single horizontal strip subdivided into 9 equal octave-width segments labeled:
+	•	C1, C2, C3, C4, C5, C6, C7, C8, C9
 
-Elements within this area:
-	1.	EQ Curves
-		•	Continuous white line represents the combined effect of all enabled bands only.
-		•	If you show per-band contributions, they are thin, tinted, and dim. This feature can be turned On/Off and is controlled from the Visualization Options Bar.
-	2.	Spectral Analyzer
-		•	Vertical animated bars
-		•	Can display:
-		•	Pre-EQ spectrum
-		•	Post-EQ spectrum
-		•	Hidden
-		•	Color-coded and semi-transparent
-	3.	Band Tokens (N up to 20 total)
-		•	Circular, color-coded, numbered (They are N = activeBands, max 20)
-		•	Each token represents one EQ band
-		•	One token may be in a selected state
-		•	Tokens are constrained to this graph area
-		•	Token rendering must support crowded layouts:
-			•	always selectable
-			•	selected token appears on top
-			•	if >10 visible, non-selected tokens may reduce label opacity		
+2.2 Octave starting frequencies (Hz) (critical)
+	•	C1 ≈ 32.70 Hz
+	•	C2 ≈ 65.41 Hz
+	•	C3 ≈ 130.81 Hz
+	•	C4 ≈ 261.63 Hz (middle C)
+	•	C5 ≈ 523.25 Hz
+	•	C6 ≈ 1046.50 Hz
+	•	C7 ≈ 2093.00 Hz
+	•	C8 ≈ 4186.01 Hz
+	•	C9 ≈ 8372.02 Hz
+
+An unlabelled bar sits before C1 and after C9 to complete the graph on either end. A small gap separates the octave segment strips/tabs from each other.
+
+2.3 Styling
+	•	Each octave segment is a rectangular "tab" with:
+		•	darker background than the main graph
+		•	subtle internal dividers between segments
+		•	centered label text
+```css
+.eq-octaves {
+  padding: 0 var(--pad-x);
+  align-items: center;
+  gap: 6px; /* small separation like the reference */
+  background: color-mix(in oklab, var(--ui-panel) 70%, black 30%);
+}
+.eq-octave-cell{
+  height: 22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.07);
+  color: rgba(255,255,255,.72);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+```
+
+⸻
+
+1) Zone 2: Frequency Region Labels Row
+
+3.1 Labels and segmentation
+
+This row contains 7 region blocks labeled:
+	•	SUB, BASS, LOW MID, MID, HIGH MID, PRS, TREBLE
+
+3.2 Alignment to frequencies
+The start of each region blocks MUST align to the following frequencies:
+	•	SUB: 20 Hz
+	•	BASS: 60 Hz
+	•	LOW MID: 250 Hz
+	•	MID: 500 Hz
+	•	HIGH MID: 2 kHz
+	•	PRS (Presence): 4 kHz
+	•	TREBLE: 6 kHz
+
+3.3 Styling
+	•	Similar "tab strip" style to octave row but with cells of different sizes.
+	•	Centered labels, all caps, slightly bolder than tick labels.
+	•	A small gap separates the region segment strips/tab from each other.
+
+⸻
+
+1) Zone 3: Main Graph Area (Grid + Zero Line + Tokens)
+
+This is the large central area.
+
+4.1 Background appearance (matches reference)
+	•	Background is a dark teal/blue tone with a subtle vertical gradient:
+	•	slightly brighter mid-lower region
+	•	slightly darker near top edge
+	•	Optional: very subtle horizontal banding (barely visible).
+
+4.2 Grid: Vertical lines
+
+4.2.1 Tick set
+
+The vertical grid is composed of log-spaced frequency lines at:
+	•	Labeled majors (also used for stronger grid lines): 20, 50, 100, 200, 500, 1k, 2k, 5k, 10k
+	•	Additional unlabeled minor lines inside each decade:
+		•	30, 40, 60, 70, 80, 90
+		•	300, 400, 600, 700, 800, 900
+		•	3k, 4k, 6k, 7k, 8k, 9k
+
+Rule (implementable):
+For each decade 10^n, draw lines at k * 10^n for k ∈ {2,3,4,5,6,7,8,9} that fall within [20..20000].
+	•	Treat k ∈ {2,5,10} as "major", others as "minor".
+	•	(20 and 50 are the {2,5} in the 10–100 decade; 100, 1k, 10k are the decade boundaries.)
+
+4.2.2 Visual hierarchy
+	•	Major vertical lines: brighter
+	•	Minor vertical lines: dimmer
+
+4.3 Grid: Horizontal lines and zero line
+
+4.3.1 Zero line
+	•	A single horizontal line across the center of the main graph area.
+	•	This line is more prominent than other horizontal grid lines.
+
+4.3.2 Horizontal grid lines
+	•	Evenly spaced lines above and below zero.
+	•	In the reference, they are very subtle.
+	•	Recommended: majors every 6 dB, minors optional.
+
+4.4 Tokens (band handles)
+	•	Tokens appear as circles.
+	•	Tokens are clipped to the graph rect.
+	•	Tokens are always on top of grid lines.
 
 Interactions
 	•	Drag token horizontally → adjust frequency
@@ -449,17 +573,86 @@ Context Menu (per band)
 	•	Order
 	•	Key
 
+4.5 Gain Axis Labels (Right Side)
+
+Purpose: Provide numeric reference for the dB (gain) axis.
+
+4.5.1 Structure
+	•	A vertical column positioned to the right of the main plot area
+	•	Contains labels for the major 6 dB increments
+	•	Takes the full height of Zone 3 (main plot area)
+
+4.5.2 Labels (exactly as specified)
+	•	-18, -12, -6, 0, +6, +12, +18
+	•	Each label must align vertically with its corresponding horizontal grid line
+	•	The zero label must align with the emphasized zero line
+
+4.5.3 Alignment rule
+	•	Each label's y-position MUST match the corresponding horizontal grid line y-position
+	•	Uses the same gain-to-y mapping as the plot:
+		•	`y = 200 - (gain / 48) * 400` (for viewBox 0-400)
+		•	Or as percentage: `top = (1 - (gain + 24) / 48) * 100%`
+
+4.5.4 Styling
+	•	Column width: ~40-50px (enough for "-18" with padding)
+	•	Labels are small, muted, right-aligned or centered
+	•	Same background as top/bottom bars (darker than plot)
+	•	Labels vertically centered on their grid line
+
+4.5.5 Implementation note
+	•	Zone 3 becomes a 2-column grid: `grid-template-columns: 1fr var(--gain-col);`
+	•	Left column: existing `.eq-plot` with SVG
+	•	Right column: new `.eq-gainscale` with absolutely positioned labels
+
+The equalizer plot zone will take all the available height in the browser window.
+Note that "stretching" of the viewport should not deform the band token shape.
 ⸻
 
-4.4 Row 4 – Frequency Scale Indicators
+5) Zone 4: Frequency Scale Row (Bottom Tick Labels)
 
-Purpose: Numeric reference for frequency axis.
-	•	Labels: 20, 50, 100, 200, 500, 1k, 2k, 5k, 10k
-	•	Fixed positions aligned with logarithmic grid
+5.1 Labels (exactly as shown)
+
+The bottom bar shows labels:
+	•	20, 50, 100, 200, 500, 1k, 2k, 5k, 10k
+
+5.2 Alignment rule
+
+Each label's x-position MUST match the corresponding vertical major grid line x-position (computed using the log mapping above).
+
+5.3 Styling
+	•	Labels sit inside a darker strip, like the top rows.
+	•	Text is small, muted, left-aligned to tick or centered (either is acceptable) but must line up with the grid line.
 
 ⸻
 
-4.5 Row 5 – Visualization Options Bar
+6) Implementation Recommendation: SVG Layering Model
+
+To achieve "high fidelity" and easy alignment:
+
+Use a single <svg> for the main graph area with layered groups:
+	1.	g.grid-vertical
+	2.	g.grid-horizontal
+	3.	g.zero-line
+	4.	g.analyzer (optional, clipped)
+	5.	g.curves (sum + band curves)
+	6.	g.tokens (handles)
+
+The SVG viewport width must match the exact width of the header strips and bottom scale strip inside the same padding (--pad-x).
+
+⸻
+
+7) Non-Negotiable Visual Contract (Checklist)
+	•	X scale is logarithmic (20–20k).
+	•	Octave row divides into C1..C9 based on doubling from 20 Hz (20–10240).
+	•	Region row spans octave groups: SUB (C1–C2), BASS (C3), LOW MID (C4), MID (C5–C6), HIGH MID (C7), PRS (C8), TREBLE (C9).
+	•	Vertical grid lines include majors at 20/50/100/200/500/1k/2k/5k/10k and minors at 3/4/6/7/8/9 within decades (as visible).
+	•	Zero line is emphasized.
+	•	Bottom labels align exactly with major grid lines.
+	•	All zones share exact left/right padding so labels align with grid.
+
+⸻
+
+4.2 Visualization Options Bar
 
 Purpose: Toggle display features.
 
@@ -476,11 +669,14 @@ Behavior
 
 ⸻
 
-5. Right Section (Precise Band Controls)
+5. Right Panel (Precise Band Controls)
 
-	•	The right section is a set of vertical stacks each describing one band. There may be up to 20 bands. 
-	•	Every per-band control is visually tied to the band via tint rules above.
-	•	Disabled bands are “muted” by opacity and reduced tint, not hue changes.
+	•	The right panel is a set of vertical stacks each describing one band. There may be up to 20 bands. 
+	•	Every per-band control is visually tied to the band via tint rules described in this document.
+	•	Disabled bands are "muted" by opacity and reduced tint, not hue changes.
+	•	The number of bands displayed is determined by the current configuration of camillaDSP
+	•	Target band column width: 80px (max 80px to fit 10+ comfortably)
+	•	Band name/number not displayed in column; shown only as tooltip on filter icon
 
 5.1 Top Row – Band Mode Controls
 
@@ -524,22 +720,160 @@ Behavior
 
 Per Band Controls
 	1.	Mute Button
+		•	Small circular toggle (no text label)
+		•	Solid fill when enabled, muted when disabled
 		•	Toggles band on/off
-		•	Disabled bands visually muted
-	2.	Frequency Dial
+	2.	Frequency Dial (Graphical Knob + Arc)
 		•	Adjusts center frequency
 		•	Synced with horizontal token position
-	3.	Bandwidth / Q Dial
+		•	See "Strict Specification: Frequency & BW/Q Dials" below
+	3.	Bandwidth / Q Dial (Graphical Knob + Arc)
 		•	Adjusts filter width
 		•	Synced with mouse-wheel interaction on token
+		•	See "Strict Specification: Frequency & BW/Q Dials" below
 
 Visual Feedback
 	•	Color-coded per band
 	•	Active band highlighted
+	•	Static row labels ("FREQ", "BW") placed left of all bands at correct row height
 
 ⸻
 
-6. State Model
+5.4 Strict Specification: Frequency & BW/Q Dials
+
+1. Control Role and Scope
+	•	Each band SHALL have exactly:
+		•	One Frequency dial
+		•	One Bandwidth / Q dial
+			•	These controls SHALL be:
+			•	Always visible
+			•	Always color-tinted by band
+			•	Synchronized with graph interactions
+
+2. Knob Body (Neutral Element)
+
+Purpose: Provide tactile affordance without competing visually.
+
+Specification
+	•	Shape: perfect circle
+	•	Fill: neutral dark UI color
+	•	Stroke: none or very subtle neutral outline
+	•	Never tinted by band color
+
+```css
+.knob-body {
+  background: var(--ui-panel-2);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.6);
+}
+```
+
+3. Value Arc (Band-Tinted Indicator)
+
+This is the primary expressive element.
+
+Geometry
+	•	Arc radius: slightly larger than knob radius
+	•	Stroke thickness: thin but clearly legible (≈ 10–15% of knob radius)
+	•	Stroke cap: round
+	•	Arc does not close into a full ring
+
+Color
+	•	Stroke color: --band-ink
+	•	Opacity:
+	•	Active: ~90–100%
+	•	Disabled band: ~40–50%
+
+```css
+.knob-arc {
+  stroke: var(--band-ink);
+  stroke-linecap: round;
+  fill: none;
+}
+.band[data-enabled="false"] .knob-arc {
+  opacity: .45;
+}
+```
+
+4. Angular Mapping Rules (Critical)
+
+Shared Rules (Both Knobs)
+	•	The arc occupies a bounded angular range
+	•	Example: −135° to +135°
+	•	No value ever renders a full 360°
+	•	Arc sweep represents current value, not modulation range
+
+Frequency Dial
+
+Mapping
+	•	Input domain: [20 Hz … 20 kHz]
+	•	Mapping: logarithmic
+	•	Visual behavior:
+	•	Low frequencies → arc end near left-lower quadrant
+	•	Mid frequencies → arc end near top
+	•	High frequencies → arc end near right-lower quadrant
+
+Important
+	•	Arc length (angular sweep), not position, communicates frequency
+
+```
+Frequency:
+  angle = mapLog(freq, 20, 20000, -135°, +135°)
+  arcSweep = constant (e.g. 40°)
+```
+
+Bandwidth / Q Dial
+
+Mapping
+	•	Input domain: implementation-defined (e.g. Q = 0.1 → 10)
+	•	Mapping: linear or perceptual
+	•	Visual behavior:
+	•	Low Q → short arc
+	•	High Q → longer arc
+
+Important
+	•	Arc length (sweep), not position, communicates value
+	•	Uses same fixed-start behavior as Frequency dial
+
+```
+Bandwidth:
+  startAngle = -135° (fixed)
+  sweep = map(Q or BW, min, max, minSweep → maxSweep)
+  endAngle = startAngle + sweep
+```
+
+1. Interaction & State
+
+Default (Idle)
+	•	Knob body neutral
+	•	Arc visible in band color
+
+Hover
+	•	Arc brightens slightly
+	•	Optional subtle glow in band color
+
+Active (Dragging)
+	•	Arc brightness increases
+	•	Optional thicker stroke
+	•	Cursor changes to rotary indicator
+
+Disabled Band
+	•	Arc remains band-colored but heavily muted
+	•	Knob body remains visible
+	•	Interaction disabled
+
+6. Labeling & Context
+	•	Static text labels ("FREQ", "BW") are:
+		•	Neutral color
+		•	Not band-tinted
+		•	Placed to the left of all bands at the correct row height
+	•	Dynamic numeric readouts (if shown on hover or focus):
+		•	Use band color for the value
+		•	Units remain neutral
+
+⸻
+
+1. State Model
 
 Band States
 	•	Enabled / Disabled
@@ -760,20 +1094,20 @@ Neutral (never tinted)
 All are 24×24 viewBox, drawn on a baseline near y=12.
 
 Low Pass (LPF)
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="Low Pass">
   <path d="M3 9 H12 C14 9 15 10 15 12 V20" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 ```
 High Pass (HPF)
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="High Pass">
   <path d="M3 20 V12 C3 10 4 9 6 9 H21" fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
 Band Pass (BPF)
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="Band Pass">
   <path d="M3 20 V12 C3 10 4 9 6 9 C9 9 9 4 12 4 C15 4 15 9 18 9 C20 9 21 10 21 12 V20"
         fill="none" stroke="currentColor" stroke-width="2"
@@ -781,7 +1115,7 @@ Band Pass (BPF)
 </svg>
 ```
 Notch
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="Notch">
   <path d="M3 9 H8 C10 9 10 20 12 20 C14 20 14 9 16 9 H21"
         fill="none" stroke="currentColor" stroke-width="2"
@@ -789,7 +1123,7 @@ Notch
 </svg>
 ```
 Low Shelf
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="Low Shelf">
   <path d="M3 16 H8 C10 16 11 14 11 12 C11 10 12 8 14 8 H21"
         fill="none" stroke="currentColor" stroke-width="2"
@@ -797,7 +1131,7 @@ Low Shelf
 </svg>
 ```
 Peaking (Bell)
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="Peaking">
   <path d="M3 12 C7 12 8 6 12 6 C16 6 17 12 21 12"
         fill="none" stroke="currentColor" stroke-width="2"
@@ -805,7 +1139,7 @@ Peaking (Bell)
 </svg>
 ```
 High Shelf
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="High Shelf">
   <path d="M3 8 H10 C12 8 13 10 13 12 C13 14 14 16 16 16 H21"
         fill="none" stroke="currentColor" stroke-width="2"
@@ -833,11 +1167,9 @@ Icon CSS
 	•	48 dB/oct → 4 bars
 
 Example SVG (2 bars)
-```svg
+```html
 <svg viewBox="0 0 24 24" class="icon" aria-label="Slope 24 dB/oct">
   <path d="M6 18 L12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
   <path d="M10 18 L16 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 </svg>
 ```
-
-

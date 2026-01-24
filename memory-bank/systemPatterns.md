@@ -177,6 +177,20 @@ Even though LAN-only, maintain security baseline:
 
 ---
 
+## UI Layout Patterns
+
+**EQ Graph 4-Zone Grid (`.eq-graph`):**
+- **Grid rows:** `34px 34px 1fr 34px` (octaves, regions, plot, freq scale)
+- **Shared right-side column pattern:** All 4 zones use 2-column grid (`1fr 44px`)
+  - Left column: main content (octave cells, region cells, SVG plot, freq labels)
+  - Right column: 44px wide
+    - Zones 1/2/4: `.eq-zone-spacer` (visual continuity with gain column background)
+    - Zone 3: `.eq-gainscale` (actual gain axis labels: -18, -12, -6, 0, +6, +12, +18)
+- **Alignment guarantee:** Left columns share exact width across all zones, ensuring octave/region/frequency labels align perfectly with SVG grid
+- **Internal content heights:**
+  - Octave/region cells: 22px tall (centered in 34px row via `align-items: center`)
+  - Vertical spacing at zone boundaries is sum of half-gaps (can appear wider than individual gaps)
+
 ## Deployment Architecture
 
 **Process Management:**
