@@ -175,7 +175,7 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-9 Complete ✓ — Config library with load/save + compact searchable UI
+**Current Milestone:** MVP-11 Complete ✓ — EQ page layout refinement with plot/fader alignment
 
 ### Completed Milestones
 
@@ -308,9 +308,28 @@ The application now provides a **fully interactive equalizer editor** with:
   - Format: pipeline-config JSON (configName, filterArray with filters/preamp/volume)
   - All 130 tests passing (76 client + 54 server)
 
+#### MVP-10: Tooltip & Labels on Band Editor ✓
+**Visual enhancements for precision and feedback:**
+- **Fader value tooltip**: SVG-based, band-themed, collision-aware positioning
+  - Appears on fader `pointerdown`, fades out over 1.5s
+  - Displays formatted gain value (±X.X dB)
+  - Flips to right side when would clip off-screen
+  - Single global tooltip instance (avoids DOM churn)
+
+#### MVP-11: EQ Page Layout Refinement ✓
+**Vertically aligned plot + fader tracks for visual continuity:**
+- **3-row grid layout** across main panel and band columns:
+  - Row 1 (auto height): Top controls/labels (octaves, regions, filter icons)
+  - Row 2 (flex: 1): Main interactive area (EQ plot + fader tracks stretch together)
+  - Row 3 (auto height): Bottom controls (freq scale, viz options, knobs, mute buttons)
+- **Precise vertical alignment**: EQ plot top/bottom aligns with fader track top/bottom
+- **Shared row sizing**: Each row height = max(main panel, band columns)
+- All existing functionality preserved (dragging, curves, synchronization)
+- No visual gaps or misalignments
+
 ### Next Milestone
 
-**MVP-10+:** Pipeline editor, advanced preset features, multi-channel routing UI
+**MVP-12:** Informative EQ plot tokens (labels, order numbers, Q/BW arcs)
 
 ## Documentation
 

@@ -655,7 +655,7 @@ Load/save configs via backend and keep browser/WebSocket state consistent.
 Visual enhancements for the band editor and EQ graph to improve feedback and precision.
 
 ### Status
-🔄 **In Progress** (2026-01-25)
+✅ **COMPLETED** (2026-01-25)
 
 ### Deliverables
 
@@ -739,7 +739,7 @@ Visual enhancements for the band editor and EQ graph to improve feedback and pre
 Vertically align EQ plot and fader track to create visual continuity and improve precision.
 
 ### Status
-**To Do**
+✅ **COMPLETED** (2026-01-25)
 
 ### Deliverables
 

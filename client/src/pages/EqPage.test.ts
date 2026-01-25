@@ -84,3 +84,35 @@ describe('EqPage MVP-4 Implementation', () => {
     expect(source).toContain('gainToYPercent');
   });
 });
+
+describe('EqPage MVP-11 Layout Refinement', () => {
+  it('contains new 3-row subgrid layout structure', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify new layout containers
+    expect(source).toContain('eq-layout');
+    expect(source).toContain('eq-left');
+    expect(source).toContain('eq-left-top');
+    expect(source).toContain('eq-left-middle');
+    expect(source).toContain('eq-left-bottom');
+    expect(source).toContain('eq-right');
+    expect(source).toContain('band-scroll');
+    expect(source).toContain('band-grid');
+    
+    // Verify band column sections
+    expect(source).toContain('band-top');
+    expect(source).toContain('band-middle');
+    expect(source).toContain('band-bottom');
+    
+    // Verify CSS subgrid usage
+    expect(source).toContain('grid-template-rows: subgrid');
+    expect(source).toContain('grid-row: 1 / span 3');
+  });
+});

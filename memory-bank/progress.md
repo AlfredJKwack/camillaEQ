@@ -198,7 +198,7 @@
   - Result: Page reload now shows most recent edited state
   - All 130 tests passing
 
-- [x] **MVP-10: Tooltip & Labels on Band Editor** (2026-01-25) - 🔄 In Progress
+- [x] **MVP-10: Tooltip & Labels on Band Editor** (2026-01-25)
   - Created FaderTooltip component (`client/src/components/FaderTooltip.svelte`)
   - Implemented fader value tooltip with band-themed SVG callout shape
   - Tooltip appears on fader pointerdown, fades out over 1.5s after pointerup
@@ -207,24 +207,25 @@
   - Uses `strokeColor` prop with computed band color (color-mix formula)
   - Single global tooltip instance with position: fixed (escapes scroll container)
   - Horizontal mirroring via scaleX(-1) when flipped to right
-  - All 84 tests passing (76 client + 54 server)
-  - Fader track tickmarks at 6 dB increments
-  - Master-band zero-line coupling (preamp gain control)
-  - Fader-thumb appearance update (14×28px rounded rect)
-  - Selected band brightening
+  - All tests passing (76 client + 54 server)
+
+- [x] **MVP-11: EQ Page Layout Refinement** (2026-01-25)
+  - Implemented 3-row grid layout across main panel and band columns
+  - Row 1 (auto height): Top controls/labels (octaves, regions, filter icons)
+  - Row 2 (flex: 1): Main interactive area (EQ plot + fader tracks stretch together)
+  - Row 3 (auto height): Bottom controls (freq scale, viz options, knobs, mute buttons)
+  - Achieved precise vertical alignment: EQ plot top/bottom aligns with fader track top/bottom
+  - Shared row sizing: Each row height = max(main panel, band columns)
+  - All existing functionality preserved (dragging, curves, synchronization)
+  - No visual gaps or misalignments
+  - CSS precision requirements met (no double borders, clean corners)
 
 ## Current Status
-**Phase:** MVP-10 Completed - Tooltip & Labels on Band Editor
+**Phase:** MVP-11 Completed - EQ Page Layout Refinement
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
-
-### MVP-11: EQ Page Layout Refinement
-- [ ] New layout structure: Main content area split into 3 rows.
-- [ ] Respect alignment constraints from implementation plan.
-- [ ] Ensure existing functionality remains unchanged.
-- [ ] Ensure CSS precision requirements are met.
 
 ### MVP-12: Informative EQ Plot Tokens
 - [ ] Implement Frequency label below token.

@@ -511,11 +511,11 @@
   }
 </script>
 
-<div class="eq-editor">
-  <!-- Main Panel -->
-  <div class="main-panel">
-    <!-- EQ Graph Panel: 4-zone grid container -->
-    <div class="eq-graph">
+<div class="eq-layout">
+  <!-- Left: EQ Plot Area -->
+  <div class="eq-left">
+    <!-- Row 1: Top Labels -->
+    <div class="eq-left-top">
       <!-- Zone 1: Octave Indicators Row (C1-C9 + spacers) -->
       <div class="eq-octaves-area">
         <div class="eq-octaves" style="grid-template-columns: {octaveWidths.map(w => `${w}fr`).join(' ')};">
@@ -547,8 +547,10 @@
         </div>
         <div class="eq-zone-spacer"></div>
       </div>
+    </div>
 
-      <!-- Zone 3: Main Graph Area (2 columns: plot + gain scale) -->
+    <!-- Row 2: Middle (Plot + Faders) -->
+    <div class="eq-left-middle">
       <div class="eq-plot-area">
         <div class="eq-plot" bind:this={plotElement}>
           <!-- Canvas spectrum layer (behind SVG) -->
@@ -682,7 +684,10 @@
           {/each}
         </div>
       </div>
+    </div>
 
+    <!-- Row 3: Bottom Labels -->
+    <div class="eq-left-bottom">
       <!-- Zone 4: Frequency Scale Row -->
       <div class="eq-freqscale-area">
         <div class="eq-freqscale">
@@ -702,10 +707,9 @@
         </div>
         <div class="eq-zone-spacer"></div>
       </div>
-    </div>
 
-    <!-- Visualization Options Bar -->
-    <div class="viz-options-area">
+      <!-- Visualization Options Bar -->
+      <div class="viz-options-area">
       <div class="viz-options">
         <div class="option-group">
           <label>Spectrum:</label>
@@ -733,108 +737,123 @@
         </div>
       </div>
       <div class="viz-options-spacer"></div>
+      </div>
     </div>
   </div>
 
-  <!-- Right Panel: Band Columns -->
-  <div class="band-panel">
-    <!-- Master/Preamp Band Column -->
-    <div class="band-column master-band band" style="--band-color: var(--band-10);" data-enabled={true}>
-      <div class="filter-type-icon" style="visibility: hidden;">
-        <!-- Empty spacer -->
-      </div>
+  <!-- Right: Band Columns (Scrollable) -->
+  <div class="eq-right">
+    <div class="band-grid">
+      <!-- Master/Preamp Band Column -->
+        <div class="band-column master-band band" style="--band-color: var(--band-10);" data-enabled={true}>
+          <div class="band-top">
+            <div class="filter-type-icon" style="visibility: hidden;">
+              <!-- Empty spacer -->
+            </div>
 
-      <div class="slope-icon" style="visibility: hidden;">
-        <!-- Empty spacer -->
-      </div>
-
-      <div class="gain-fader">
-        <div class="fader-track">
-          <!-- Tickmarks at ±18, ±12, ±6 dB -->
-          {#each [-18, -12, -6, 6, 12, 18] as tickGain}
-            <div class="fader-tick" style="bottom: {((tickGain + 24) / 48) * 100}%;"></div>
-          {/each}
-          
-          <!-- Thumb wrapper -->
-          <div class="fader-thumb-wrap" style="bottom: {(($preampGain + 24) / 48) * 100}%;">
-            <div
-              class="fader-thumb"
-              on:pointerdown={handleMasterFaderPointerDown}
-            ></div>
-          </div>
-        </div>
-      </div>
-
-      <button class="mute-btn" title="Master Mute">
-        <span class="mute-indicator"></span>
-      </button>
-
-      <div class="knob-label">FREQ</div>
-      <div class="knob-label">BW</div>
-    </div>
-    
-    <!-- Band columns -->
-    {#each $bands as band, i}
-      <div 
-        class="band-column band" 
-        style="--band-color: var(--band-{(i % 10) + 1});" 
-        data-enabled={band.enabled}
-        data-selected={$selectedBandIndex === i}
-        on:pointerdown|capture={() => selectBand(i)}
-      >
-        <div class="filter-type-icon" title="Band {i + 1} — {band.type}" on:click={() => selectBand(i)}>
-          <FilterIcon type={band.type} />
-        </div>
-
-        <div class="slope-icon">
-          <div class="icon-placeholder">24dB</div>
-        </div>
-
-        <div class="gain-fader">
-          <div class="fader-track">
-            <!-- Tickmarks at ±18, ±12, ±6 dB -->
-            {#each [-18, -12, -6, 6, 12, 18] as tickGain}
-              <div class="fader-tick" style="bottom: {((tickGain + 24) / 48) * 100}%;"></div>
-            {/each}
-            
-            <!-- Thumb wrapper -->
-            <div class="fader-thumb-wrap" style="bottom: {((band.gain + 24) / 48) * 100}%;">
-              <div
-                class="fader-thumb"
-                on:pointerdown={(e) => handleFaderPointerDown(e, i)}
-              ></div>
+            <div class="slope-icon" style="visibility: hidden;">
+              <!-- Empty spacer -->
             </div>
           </div>
-        </div>
 
-        <button 
-          class="mute-btn" 
-          class:muted={!band.enabled} 
-          title={band.enabled ? 'Mute' : 'Unmute'}
-          on:click={() => toggleBandEnabled(i)}
-        >
-          <span class="mute-indicator"></span>
-        </button>
+          <div class="band-middle">
+            <div class="gain-fader">
+              <div class="fader-track">
+                <!-- Tickmarks at ±18, ±12, ±6 dB -->
+                {#each [-18, -12, -6, 6, 12, 18] as tickGain}
+                  <div class="fader-tick" style="bottom: {((tickGain + 24) / 48) * 100}%;"></div>
+                {/each}
+                
+                <!-- Thumb wrapper -->
+                <div class="fader-thumb-wrap" style="bottom: {(($preampGain + 24) / 48) * 100}%;">
+                  <div
+                    class="fader-thumb"
+                    on:pointerdown={handleMasterFaderPointerDown}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        <div class="knob-wrapper">
-          <KnobDial 
-            value={band.freq} 
-            mode="frequency" 
-            size={19} 
-            on:change={(e) => setBandFreq(i, e.detail.value)}
-          />
-        </div>
+          <div class="band-bottom">
+            <button class="mute-btn" title="Master Mute">
+              <span class="mute-indicator"></span>
+            </button>
 
-        <div class="knob-wrapper">
-          <KnobDial 
-            value={band.q} 
-            mode="q" 
-            size={19}
-            on:change={(e) => setBandQ(i, e.detail.value)}
-          />
+            <div class="knob-label">FREQ</div>
+            <div class="knob-label">BW</div>
+          </div>
         </div>
+    
+        <!-- Band columns -->
+        {#each $bands as band, i}
+          <div 
+            class="band-column band" 
+            style="--band-color: var(--band-{(i % 10) + 1});" 
+            data-enabled={band.enabled}
+            data-selected={$selectedBandIndex === i}
+            on:pointerdown|capture={() => selectBand(i)}
+          >
+            <div class="band-top">
+              <div class="filter-type-icon" title="Band {i + 1} — {band.type}" on:click={() => selectBand(i)}>
+                <FilterIcon type={band.type} />
+              </div>
+
+              <div class="slope-icon">
+                <div class="icon-placeholder">24dB</div>
+              </div>
+            </div>
+
+            <div class="band-middle">
+              <div class="gain-fader">
+                <div class="fader-track">
+                  <!-- Tickmarks at ±18, ±12, ±6 dB -->
+                  {#each [-18, -12, -6, 6, 12, 18] as tickGain}
+                    <div class="fader-tick" style="bottom: {((tickGain + 24) / 48) * 100}%;"></div>
+                  {/each}
+                  
+                  <!-- Thumb wrapper -->
+                  <div class="fader-thumb-wrap" style="bottom: {((band.gain + 24) / 48) * 100}%;">
+                    <div
+                      class="fader-thumb"
+                      on:pointerdown={(e) => handleFaderPointerDown(e, i)}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="band-bottom">
+              <button 
+                class="mute-btn" 
+                class:muted={!band.enabled} 
+                title={band.enabled ? 'Mute' : 'Unmute'}
+                on:click={() => toggleBandEnabled(i)}
+              >
+                <span class="mute-indicator"></span>
+              </button>
+
+              <div class="knob-wrapper">
+                <KnobDial 
+                  value={band.freq} 
+                  mode="frequency" 
+                  size={19} 
+                  on:change={(e) => setBandFreq(i, e.detail.value)}
+                />
+              </div>
+
+              <div class="knob-wrapper">
+                <KnobDial 
+                  value={band.q} 
+                  mode="q" 
+                  size={19}
+                  on:change={(e) => setBandQ(i, e.detail.value)}
+                />
+              </div>
+            </div>
+          </div>
+        {/each}
       </div>
-    {/each}
   </div>
   
   <!-- Global tooltip overlay (positioned via fixed coordinates) -->
@@ -854,37 +873,61 @@
 </div>
 
 <style>
-  .eq-editor {
-    display: flex;
+  /* MVP-11: CSS Subgrid Layout */
+  .eq-layout {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto 1fr auto;
     height: 100vh;
-    gap: 1rem;
     padding: 1rem;
+    gap: 1rem;
     box-sizing: border-box;
+    min-height: 0;
   }
 
-  /* Main Panel */
-  .main-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  /* Left side: participates in parent's 3 rows */
+  .eq-left {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: 1 / span 3;
+    min-height: 0;
+  }
+
+  .eq-left-top {
+    align-self: end;
+  }
+
+  .eq-left-middle {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .eq-left-bottom {
+    align-self: start;
+  }
+
+  /* Right side: participates in parent's 3 rows via subgrid */
+  .eq-right {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: 1 / span 3;
     min-width: 0;
     min-height: 0;
   }
 
-  /* EQ Graph Panel: 4-zone grid structure */
-  .eq-graph {
-    flex: 1;
+  .band-grid {
     display: grid;
-    grid-template-rows: 34px 34px 1fr 34px;
-    /* background: var(--ui-panel); */
-    /* border: 1px solid var(--ui-border); */
-    border-radius: 8px;
-    overflow: hidden;
+    grid-auto-flow: column;
+    grid-template-rows: subgrid;
+    grid-row: 1 / span 3;
+    gap: 0.375rem;
+    height: 100%;
     min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
-  /* Zone 1: Octave Indicators Row */
+  /* Octave Indicators Row */
   .eq-octaves-area {
     display: grid;
     grid-template-columns: 1fr 44px;
@@ -920,7 +963,7 @@
     background: transparent;
   }
 
-  /* Zone 2: Frequency Region Labels Row */
+  /* Frequency Region Labels Row */
   .eq-regions-area {
     display: grid;
     grid-template-columns: 1fr 44px;
@@ -949,15 +992,17 @@
     background: color-mix(in oklab, var(--ui-panel) 70%, #041b1d 30%);    
   }
 
-  /* Zone 3: Main Graph Area (2-column layout) */
+  /* Main Graph Area (2-column layout) */
   .eq-plot-area {
     display: grid;
     grid-template-columns: 1fr 32px; /* Matches .eq-freqscale-area */
     min-height: 0;
+    height: 100%;
   }
 
   .eq-plot {
     position: relative;
+    height: 100%;
     background: linear-gradient(180deg, 
       color-mix(in oklab, #041b1d 100%, black 0%) 0%,
       color-mix(in oklab, #041b1d 100%, white 8%) 60%,
@@ -1008,7 +1053,7 @@
     color: rgba(255, 255, 255, 0.75);
   }
 
-  /* Zone 4: Frequency Scale Row */
+  /* Frequency Scale Row */
   .eq-freqscale-area {
     display: grid;
     grid-template-columns: 1fr 32px; /* Matches .eq-plot-area */
@@ -1060,6 +1105,7 @@
   .viz-options-area {
     display: grid;
     grid-template-columns: 1fr 32px; /* Matches .eq-plot-area and .eq-freqscale-area */
+    margin-top: 1rem;
   }
 
   .viz-options {
@@ -1107,29 +1153,42 @@
     color: var(--ui-text);
   }
 
-  /* Right Panel: Band Columns */
-  .band-panel {
-    display: grid;
-    grid-auto-flow: column;
-    /* grid-auto-columns: 80px; */
-    gap: 0.375rem;
-    /* padding: 0.5rem; */
-    border-radius: 8px;
-    overflow-x: auto;
-  }
-
+  /* Band Columns: use subgrid to participate in parent's 3 rows */
   .band-column {
     display: grid;
-    grid-template-rows: auto auto 1fr auto auto auto;
-    row-gap: 0.5rem;
-    align-items: center;
-    justify-items: center;
-    /* padding: 0.5rem 0.375rem; */
+    grid-template-rows: subgrid;
+    grid-row: 1 / span 3;
     max-width: 80px;
-    /* background: var(--ui-panel); */
-    /* border: 1px solid var(--ui-border); */
     border-radius: 8px;
-    border: 1px solid transparent; /* modified through .band-column[data-selected='true'] */
+    border: 1px solid transparent;
+    min-width: 40px;
+    margin: 0 -3px;    
+  }
+
+  /* Band column sections */
+  .band-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: end;
+    gap: 0.5rem;
+  }
+
+  .band-middle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: stretch;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .band-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+    gap: 0.5rem;
   }
 
   .band-column[data-enabled='false'] {
