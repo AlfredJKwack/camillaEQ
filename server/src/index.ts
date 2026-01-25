@@ -137,6 +137,30 @@ server.put('/api/config', async (request, reply) => {
   return { success: true };
 });
 
+// Initialize configs library
+import { ConfigsLibrary, type PipelineConfig } from './services/configsLibrary.js';
+const configsLibrary = new ConfigsLibrary();
+
+// List all configs
+server.get('/api/configs', async (request, reply) => {
+  const configs = await configsLibrary.listConfigs();
+  return configs;
+});
+
+// Get specific config by ID
+server.get('/api/configs/:id', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  const config = await configsLibrary.getConfig(id);
+  return config;
+});
+
+// Save config by ID
+server.put('/api/configs/:id', async (request, reply) => {
+  const { id } = request.params as { id: string };
+  await configsLibrary.saveConfig(id, request.body as PipelineConfig);
+  return { success: true };
+});
+
 const start = async () => {
   try {
     const port = Number(process.env.SERVER_PORT) || 3000;

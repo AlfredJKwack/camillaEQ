@@ -24,6 +24,9 @@ Thumbs.db
 
 # Data
 data/
+server/data/
+!server/data/configs/
+!server/data/configs/**
 
 # Testing
 coverage/
