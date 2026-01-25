@@ -649,6 +649,254 @@ Load/save configs via backend and keep browser/WebSocket state consistent.
 
 ---
 
+## MVP-10 — Tooltip & Labels on Band Editor
+
+### Goal
+Visual enhancements for the band editor and EQ graph to improve feedback and precision.
+
+### Status
+**To Do**
+
+### Deliverables
+
+1. **Fader value tooltip with band-themed styling:**
+   - Remove static fader-value `<span>` display
+   - Show tooltip label hanging off the **left side of fader-thumb** on `mousedown`/`pointerdown`
+   - Tooltip fades out over **1.5 seconds** after `mouseup`/drag end
+   - Uses band color scheme with outline (SVG path-based shape):
+     ```html
+     <svg viewBox="0 0 90 28" xmlns="http://www.w3.org/2000/svg">
+       <path d="M9.586,27.415C4.58,27.419 0.514,24.412 0.511,20.705L0.5,7.271C0.497,3.563 4.559,0.55 9.564,0.546L67.206,0.5C73.001,0.496 89.147,12.018 89.164,13.918C89.181,15.816 73.022,27.364 67.227,27.369L9.586,27.415Z"
+             fill="var(--band-ink)"
+             stroke="var(--band-outline)"
+             stroke-width="1" />
+       <text x="45" y="14" text-anchor="middle" dominant-baseline="middle"
+             font-size="12" fill="var(--ui-text)">-15.0 dB</text>
+     </svg>
+     ```
+   - Text right-aligned, height-centered, positioned 1/3 or 1/4 from right border of label
+   - Component: `client/src/components/FaderTooltip.svelte`
+
+2. **Tickmarks on fader track:**
+   - Render faded tickmarks at **6 dB increments** (matching EQ plot gain grid)
+   - Tickmarks use band color scheme with muted opacity
+   - Thickness: 2-3px horizontal lines at fixed gain positions
+   - Help users visually align fader position with plot grid
+
+3. **Master-band zero-line coupling:**
+   - **Master-band fader** adjusts a **preamp/gain stage** (not CamillaDSP volume)
+   - Range: **±24 dB** (same as filter bands, clamped to EQ plot limits)
+   - Moving master-band fader **shifts the zero-line** on EQ plot up/down
+   - Zero-line Y position = `gainToY(masterGainValue)`
+   - When loading preset: apply master gain from config if present
+   - **Note:** If CamillaDSP config has no gain/volume stage in pipeline, master-band has no audio effect (visual only)
+
+4. **Fader-thumb appearance update:**
+   - Shape: **vertical rectangle** 14px wide × 28px high
+   - Rounded corners (border-radius: 4px)
+   - Fill: neutral dark color (`var(--ui-panel-2)`)
+   - Outline: slightly darker than fill (`color-mix(in oklab, var(--ui-panel-2) 85%, black)`)
+   - Stroke width: 1px
+   - Band-selected state: add subtle colored outline using `--band-outline`
+
+5. **Selected band brightening:**
+   - When `band-column[data-selected="true"]`:
+     - Filter type icon → brighter
+     - Slope icon → brighter
+     - Fader-thumb → brighter (add colored accent)
+     - Mute button → brighter
+     - Knob wrapper (arc) → brighter
+   - Implementation: Increase opacity or lightness of `--band-ink` for selected state
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - FaderTooltip appears on fader thumb mousedown
+  - Tooltip displays correct gain value formatted to 1 decimal place
+  - Tooltip fades out over 1.5s after mouseup
+  - Tooltip uses band color variables correctly
+- ✅ Visual tests:
+  - Fader tickmarks render at -18, -12, -6, 0, +6, +12, +18 dB positions
+  - Master-band fader moves zero-line on EQ plot
+  - Fader-thumb has correct dimensions and rounded corners
+  - Selected band elements are brighter than unselected
+- ✅ Integration tests:
+  - Master gain value persists in config save/load
+  - Zero-line position updates reactively when master gain changes
+
+### Risk Reduced Early
+- Validates tooltip rendering performance (fade animation must be smooth)
+- Proves zero-line coupling doesn't break curve rendering
+
+### Deferred Complexity
+- Multi-touch tooltip display (show multiple tooltips if dragging multiple faders)
+- Tooltip position adjustment if near top/bottom of fader track
+- Advanced tooltip content (show filter name, band number)
+
+---
+
+## MVP-11 — EQ Page Layout Refinement
+
+### Goal
+Vertically align EQ plot and fader track to create visual continuity and improve precision.
+
+### Status
+**To Do**
+
+### Deliverables
+
+1. **New layout structure:**
+   - **Full-height layout:** Navigation rail (left) + Main content area (stretches to fill viewport)
+   - **Main content area split into 3 rows:**
+     ```
+     Row 1 (auto height): Top controls/labels
+       Col 1: eq-octaves-area + eq-regions-area
+       Col 2 (for each band): filter-type-icon + slope-icon
+     
+     Row 2 (flex: 1): Main interactive area
+       Col 1: eq-plot-area (with zones 1-4 from current spec)
+       Col 2 (for each band): fader-track
+     
+     Row 3 (auto height): Bottom controls
+       Col 1: eq-freqscale-area + viz-options-area
+       Col 2 (for each band): fader-value + mute-btn + knob-wrapper×2 + knob-label×2
+       (Master-band column shows these controls)
+     ```
+
+2. **Alignment constraints:**
+   - Row 1 height = `max(Col1 height, Col2 height)` with bottom-aligned content
+   - Row 2 height = remaining viewport space (eq-plot and faders stretch together)
+   - Row 3 height = `max(Col1 height, Col2 height)` with top-aligned content
+   - **EQ plot top** aligns with **fader-track top**
+   - **EQ plot bottom** aligns with **fader-track bottom**
+
+3. **Maintain existing functionality:**
+   - `band-column[data-selected="true"]` highlighting logic preserved
+   - All existing visual states (enabled/disabled, selected/unselected) unchanged
+   - No regressions in token dragging, curve rendering, or control synchronization
+
+4. **CSS precision requirements:**
+   - No vertical gaps between elements within columns
+   - Borders and corners managed carefully (avoid double borders at row boundaries)
+   - Consistent border styling across all band columns
+   - `.band-column` wrapper spans all 3 rows for that band (maintains selection/theme context)
+
+### Test / Acceptance Criteria
+- ✅ Visual inspection:
+  - Top of EQ plot octaves row aligns with top of filter-type icons
+  - Bottom of EQ plot freq-scale row aligns with bottom of knob controls
+  - EQ plot and fader tracks are same height and stretch together
+  - No visual gaps or misalignments
+- ✅ Component tests:
+  - Layout responds to viewport height changes (ResizeObserver)
+  - Band column selection still works (click anywhere in column)
+  - All controls remain functional (faders, knobs, mute buttons)
+- ✅ Regression tests:
+  - Token dragging still works
+  - Curves still render correctly
+  - Bidirectional sync between plot and controls preserved
+
+### Risk Reduced Early
+- Locks down final layout contract before additional UI complexity
+- Validates CSS grid approach for complex multi-row alignment
+
+### Deferred Complexity
+- Responsive breakpoints for smaller screens
+- Collapsible sections (hide octaves/regions when space constrained)
+- Horizontal scrolling for >10 bands
+
+---
+
+## MVP-12 — Informative EQ Plot Tokens
+
+### Goal
+Improve token visual feedback with labels, order numbers, and Q/BW arc indicators.
+
+### Status
+**To Do**
+
+### Deliverables
+
+1. **Frequency label (below token):**
+   - Format: `"1.2k Hz"` or `"150 Hz"` (smart unit formatting)
+   - Value in **band accent color** (`--band-ink`)
+   - Unit "Hz" in **slightly muted band color** (`color-mix(in oklab, var(--band-ink) 70%, transparent)`)
+   - Font size: 11px, semi-bold
+   - Positioned directly below token with 4px gap
+
+2. **Q/BW label (below frequency label):**
+   - Format: `"Q 2.5"` or `"BW 1.2"` (depends on filter type)
+   - Entire label in **muted band color** (same as Hz unit)
+   - Font size: 10px, regular weight
+   - Positioned 2px below frequency label
+
+3. **Boundary-aware label placement:**
+   - Labels normally render **below** token
+   - If token Y position > (plot height - 60px), move labels **above** token
+   - Prevents clipping when token is dragged to bottom of plot
+   - Smooth transition (no abrupt jumps)
+
+4. **Token center number (filter order):**
+   - Display filter's **position in pipeline** as number (1-based index)
+   - Rendered at token center in **neutral bright color** (`var(--ui-text)`)
+   - Font size: 12px, bold, monospace or sans-serif
+   - Design accounts for **2-digit numbers** (max: "20")
+   - Number always visible (layered above token fill)
+
+5. **Token circularity maintained:**
+   - Token remains perfectly circular regardless of SVG `preserveAspectRatio` stretching
+   - Uses compensated `<ellipse>` with `rx`/`ry` adjusted for aspect ratio
+   - ResizeObserver updates compensation when plot dimensions change
+
+6. **Selection halo effect:**
+   - When `token[data-selected="true"]`:
+     - Add outer glow/halo ring at **~2× token radius**
+     - Halo color: `color-mix(in oklab, var(--band-color) 30%, transparent)`
+     - Halo blur: 8-12px
+     - SVG filter or box-shadow approach
+
+7. **Q/BW arc visualization on token:**
+   - Arc rendered **around token perimeter** (radius slightly larger than token)
+   - **Stroke thickness:** 10-15% of token radius (thin but legible)
+   - **Stroke cap:** butt or round (not square)
+   - **Arc sweep range:**
+     - Minimum sweep: **30°**
+     - Maximum sweep: **270°**
+   - **Arc positioning:** Centered at **top of token** (0° = 12 o'clock)
+   - **Arc growth:** Increasing Q/BW makes arc **grow symmetrically** in both directions from top
+     - Low Q → small arc centered at top (e.g., ±15° from vertical)
+     - High Q → large arc wrapping around sides (e.g., ±135° from vertical)
+   - **Mapping:** `arcStartAngle = -sweep/2`, `arcEndAngle = +sweep/2` where `sweep = map(Q, minQ, maxQ, 30°, 270°)`
+   - **Color:** Same `--band-ink` as token stroke, slightly transparent (~85% opacity)
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Frequency formatting (20-999 Hz → "Hz", 1k-20k → "k" suffix)
+  - Label position switches when token near bottom
+  - Token number displays correct filter index
+  - Arc sweep angle correctly mapped to Q value
+- ✅ Visual tests:
+  - Labels render with correct colors and positioning
+  - Token remains circular when plot resized
+  - Selection halo appears and has correct color
+  - Q/BW arc renders at correct position and size
+  - Arc grows symmetrically from top center
+- ✅ Interaction tests:
+  - Labels follow token during drag
+  - Boundary detection works smoothly
+  - Arc updates when Q changed via dial or Shift+drag
+
+### Risk Reduced Early
+- Validates SVG text rendering performance
+- Proves arc rendering doesn't impact drag performance
+
+### Deferred Complexity
+- Customizable label formats (user preference for Hz vs kHz threshold)
+- Label collision detection (prevent overlap when tokens close together)
+- Animated arc transitions (smooth sweep changes)
+- Alternative arc visualizations (filled wedge, dotted arc)
+
+---
+
 ## Explicitly Deferred Complexity
 
 The following are intentionally kept out of MVP track until core stability is proven:

@@ -385,7 +385,36 @@ This application is composed of few screens
 Band panel color binding (strict)
 	•	The entire column is a .band root with --band-color.
 	•	All sub-controls inside must derive from --band-* variables.
-	•	The column background remains neutral; only accents are tinted.d
+	•	The column background remains neutral; only accents are tinted.
+
+3.1 Layout Refinement (MVP-11)
+
+The preferred layout structure vertically aligns the EQ plot and fader tracks for visual continuity:
+
+**Three-row grid layout:**
+```
+Row 1 (auto height): Top controls/labels
+  • Main panel: eq-octaves-area + eq-regions-area
+  • Each band column: filter-type-icon + slope-icon
+  • Height = max(main panel, band columns) with bottom-aligned content
+
+Row 2 (flex: 1, fills remaining viewport height): Main interactive area
+  • Main panel: eq-plot-area (zones 1-4 as described in section 4.1)
+  • Each band column: fader-track
+  • EQ plot top/bottom MUST align with fader-track top/bottom
+
+Row 3 (auto height): Bottom controls
+  • Main panel: eq-freqscale-area + viz-options-area
+  • Each band column: mute-btn + knob-wrapper×2 + knob-label×2
+  • Master-band column: shows controls here
+  • Height = max(main panel, band columns) with top-aligned content
+```
+
+**CSS precision requirements:**
+	•	No vertical gaps between elements within columns
+	•	Borders managed carefully (avoid double borders at row boundaries)
+	•	`.band-column` wrapper spans all 3 rows for each band (maintains selection/theme context)
+	•	`band-column[data-selected="true"]` highlighting logic preserved across all rows
 
 ⸻
 
@@ -559,6 +588,7 @@ For each decade 10^n, draw lines at k * 10^n for k ∈ {2,3,4,5,6,7,8,9} that fa
 	•	Tokens appear as circles.
 	•	Tokens are clipped to the graph rect.
 	•	Tokens are always on top of grid lines.
+	•	Token remains perfectly circular regardless of SVG stretching (compensated ellipse)
 
 Interactions
 	•	Drag token horizontally → adjust frequency
@@ -579,6 +609,49 @@ Context Menu (per band)
 		•	High Shelf
 	•	Order
 	•	Key
+
+Token Visual Elements (MVP-12)
+
+1. **Filter order number (center of token):**
+   - Displays filter's position in pipeline (1-based index)
+   - Font: 12px, bold, monospace or sans-serif
+   - Color: `var(--ui-text)` (neutral bright)
+   - Design accommodates 2-digit numbers (max: "20")
+   - Always visible (layered above token fill)
+
+2. **Selection halo:**
+   - When `token[data-selected="true"]`:
+     - Outer glow/halo ring at ~2× token radius
+     - Color: `color-mix(in oklab, var(--band-color) 30%, transparent)`
+     - Blur: 8-12px (SVG filter or CSS box-shadow)
+
+3. **Q/BW arc indicator:**
+   - Arc rendered around token perimeter (radius slightly > token radius)
+   - **Stroke thickness:** 10-15% of token radius
+   - **Stroke cap:** butt or round
+   - **Arc sweep range:** 30° (min) to 270° (max)
+   - **Positioning:** Centered at top of token (0° = 12 o'clock)
+   - **Growth behavior:** Arc grows **symmetrically** in both directions from top
+     - Low Q → small arc centered at top (e.g., ±15° from vertical)
+     - High Q → large arc wrapping around sides (e.g., ±135° from vertical)
+   - **Mapping:** `arcStartAngle = -sweep/2`, `arcEndAngle = +sweep/2`
+     - where `sweep = map(Q, minQ, maxQ, 30°, 270°)`
+   - **Color:** `--band-ink` at ~85% opacity
+
+4. **Frequency label (below token, or above if near bottom):**
+   - Format: "1.2k Hz" or "150 Hz" (smart unit formatting)
+   - Value in **band accent color** (`--band-ink`)
+   - Unit "Hz" in **muted band color** (`color-mix(in oklab, var(--band-ink) 70%, transparent)`)
+   - Font: 11px, semi-bold
+   - Positioned 4px below token (or above if token Y > plot height - 60px)
+
+5. **Q/BW label (below frequency label):**
+   - Format: "Q 2.5" or "BW 1.2"
+   - Color: muted band color (same as Hz unit)
+   - Font: 10px, regular
+   - Positioned 2px below frequency label
+   - Follows token during drag
+   - Switches to above-token placement when near bottom boundary
 
 4.5 Gain Axis Labels (Right Side)
 
@@ -728,17 +801,41 @@ Interaction
 Description
 	•	N+1 vertical sliders total:
 	•	N band-specific faders
-	•	1 master/global fader located left of band specific faders. Muted color scheme.
+	•	1 master-band fader located left of band-specific faders. Muted color scheme.
 
 Behavior
 	•	**Band faders:** Drag up/down to adjust gain (dB)
-	•	**Master fader:** Controls CamillaDSP volume via `SetVolume`
-		•	Range: -150 to +50 dB (per CamillaDSP spec, clamped)
-		•	Live updates during drag with debounce (200ms default)
-		•	Fetches initial volume via `GetVolume` on connect
+	•	**Master-band fader:** Adjusts preamp/gain stage (NOT CamillaDSP output volume)
+		•	Range: **±24 dB** (clamped to EQ plot limits, same as filter bands)
+		•	Shifts the **zero-line** on EQ plot: `zero-line Y = gainToY(masterGainValue)`
+		•	Persists in config save/load if preamp/gain stage present
+		•	**Note:** If CamillaDSP config has no gain/volume stage in pipeline, master-band has visual-only effect (no audio impact)
+	•	**CamillaDSP output volume (`SetVolume`)**: Separate control concept (range -150 to +50 dB), not represented on EQ plot or master-band fader
 	•	Real-time update of:
 		•	EQ curve
 		•	Band token vertical position
+		•	Zero-line position (master-band only)
+
+Fader-thumb appearance
+	•	Shape: **Vertical rectangle** 14px wide × 28px high
+	•	Rounded corners: `border-radius: 4px`
+	•	Fill: neutral dark (`var(--ui-panel-2)`)
+	•	Outline: slightly darker than fill, 1px stroke
+	•	Selected band: add subtle colored accent using `--band-outline`
+
+Fader-track tickmarks (MVP-10)
+	•	Render horizontal tickmarks at **6 dB increments** (-18, -12, -6, 0, +6, +12, +18 dB)
+	•	Use band color scheme with muted opacity
+	•	Thickness: 2-3px
+	•	Help users visually align fader with EQ plot grid
+
+Fader value tooltip (MVP-10)
+	•	Appears on `mousedown`/`pointerdown` at fader-thumb
+	•	Positioned hanging off **left side** of thumb
+	•	SVG-based shape with band-themed colors (fill: `--band-ink`, stroke: `--band-outline`)
+	•	Displays gain value formatted to 1 decimal place (e.g., "-15.0 dB")
+	•	Fades out over **1.5 seconds** after `mouseup`/drag end
+	•	Text positioned 1/3 to 1/4 from right border, vertically centered
 
 ⸻
 
@@ -1038,7 +1135,33 @@ Every band “owns” a theme root node:
 }
 ```
 
-3.2 What is tinted vs neutral
+3.2 Selected band brightening (MVP-10)
+
+When `band-column[data-selected="true"]`, the following elements brighten:
+	•	**Filter type icon** → brighter (increased opacity or lightness)
+	•	**Slope icon** → brighter
+	•	**Fader-thumb** → add subtle colored accent using `--band-outline`
+	•	**Mute button** → brighter
+	•	**Knob arc** → brighter (increased opacity)
+
+Implementation: The `[data-selected="true"]` modifier increases `--band-ink` lightness (already defined above). Individual elements inherit this brighter value automatically.
+
+```css
+/* Selected band controls get brighter accents */
+.band[data-selected="true"] .filter-icon,
+.band[data-selected="true"] .slope-icon,
+.band[data-selected="true"] .mute-btn,
+.band[data-selected="true"] .knob-arc {
+  opacity: 1; /* or use filter: brightness(1.15); */
+}
+
+.band[data-selected="true"] .fader-thumb {
+  outline: 2px solid var(--band-outline);
+  outline-offset: 1px;
+}
+```
+
+3.3 What is tinted vs neutral
 
 Tinted with band color
 	•	Filter type icon
