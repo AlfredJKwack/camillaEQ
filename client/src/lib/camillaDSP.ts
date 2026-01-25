@@ -328,12 +328,67 @@ export class CamillaDSP {
     }
 
     try {
+      // Upload config
       await this.sendDSPMessage({
         SetConfigJson: JSON.stringify(this.config),
       });
+      
+      // Reload to apply changes (per MVP-8 spec)
+      await this.reload();
+      
       return true;
     } catch (error) {
       console.error('Error uploading config:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Reload config (apply changes)
+   */
+  async reload(): Promise<boolean> {
+    try {
+      await this.sendDSPMessage('Reload');
+      return true;
+    } catch (error) {
+      console.error('Error reloading config:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get DSP state
+   */
+  async getState(): Promise<string | null> {
+    try {
+      return await this.sendDSPMessage('GetState');
+    } catch (error) {
+      console.error('Error getting state:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get volume
+   */
+  async getVolume(): Promise<number | null> {
+    try {
+      return await this.sendDSPMessage('GetVolume');
+    } catch (error) {
+      console.error('Error getting volume:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Set volume
+   */
+  async setVolume(volume: number): Promise<boolean> {
+    try {
+      await this.sendDSPMessage({ SetVolume: volume });
+      return true;
+    } catch (error) {
+      console.error('Error setting volume:', error);
       return false;
     }
   }

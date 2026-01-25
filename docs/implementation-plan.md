@@ -513,6 +513,9 @@ Implement the high-frequency rendering path with zero DOM churn.
 ### Goal
 Replace mock with real WebSocket service and implement upload semantics.
 
+### Status
+✅ **COMPLETED** (2026-01-25)
+
 ### Deliverables
 1. **Full protocol implementation (`client/src/dsp/protocol.ts`):**
    - All message types per `docs/api-contract-camillaDSP.md`:

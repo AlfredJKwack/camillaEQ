@@ -64,12 +64,64 @@ describe('spectrumParser', () => {
       expect(result?.bins.every((v) => v === 0)).toBe(true);
     });
 
-    it('should handle negative values (clamp to 0)', () => {
+    it('should handle dB-scale values (negative)', () => {
+      // Real CamillaDSP spectrum data in dBFS
+      const input = [-88.2, -88.2, -83.5, -83.5, -82.9, -82.9, -78.7, -78.7];
+      const result = parseSpectrumData(input);
+
+      expect(result).toBeDefined();
+      expect(result?.bins).toBeDefined();
+      expect(result?.bins.every((v) => v >= 0 && v <= 1)).toBe(true);
+      
+      // With dB scale (-100 to 0 dB window):
+      // -78.7 dB should be higher than -88.2 dB
+      const idx78 = result?.bins[6]; // -78.7 dB
+      const idx88 = result?.bins[0]; // -88.2 dB
+      if (idx78 !== undefined && idx88 !== undefined) {
+        expect(idx78).toBeGreaterThan(idx88);
+      }
+    });
+
+    it('should detect and downmix stereo-interleaved data', () => {
+      // Stereo-interleaved: pairs of identical values (L, R, L, R, ...)
+      const input = [-80, -80, -85, -85, -90, -90, -88, -88];
+      const result = parseSpectrumData(input);
+
+      expect(result).toBeDefined();
+      expect(result?.bins).toBeDefined();
+      // Should be downmixed to half the length (4 bins)
+      expect(result?.bins.length).toBe(4);
+    });
+
+    it('should NOT downmix non-interleaved data', () => {
+      // Different values in pairs
+      const input = [-80, -85, -82, -88, -90, -92, -88, -84];
+      const result = parseSpectrumData(input);
+
+      expect(result).toBeDefined();
+      // Should keep original length (8 bins)
+      expect(result?.bins.length).toBe(8);
+    });
+
+    it('should map -100 dB to near-zero and 0 dB to 1.0', () => {
+      const input = [-100, -50, 0, 0]; // Mix of dB values
+      const result = parseSpectrumData(input);
+
+      expect(result).toBeDefined();
+      expect(result?.bins[0]).toBeCloseTo(0, 2); // -100 dB → ~0
+      expect(result?.bins[1]).toBeCloseTo(0.5, 2); // -50 dB → ~0.5
+      expect(result?.bins[2]).toBeCloseTo(1.0, 2); // 0 dB → 1.0
+    });
+
+    it('should handle mixed positive/negative as linear (not dB)', () => {
+      // Mixed positive/negative values should be treated as linear
       const input = [-1, 0, 1, 2];
       const result = parseSpectrumData(input);
 
       expect(result).toBeDefined();
       expect(result?.bins.every((v) => v >= 0 && v <= 1)).toBe(true);
+      // Max is 2, so normalized: [-1/2, 0, 1/2, 1] → clamped: [0, 0, 0.5, 1]
+      expect(result?.bins[3]).toBe(1.0); // Max value
     });
   });
 

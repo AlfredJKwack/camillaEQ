@@ -105,6 +105,38 @@ describe('CamillaDSP Integration Tests', () => {
             );
             break;
 
+          case 'Reload':
+            ws.send(
+              JSON.stringify({
+                Reload: { result: 'Ok', value: 'Config reloaded' },
+              })
+            );
+            break;
+
+          case 'GetState':
+            ws.send(
+              JSON.stringify({
+                GetState: { result: 'Ok', value: 'Running' },
+              })
+            );
+            break;
+
+          case 'GetVolume':
+            ws.send(
+              JSON.stringify({
+                GetVolume: { result: 'Ok', value: 0 },
+              })
+            );
+            break;
+
+          case 'SetVolume':
+            ws.send(
+              JSON.stringify({
+                SetVolume: { result: 'Ok', value: true },
+              })
+            );
+            break;
+
           case 'GetVersion':
             ws.send(
               JSON.stringify({
@@ -211,8 +243,33 @@ describe('CamillaDSP Integration Tests', () => {
       expect(dsp.config?.filters['test-filter']).toBeDefined();
     });
 
-    it('should upload config', async () => {
+    it('should upload config and reload', async () => {
       const success = await dsp.uploadConfig();
+
+      expect(success).toBe(true);
+      // Note: uploadConfig now also calls reload internally
+    });
+
+    it('should reload config', async () => {
+      const success = await dsp.reload();
+
+      expect(success).toBe(true);
+    });
+
+    it('should get DSP state', async () => {
+      const state = await dsp.getState();
+
+      expect(state).toBe('Running');
+    });
+
+    it('should get volume', async () => {
+      const volume = await dsp.getVolume();
+
+      expect(typeof volume).toBe('number');
+    });
+
+    it('should set volume', async () => {
+      const success = await dsp.setVolume(-10);
 
       expect(success).toBe(true);
     });

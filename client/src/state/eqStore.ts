@@ -1,33 +1,137 @@
 /**
  * EQ band state management
  * Single source of truth for all band parameters
+ * Uses global dspStore for connection/config
  */
 
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import type { EqBand } from '../dsp/filterResponse';
 import { generateCurvePath, generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
+import type { CamillaDSP, CamillaDSPConfig } from '../lib/camillaDSP';
+import {
+  extractEqBandsFromConfig,
+  applyEqBandsToConfig,
+  type ExtractedEqData,
+} from '../lib/camillaEqMapping';
+import { debounceCancelable } from '../lib/debounce';
+import { getDspInstance, updateConfig as updateDspConfig } from './dspStore';
 
-// Initial state: Tangzu Waner reference config (10 peaking filters)
-const initialBands: EqBand[] = [
-  { enabled: true, type: 'Peaking', freq: 24, gain: 1.2, q: 0.5 },
-  { enabled: true, type: 'Peaking', freq: 170, gain: -2.9, q: 0.5 },
-  { enabled: true, type: 'Peaking', freq: 880, gain: 1.0, q: 1.0 },
-  { enabled: true, type: 'Peaking', freq: 1400, gain: -1.5, q: 2.0 },
-  { enabled: true, type: 'Peaking', freq: 2000, gain: -2.8, q: 1.5 },
-  { enabled: true, type: 'Peaking', freq: 5200, gain: -1.8, q: 2.0 },
-  { enabled: true, type: 'Peaking', freq: 6500, gain: 5.4, q: 0.6 },
-  { enabled: true, type: 'Peaking', freq: 6600, gain: 4.1, q: 2.0 },
-  { enabled: true, type: 'Peaking', freq: 8200, gain: -8.1, q: 2.0 },
-  { enabled: true, type: 'Peaking', freq: 10000, gain: 7.6, q: 2.0 },
-];
+// Upload debounce time (ms)
+const UPLOAD_DEBOUNCE_MS = 200;
 
-// Main store
-export const bands = writable<EqBand[]>(initialBands);
+// Upload state (EQ-specific)
+export type UploadState = 'idle' | 'pending' | 'success' | 'error';
 
-// Selected band index (null = none selected)
+export interface UploadStatus {
+  state: UploadState;
+  message?: string;
+}
+
+// Stores
+export const bands = writable<EqBand[]>([]);
 export const selectedBandIndex = writable<number | null>(null);
+export const uploadStatus = writable<UploadStatus>({ state: 'idle' });
 
-// Actions (mutations with proper clamping/rounding)
+// Internal state (not exported as stores)
+let lastConfig: CamillaDSPConfig | null = null;
+let extractedData: ExtractedEqData | null = null;
+
+// Debounced upload function
+const debouncedUpload = debounceCancelable(async () => {
+  const dspInstance = getDspInstance();
+  if (!dspInstance || !lastConfig || !extractedData) {
+    return;
+  }
+
+  try {
+    uploadStatus.set({ state: 'pending' });
+
+    // Get current bands
+    const currentBands = get(bands);
+
+    // Apply bands to config
+    const updatedData: ExtractedEqData = {
+      ...extractedData,
+      bands: currentBands,
+    };
+    const updatedConfig = applyEqBandsToConfig(lastConfig, updatedData);
+
+    // Update instance config
+    dspInstance.config = updatedConfig;
+
+    // Upload to CamillaDSP
+    const success = await dspInstance.uploadConfig();
+
+    if (success) {
+      // Store updated config as new baseline
+      lastConfig = updatedConfig;
+      updateDspConfig(updatedConfig); // Sync global dspStore
+      uploadStatus.set({ state: 'success' });
+      
+      // Clear success state after 2 seconds
+      setTimeout(() => {
+        uploadStatus.update((status) =>
+          status.state === 'success' ? { state: 'idle' } : status
+        );
+      }, 2000);
+    } else {
+      uploadStatus.set({ state: 'error', message: 'Upload failed' });
+    }
+  } catch (error) {
+    console.error('Error uploading config:', error);
+    uploadStatus.set({
+      state: 'error',
+      message: error instanceof Error ? error.message : 'Upload failed',
+    });
+  }
+}, UPLOAD_DEBOUNCE_MS);
+
+/**
+ * Initialize EQ store from config (uses global dspStore)
+ */
+export function initializeFromConfig(config: CamillaDSPConfig): boolean {
+  if (!config) {
+    console.error('No config provided');
+    return false;
+  }
+
+  lastConfig = config;
+
+  try {
+    // Extract bands from config
+    const extracted = extractEqBandsFromConfig(config);
+    extractedData = extracted;
+
+    // Update store
+    bands.set(extracted.bands);
+
+    console.log(`Loaded ${extracted.bands.length} EQ bands from config`);
+    return true;
+  } catch (error) {
+    console.error('Error initializing from config:', error);
+    return false;
+  }
+}
+
+/**
+ * Clear EQ state
+ */
+export function clearEqState(): void {
+  debouncedUpload.cancel();
+  lastConfig = null;
+  extractedData = null;
+  bands.set([]);
+  uploadStatus.set({ state: 'idle' });
+}
+
+/**
+ * Trigger immediate upload (flush debounce)
+ */
+export function commitUpload(): void {
+  debouncedUpload.flush();
+}
+
+// Actions (mutations with proper clamping/rounding + debounced upload)
 
 /**
  * Clamp and round frequency to nearest Hz (0 decimals)
@@ -56,6 +160,7 @@ export function setBandFreq(index: number, freq: number) {
     updated[index] = { ...updated[index], freq: clampFreq(freq) };
     return updated;
   });
+  debouncedUpload.call();
 }
 
 export function setBandGain(index: number, gain: number) {
@@ -64,6 +169,7 @@ export function setBandGain(index: number, gain: number) {
     updated[index] = { ...updated[index], gain: clampGain(gain) };
     return updated;
   });
+  debouncedUpload.call();
 }
 
 export function setBandQ(index: number, q: number) {
@@ -72,6 +178,7 @@ export function setBandQ(index: number, q: number) {
     updated[index] = { ...updated[index], q: clampQ(q) };
     return updated;
   });
+  debouncedUpload.call();
 }
 
 export function toggleBandEnabled(index: number) {
@@ -80,6 +187,7 @@ export function toggleBandEnabled(index: number) {
     updated[index] = { ...updated[index], enabled: !updated[index].enabled };
     return updated;
   });
+  debouncedUpload.call();
 }
 
 export function selectBand(index: number | null) {

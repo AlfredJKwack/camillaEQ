@@ -12,8 +12,11 @@
     setBandQ,
     toggleBandEnabled,
     selectBand,
+    initializeFromConfig,
+    clearEqState,
+    uploadStatus,
   } from '../state/eqStore';
-  import { CamillaDSP } from '../lib/camillaDSP';
+  import { connectionState, dspConfig, getDspInstance, dspVolume, setVolumeDb } from '../state/dspStore';
   import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
   import { SpectrumAreaLayer } from '../ui/rendering/canvasLayers/SpectrumAreaLayer';
   import { parseSpectrumData } from '../dsp/spectrumParser';
@@ -22,9 +25,8 @@
   let spectrumMode = 'off'; // 'off' | 'pre' | 'post'
   let spectrumSmooth = false; // Spectrum curve smoothing
   
-  // CamillaDSP connection
-  let dsp: CamillaDSP | null = null;
-  let dspConnected = false;
+  // Track initialization state
+  let eqInitialized = false;
   
   // Spectrum rendering
   let canvasElement: HTMLCanvasElement;
@@ -67,30 +69,8 @@
     observer.observe(plotElement);
   }
   
-  // Lifecycle: Connect to CamillaDSP and start spectrum rendering
-  onMount(async () => {
-    // Initialize CamillaDSP client
-    dsp = new CamillaDSP();
-    
-    // Attempt connection with stored credentials
-    const server = localStorage.getItem('camillaDSP.server');
-    const controlPort = localStorage.getItem('camillaDSP.controlPort');
-    const spectrumPort = localStorage.getItem('camillaDSP.spectrumPort');
-    
-    if (server && controlPort && spectrumPort) {
-      const connected = await dsp.connect(
-        server,
-        Number(controlPort),
-        Number(spectrumPort)
-      );
-      
-      dspConnected = connected && dsp.spectrumConnected;
-      
-      if (dspConnected) {
-        console.log('CamillaDSP connected with spectrum support');
-      }
-    }
-    
+  // Lifecycle: Initialize canvas renderer
+  onMount(() => {
     // Initialize canvas renderer with spectrum area layer
     if (canvasElement) {
       spectrumAreaLayer = new SpectrumAreaLayer({ smooth: spectrumSmooth });
@@ -98,6 +78,24 @@
       spectrumRenderer.resize(plotWidth, plotHeight);
     }
   });
+  
+  // Reactive: Initialize EQ when connection becomes available
+  // This handles both immediate connection and delayed auto-reconnect
+  $: {
+    const dsp = getDspInstance();
+    const config = $dspConfig;
+    
+    if (!eqInitialized && dsp && dsp.connected && config && $connectionState === 'connected') {
+      // Initialize EQ store from config
+      eqInitialized = initializeFromConfig(config);
+      
+      if (eqInitialized) {
+        console.log('EQ store initialized from global DSP config');
+      } else {
+        console.warn('Failed to initialize EQ store from config');
+      }
+    }
+  }
   
   // Reactive: Update layer smoothing when toggle changes
   $: if (spectrumAreaLayer) {
@@ -110,15 +108,16 @@
       clearInterval(spectrumPollingInterval);
     }
     
-    // Disconnect from DSP
-    if (dsp) {
-      dsp.disconnect();
-    }
+    // Note: We don't disconnect the global DSP instance here
+    // It persists across page navigation
   });
   
   // Reactive: Start/stop spectrum polling based on mode
   $: {
-    if (spectrumMode !== 'off' && dspConnected && !spectrumPollingInterval) {
+    const dsp = getDspInstance();
+    const isConnected = dsp?.connected && dsp?.spectrumConnected;
+    
+    if (spectrumMode !== 'off' && isConnected && !spectrumPollingInterval) {
       // Start polling
       spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
       console.log('Spectrum polling started');
@@ -137,6 +136,7 @@
   
   // Poll spectrum data and render
   async function pollSpectrum() {
+    const dsp = getDspInstance();
     if (!dsp || !spectrumRenderer) return;
     
     try {
@@ -285,6 +285,45 @@
     
     const onMove = (e: PointerEvent) => {
       updateGainFromPointer(e.clientY);
+    };
+    
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  // Master fader interaction (volume control)
+  // CamillaDSP range: -150 to +50 dB (full range)
+  const VOLUME_MIN = -150;
+  const VOLUME_MAX = 50;
+  const VOLUME_RANGE = VOLUME_MAX - VOLUME_MIN; // 200 dB
+  
+  function handleMasterFaderPointerDown(event: PointerEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const thumb = event.currentTarget as HTMLElement;
+    const track = thumb.closest('.fader-track') as HTMLElement;
+    if (!track) return;
+    
+    const rect = track.getBoundingClientRect();
+    
+    const updateVolumeFromPointer = (clientY: number) => {
+      // Clamp relY to [0, 1] to prevent out-of-bounds values
+      const relY = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      // Map fader to full CamillaDSP range: top = +50 dB, bottom = -150 dB
+      const volumeDb = VOLUME_MAX - relY * VOLUME_RANGE;
+      setVolumeDb(volumeDb);
+    };
+    
+    updateVolumeFromPointer(event.clientY);
+    
+    const onMove = (e: PointerEvent) => {
+      updateVolumeFromPointer(e.clientY);
     };
     
     const onUp = () => {
@@ -619,10 +658,11 @@
         <div class="fader-track">
           <div
             class="fader-thumb"
-            style="bottom: 50%;"
+            style="bottom: {(($dspVolume - VOLUME_MIN) / VOLUME_RANGE) * 100}%;"
+            on:pointerdown={handleMasterFaderPointerDown}
           ></div>
         </div>
-        <span class="fader-value">0 dB</span>
+        <span class="fader-value">{$dspVolume > 0 ? '+' : ''}{$dspVolume.toFixed(1)} dB</span>
       </div>
 
       <button class="mute-btn" title="Master Mute">

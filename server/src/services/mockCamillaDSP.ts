@@ -118,6 +118,10 @@ export class MockCamillaDSP {
           this.sendResponse(ws, 'SetConfigJson', { result: 'Ok', value: true });
           break;
 
+        case 'Reload':
+          this.sendResponse(ws, 'Reload', { result: 'Ok', value: 'Config reloaded' });
+          break;
+
         case 'GetState':
           this.sendResponse(ws, 'GetState', { result: 'Ok', value: 'Running' });
           break;

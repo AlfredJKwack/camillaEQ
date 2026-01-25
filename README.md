@@ -104,7 +104,8 @@ npm run dev
    - **Server**: `localhost`
    - **Control Port**: `3146`
    - **Spectrum Port**: `6413`
-3. Click **Save & Go to EQ**
+3. (Optional) Enable **Auto-reconnect on page load** checkbox
+4. Click **Connect**
 
 ### 4. Enable Spectrum Overlay
 
@@ -115,6 +116,39 @@ On the EQ page, under **Spectrum** options, click:
 You should see an animated spectrum curve with area fill rendering behind the EQ curve at ~10Hz.
 
 **Optional:** Enable the **Smooth spectrum** checkbox for visually smoother curves (applies data smoothing + Catmull-Rom spline interpolation).
+
+## Auto-Reconnect Feature
+
+The application supports automatic reconnection when you reload the page or navigate back to the app.
+
+### How It Works
+
+When **Auto-reconnect on page load** is enabled on the Connection page:
+
+1. **Startup**: On app load, it automatically attempts to connect using the last saved connection parameters
+2. **Retry Logic**: If the connection fails, it retries with exponential backoff:
+   - Retry 1: after 1 second
+   - Retry 2: after 2 seconds
+   - Retry 3: after 5 seconds
+   - Retry 4: after 10 seconds
+   - Retry 5+: after 30 seconds
+   - Maximum: 10 attempts total
+3. **Visual Feedback**: The connection icon in the navigation rail changes color based on state:
+   - **Green glow**: Connected
+   - **Blue glow**: Connecting/Reconnecting
+   - **Red glow**: Connection error
+   - **Default**: Disconnected
+
+### Enable/Disable
+
+Toggle the **Auto-reconnect on page load** checkbox on the Connection page. The setting is saved to localStorage and persists across sessions.
+
+### Manual Disconnect
+
+Clicking **Disconnect** will:
+- Close the current connection
+- Cancel any pending retry attempts
+- The app will not attempt to reconnect until you manually click **Connect** again or reload the page (if auto-reconnect is enabled)
 
 ## API Endpoints
 
@@ -141,7 +175,7 @@ You should see an animated spectrum curve with area fill rendering behind the EQ
 
 ## Project Status
 
-**Current Milestone:** MVP-7 Complete ✓ — Canvas spectrum overlay operational
+**Current Milestone:** MVP-8 Complete ✓ — Real CamillaDSP integration with debounced uploads
 
 ### Completed Milestones
 
@@ -196,6 +230,33 @@ RBJ biquad filter response calculation, `EqSvgRenderer` module, reactive curve g
 - Full test coverage (19 spectrumParser tests, updated integration tests)
 - All 68 client tests passing
 
+#### MVP-8: Real CamillaDSP Integration + Upload Policy ✓
+**Full CamillaDSP protocol integration with:**
+- **Extended DSP math** for 7 filter types using RBJ Audio EQ Cookbook formulas:
+  - Peaking, HighShelf, LowShelf (freq + q + gain)
+  - HighPass, LowPass, BandPass, AllPass (freq + q)
+- **Bidirectional CamillaDSP ⇄ EqBand mapping layer** (`camillaEqMapping.ts`):
+  - Extract EQ bands from CamillaDSP config (uses channel 0 as reference)
+  - Apply EQ bands to ALL channels in config
+  - Only Biquad filters with 7 supported subtypes
+- **Upload-on-commit with debounce** (200ms default via `debounceCancelable()`):
+  - Every parameter change (freq/gain/q/enabled) triggers debounced upload
+  - `SetConfigJson` followed by `Reload` per CamillaDSP spec
+  - Upload status tracked (idle/pending/success/error)
+- **Global DSP state management** (`dspStore.ts`):
+  - Singleton CamillaDSP instance shared across all pages
+  - Connection state management with auto-reconnect
+  - Config synchronization (CamillaDSP → eqStore on connect)
+- **Master volume control**:
+  - Master fader controls CamillaDSP volume via `SetVolume`
+  - Range: -150 to +50 dB (per CamillaDSP spec)
+  - Debounced live updates during drag (200ms)
+  - `GetVolume` on connect to sync initial state
+- **Visual feedback**:
+  - Nav icon colors: green (connected/success), blue (connecting/pending), red (error)
+  - Upload status with automatic 2s success timeout
+- All 76 client tests passing (6 test suites)
+
 ### Current Capabilities
 
 The application now provides a **fully interactive equalizer editor** with:
@@ -215,7 +276,7 @@ The application now provides a **fully interactive equalizer editor** with:
 
 ### Next Milestone
 
-**MVP-8:** Real CamillaDSP Integration + Upload Policy (debounced config uploads)
+**MVP-9:** Config Screen + Persistence Roundtrip
 
 ## Documentation
 

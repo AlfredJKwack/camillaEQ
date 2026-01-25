@@ -1,5 +1,7 @@
 <script lang="ts">
   import { router, type Route } from '../lib/router';
+  import { connectionState } from '../state/dspStore';
+  import { uploadStatus } from '../state/eqStore';
 
   const navItems: { route: Route; label: string; icon: string }[] = [
     { route: '/connect', label: 'Connection', icon: '🔌' },
@@ -14,6 +16,37 @@
   function navigate(route: Route) {
     router.navigate(route);
   }
+
+  // Derive status color from connection and upload states
+  // Green = connected or upload success
+  // Blue = connecting or upload pending
+  // Red = error
+  // Default = muted
+  $: statusColor = (() => {
+    // Upload state takes priority when active
+    if ($uploadStatus.state === 'pending') {
+      return 'blue';
+    }
+    if ($uploadStatus.state === 'success') {
+      return 'green';
+    }
+    if ($uploadStatus.state === 'error') {
+      return 'red';
+    }
+
+    // Otherwise use connection state
+    if ($connectionState === 'connected') {
+      return 'green';
+    }
+    if ($connectionState === 'connecting') {
+      return 'blue';
+    }
+    if ($connectionState === 'error') {
+      return 'red';
+    }
+
+    return 'default';
+  })();
 </script>
 
 <nav class="nav-rail">
@@ -21,6 +54,9 @@
     <button
       class="nav-button"
       class:active={currentRoute === item.route}
+      class:status-green={item.route === '/connect' && statusColor === 'green'}
+      class:status-blue={item.route === '/connect' && statusColor === 'blue'}
+      class:status-red={item.route === '/connect' && statusColor === 'red'}
       on:click={() => navigate(item.route)}
       title={item.label}
       aria-label={item.label}
@@ -70,5 +106,33 @@
   .nav-icon {
     font-size: 1.5rem;
     line-height: 1;
+  }
+
+  /* Status color states (for connection icon) */
+  .nav-button.status-green {
+    border-color: rgba(120, 255, 190, 0.5);
+    box-shadow: 0 0 8px rgba(120, 255, 190, 0.2);
+  }
+
+  .nav-button.status-green:not(.active) {
+    background: rgba(120, 255, 190, 0.05);
+  }
+
+  .nav-button.status-blue {
+    border-color: rgba(120, 160, 255, 0.5);
+    box-shadow: 0 0 8px rgba(120, 160, 255, 0.2);
+  }
+
+  .nav-button.status-blue:not(.active) {
+    background: rgba(120, 160, 255, 0.05);
+  }
+
+  .nav-button.status-red {
+    border-color: rgba(255, 120, 120, 0.5);
+    box-shadow: 0 0 8px rgba(255, 120, 120, 0.2);
+  }
+
+  .nav-button.status-red:not(.active) {
+    background: rgba(255, 120, 120, 0.05);
   }
 </style>

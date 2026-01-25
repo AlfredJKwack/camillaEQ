@@ -1,39 +1,39 @@
 # Active Context
 
 ## Current Focus
-**MVP-0 through MVP-7 complete** - Full interactive EQ editor with real-time spectrum overlay implemented and tested.
+**MVP-0 through MVP-8 complete** - Full interactive EQ editor with real-time spectrum overlay, CamillaDSP integration, and debounced config uploads.
 
 ## Current Milestone
-**MVP-8: Real CamillaDSP Integration + Upload Policy**
+**MVP-9: Config Screen + Persistence Roundtrip**
 
-Implement full CamillaDSP protocol integration with debounced config uploads.
+Implement config load/save via backend with full roundtrip flow.
 
 ## Immediate Next Steps
 
-### 1. Implement Full CamillaDSP Protocol
-- Review `docs/api-contract-camillaDSP.md` for complete protocol coverage
-- Ensure all control socket commands are implemented
-- Add error handling for all CamillaDSP operations
-- Verify config normalization (`getDefaultConfig()`) is complete
+### 1. Create Config Manager Page
+- Build `client/src/pages/ConfigManager.svelte` UI
+- List available configs (fetch from backend)
+- Load button: Backend → Browser → CamillaDSP upload
+- Save button: Capture current state → Backend persistence
+- Display config metadata (name, last modified)
 
-### 2. Implement Upload-on-Commit with Debounce
-- Add debounce utility (150-300ms delay)
-- Hook into eqStore parameter changes
-- Upload config to CamillaDSP when changes settle
-- Show upload status indicator (pending/success/error)
-- Handle upload failures gracefully
+### 2. Backend Endpoint for Config List
+- Implement `GET /api/configs` endpoint
+- Read config directory, return file names + metadata
+- Error handling for missing/inaccessible directory
+- Unit tests for config list endpoint
 
-### 3. Improve Connection Management UI
-- Enhance ConnectPage with better error messages
-- Add connection status indicator on EqPage
-- Handle disconnections gracefully (reconnect logic)
-- Display CamillaDSP version and state
+### 3. Implement Config Flow Logic
+- **Load flow**: Backend → Browser state → CamillaDSP `SetConfigJson` + `Reload`
+- **Save flow**: CamillaDSP `GetConfigJson` → Browser → Backend `PUT /api/config`
+- Validation: Ensure browser/CamillaDSP state sync before save
+- Optional: Force save with warning if out of sync
 
-### 4. Write Integration Tests
-- Test config upload flow (eqStore → CamillaDSP)
-- Test config download flow (CamillaDSP → eqStore)
-- Test debounce behavior (multiple rapid changes → single upload)
-- Optional: Add gated tests for real CamillaDSP device
+### 4. Write E2E Test
+- Save config via UI
+- Reload page (or disconnect/reconnect)
+- Load saved config
+- Verify UI state matches saved config
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)

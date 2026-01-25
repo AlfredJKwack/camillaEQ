@@ -727,7 +727,11 @@ Description
 	•	1 master/global fader located left of band specific faders. Muted color scheme.
 
 Behavior
-	•	Drag up/down to adjust gain (dB)
+	•	**Band faders:** Drag up/down to adjust gain (dB)
+	•	**Master fader:** Controls CamillaDSP volume via `SetVolume`
+		•	Range: -150 to +50 dB (per CamillaDSP spec, clamped)
+		•	Live updates during drag with debounce (200ms default)
+		•	Fetches initial volume via `GetVolume` on connect
 	•	Real-time update of:
 		•	EQ curve
 		•	Band token vertical position

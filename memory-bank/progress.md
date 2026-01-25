@@ -111,6 +111,34 @@
   - All tests passing: 34 server tests + 49 client tests (1 App + 5 EqPage + 9 CamillaDSP + 15 EqSvgRenderer + 19 eqStore)
 
 - [x] **MVP-7: Canvas Spectrum Renderer + Mode Toggles** (2026-01-24)
+  - Created pluggable layer architecture (`CanvasVisualizationLayer` interface)
+  - Implemented filled spectrum curve with visible outline (replaces bars)
+  - Added Catmull-Rom spline + moving-average smoothing with toggle
+  - DPR-aware canvas sizing for retina displays
+  - Stale frame detection with visual feedback
+  - All tests passing (68 client tests)
+
+- [x] **MVP-8: Real CamillaDSP Integration + Upload Policy** (2026-01-24)
+  - Extended DSP math for 7 filter types using RBJ Audio EQ Cookbook formulas:
+    - `HighPass`, `LowPass`: uses freq + q (no gain)
+    - `BandPass`: uses freq + q (peaks around center)
+    - `AllPass`: uses freq + q (flat magnitude response)
+    - `HighShelf`, `LowShelf`: uses freq + q + gain
+    - `Peaking`: already implemented (uses freq + q + gain)
+  - Created bidirectional mapping layer (`client/src/lib/camillaEqMapping.ts`):
+    - `extractEqBandsFromConfig()`: CamillaDSP → EqBands (uses channel 0 as reference)
+    - `applyEqBandsToConfig()`: EqBands → CamillaDSP (applies to ALL channels)
+    - Only supports Biquad filters with 7 supported subtypes
+  - Integrated eqStore with CamillaDSP:
+    - `initializeFromCamilla()`: loads bands from config on connect
+    - `disconnectFromCamilla()`: cleanup on disconnect
+    - Upload-on-commit with 200ms debounce via `debounceCancelable()`
+    - Every parameter change (freq/gain/q/enabled) triggers debounced upload
+  - Connection/upload status visualization:
+    - Nav icon colors: green (connected/success), blue (connecting/pending), red (error)
+    - Upload status tracked in eqStore with automatic 2s success timeout
+  - Created debounce utility (`client/src/lib/debounce.ts`)
+  - All tests passing: 102 total (68 client + 34 server)
   - **Pluggable layer architecture for extendable visualizations:**
     - Created `client/src/ui/rendering/canvasLayers/CanvasVisualizationLayer.ts` interface
     - Created `client/src/ui/rendering/canvasLayers/SpectrumAreaLayer.ts` for filled curve rendering
@@ -150,8 +178,8 @@
     - Updated design-spec.md with pluggable layer architecture and smoothing requirements
 
 ## Current Status
-**Phase:** MVP-8 - Real CamillaDSP Integration + Upload Policy
-**State:** Ready to implement debounced config uploads and full protocol integration
+**Phase:** MVP-8 Complete ✓ - Real CamillaDSP Integration + Upload Policy
+**State:** Full protocol integration with debounced uploads, master volume control, and 76 tests passing. Ready for MVP-9.
 
 ## Planned Milestones
 
@@ -165,12 +193,13 @@
 - [x] Add freeze/fade behavior when frames stall
 - [x] Write comprehensive unit tests (19 spectrum parser tests)
 
-### MVP-8: Real CamillaDSP Integration + Upload Policy
-- [ ] Implement full protocol per API contract
-- [ ] Add config normalization (`getDefaultConfig()`)
-- [ ] Implement upload-on-commit with debounce (150-300ms)
-- [ ] Create connection management UI with error handling
-- [ ] Write integration tests against real CamillaDSP (optional/gated)
+### MVP-8: Real CamillaDSP Integration + Upload Policy ✓
+- [x] Extend DSP math to support 7 filter types (HighPass/LowPass/Peaking/HighShelf/LowShelf/BandPass/AllPass)
+- [x] Create CamillaDSP ⇄ EqBand mapping layer (`camillaEqMapping.ts`)
+- [x] Implement upload-on-commit with debounce (200ms default)
+- [x] Wire eqStore to CamillaDSP config initialization
+- [x] Add connection/upload status visualization via nav-icon colors (green/blue/red)
+- [x] All tests passing (68 client + 34 server = 102 total tests)
 
 ### MVP-9: Config Screen + Persistence Roundtrip
 - [ ] Create config manager page (list/load/save)

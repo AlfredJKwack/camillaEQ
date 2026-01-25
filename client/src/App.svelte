@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { router } from './lib/router';
+  import { autoConnectFromLocalStorage } from './state/dspStore';
   import Nav from './components/Nav.svelte';
   import ConnectPage from './pages/ConnectPage.svelte';
   import EqPage from './pages/EqPage.svelte';
@@ -9,6 +11,11 @@
 
   let currentRoute: string;
   router.subscribe((route) => (currentRoute = route));
+
+  // Auto-connect on startup if enabled
+  onMount(() => {
+    autoConnectFromLocalStorage();
+  });
 </script>
 
 <div class="app-shell">
