@@ -137,6 +137,24 @@ server.put('/api/config', async (request, reply) => {
   return { success: true };
 });
 
+// Initialize latest state store (tracks most recent DSP config)
+const latestStateStore = new ConfigStore({
+  configDir: './data',
+  configFileName: 'latest_dsp_state.json',
+});
+
+// Get latest DSP state
+server.get('/api/state/latest', async (request, reply) => {
+  const state = await latestStateStore.readConfig();
+  return state;
+});
+
+// Put latest DSP state
+server.put('/api/state/latest', async (request, reply) => {
+  await latestStateStore.writeConfig(request.body);
+  return { success: true };
+});
+
 // Initialize configs library
 import { ConfigsLibrary, type PipelineConfig } from './services/configsLibrary.js';
 const configsLibrary = new ConfigsLibrary();

@@ -85,10 +85,16 @@ The system consists of three cooperating processes:
 ## State Management
 
 **Source of Truth:**
-- CamillaDSP service owns active DSP state
+- CamillaDSP service owns active DSP state (intended authoritative source when it has state)
 - Browser maintains working copy of config
-- Backend stores persistent config files
-- Backend is NOT authoritative (just a file store)
+- Backend stores persistent config files AND latest applied state
+- Backend provides durable fallback when CamillaDSP returns empty config
+
+**Latest State Persistence:**
+- Every successful upload to CamillaDSP → write-through to `server/data/latest_dsp_state.json`
+- On startup/reconnect: if CamillaDSP returns empty config → restore from `/api/state/latest`
+- Non-fatal write-through: continues if server unavailable
+- Page reload shows most recent edited state (not last loaded preset)
 
 **State Transitions:**
 - Browser requests → CamillaDSP applies → Browser reflects

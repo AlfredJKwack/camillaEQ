@@ -177,9 +177,30 @@
     - Updated README.md with filled curve visualization description and smoothing toggle
     - Updated design-spec.md with pluggable layer architecture and smoothing requirements
 
+- [x] **MVP-9: Config Library + Persistence Roundtrip** (2026-01-25)
+  - Created server-side config library service (`server/src/services/configsLibrary.ts`)
+  - Implemented API endpoints: `GET /api/configs`, `GET /api/configs/:id`, `PUT /api/configs/:id`
+  - Created pipeline-config mapping layer (`client/src/lib/pipelineConfigMapping.ts`)
+  - Built compact, searchable Presets UI (`client/src/pages/PresetsPage.svelte`)
+  - Search functionality: case-insensitive substring matching, result counter, highlighted matches
+  - Keyboard navigation: `/` to focus, arrow keys to navigate, Enter to load
+  - Full roundtrip flow: Backend → Browser → CamillaDSP (load), CamillaDSP → Browser → Backend (save)
+  - Fixed pipeline generation to match extraction expectations (single Filter step per channel)
+  - Added global state sync after preset load (`updateConfig()` + `initializeFromConfig()`)
+  - All 130 tests passing (76 client + 54 server)
+
+- [x] **Post-MVP-9: Latest State Persistence** (2026-01-25)
+  - Added `GET /api/state/latest` and `PUT /api/state/latest` endpoints
+  - Storage: `server/data/latest_dsp_state.json` (full CamillaDSP config JSON)
+  - Write-through on every successful EQ upload to CamillaDSP
+  - Startup restore: if CamillaDSP returns empty config → fetch `/api/state/latest` and upload
+  - Removed preset auto-restore behavior (presets load only on explicit user action)
+  - Result: Page reload now shows most recent edited state
+  - All 130 tests passing
+
 ## Current Status
-**Phase:** MVP-8 Complete ✓ - Real CamillaDSP Integration + Upload Policy
-**State:** Full protocol integration with debounced uploads, master volume control, and 76 tests passing. Ready for MVP-9.
+**Phase:** MVP-9 Complete ✓ - Config Library + Persistence Roundtrip
+**State:** Full preset management with compact searchable UI, 130 tests passing. Ready for MVP-10+.
 
 ## Planned Milestones
 

@@ -173,6 +173,17 @@ export class CamillaDSP {
     try {
       await this.downloadConfig();
       if (this.config) {
+        // Debug: Log raw downloaded config before normalization
+        console.log('Raw downloaded config:', {
+          filters: Object.keys(this.config.filters || {}).length,
+          mixers: Object.keys(this.config.mixers || {}).length,
+          pipeline: this.config.pipeline?.length || 0,
+          pipelineSteps: this.config.pipeline?.map(step => ({
+            type: step.type,
+            names: (step as any).names?.length || 0,
+          })),
+        });
+        
         this.config = this.getDefaultConfig(this.config);
       }
       return true;
@@ -427,27 +438,21 @@ export class CamillaDSP {
 
   /**
    * Get default/normalized config
+   * Preserves all data from CamillaDSP, only fills missing required fields
    */
   private getDefaultConfig(config: Partial<CamillaDSPConfig>): CamillaDSPConfig {
-    const defaultConfig: CamillaDSPConfig = {
+    return {
+      // Preserve devices or use default
       devices: config.devices || { capture: { channels: 2 }, playback: { channels: 2 } },
-      filters: {},
-      mixers: this.defaultMixer,
-      pipeline: this.defaultPipeline,
-      processors: {},
+      
+      // Preserve filters, mixers, pipeline as-is (even if empty)
+      filters: config.filters || {},
+      mixers: config.mixers || {},
+      pipeline: config.pipeline || [],
+      
+      // Ensure processors exists
+      processors: config.processors || {},
     };
-
-    // If incoming config has filters, preserve them
-    if (config.filters && Object.keys(config.filters).length > 0) {
-      defaultConfig.filters = config.filters;
-      defaultConfig.mixers = config.mixers || this.defaultMixer;
-      defaultConfig.pipeline = config.pipeline || this.defaultPipeline;
-    }
-
-    // Always ensure processors exists
-    defaultConfig.processors = {};
-
-    return defaultConfig;
   }
 
   /**

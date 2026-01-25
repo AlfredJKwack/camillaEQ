@@ -66,6 +66,19 @@ const debouncedUpload = debounceCancelable(async () => {
       // Store updated config as new baseline
       lastConfig = updatedConfig;
       updateDspConfig(updatedConfig); // Sync global dspStore
+      
+      // Persist to server as latest state (write-through)
+      try {
+        await fetch('/api/state/latest', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedConfig),
+        });
+      } catch (error) {
+        console.warn('Failed to persist latest state to server:', error);
+        // Non-fatal: continue even if persistence fails
+      }
+      
       uploadStatus.set({ state: 'success' });
       
       // Clear success state after 2 seconds

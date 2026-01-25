@@ -116,6 +116,8 @@ Suggested endpoints (shape, not final spec):
 	•	GET /api/version → app version/build hash
 	•	GET /api/config → return config
 	•	PUT /api/config → validate + persist config
+	•	GET /api/state/latest → return latest applied DSP state (full CamillaDSP config JSON)
+	•	PUT /api/state/latest → save latest applied DSP state (server/data/latest_dsp_state.json)
 	•	GET /api/alsa/devices → list ALSA devices/capabilities
 	•	GET /api/system/services → systemctl info subset
 
@@ -168,7 +170,9 @@ On connect with camillaDSP Web Service
 		•	connect to spectrum WS
 	2.	Initialize after connection
 		•	downloadConfig() via GetConfigJson
-		•	getDefaultConfig() normalization
+		•	Check if config is empty (0 filters/pipeline):
+			•	If empty: fetch GET /api/state/latest and upload to CamillaDSP (restores last applied state)
+			•	If not empty: use downloaded config
 		•	UI store receives config and renders initial curves and filter tokens.
 
 During streaming with camillaDSP Web Service 

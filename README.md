@@ -175,7 +175,7 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-8 Complete ✓ — Real CamillaDSP integration with debounced uploads
+**Current Milestone:** MVP-9 Complete ✓ — Config library with load/save + compact searchable UI
 
 ### Completed Milestones
 
@@ -274,9 +274,43 @@ The application now provides a **fully interactive equalizer editor** with:
 - Log-scale frequency axis (20 Hz - 20 kHz)
 - Linear gain axis (±24 dB)
 
+#### MVP-9: Config Library + Persistence Roundtrip ✓
+**Preset management with compact, searchable UI:**
+- **Server-side config library** (`server/src/services/configsLibrary.ts`):
+  - Lists configs from `server/data/configs/` directory
+  - Loads/saves pipeline-config JSON format
+  - Atomic writes, validation, error handling
+- **New API endpoints:**
+  - `GET /api/configs` - List all saved configurations with metadata
+  - `GET /api/configs/:id` - Get specific configuration
+  - `PUT /api/configs/:id` - Save configuration
+- **Pipeline-config mapping layer** (`client/src/lib/pipelineConfigMapping.ts`):
+  - `pipelineConfigToCamillaDSP()` - Converts simplified format → full CamillaDSP config
+  - `camillaDSPToPipelineConfig()` - Extracts filters/preamp from CamillaDSP config
+  - Full config replacement (pipeline + filters + devices)
+- **Presets page UI** (`client/src/pages/PresetsPage.svelte`):
+  - Compact list layout (2-3× more presets visible than card grid)
+  - **Search functionality:**
+    - Case-insensitive substring matching
+    - Real-time filtering with result counter
+    - Highlighted matched substrings in yellow
+  - **Keyboard navigation:**
+    - Press `/` anywhere to focus search (Vim-style)
+    - Arrow Up/Down to navigate results
+    - Enter to load highlighted preset
+    - Hover also highlights rows
+  - **Load/Save operations:**
+    - Load: Fetches config → converts to CamillaDSP → uploads → syncs EQ UI
+    - Save: Downloads from CamillaDSP → converts → saves to server
+  - Error handling and loading states
+- **Full roundtrip flow:**
+  - Config storage: `server/data/configs/` (tracked in git)
+  - Format: pipeline-config JSON (configName, filterArray with filters/preamp/volume)
+  - All 130 tests passing (76 client + 54 server)
+
 ### Next Milestone
 
-**MVP-9:** Config Screen + Persistence Roundtrip
+**MVP-10+:** Pipeline editor, advanced preset features, multi-channel routing UI
 
 ## Documentation
 

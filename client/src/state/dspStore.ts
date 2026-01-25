@@ -99,6 +99,9 @@ export async function connect(
 
       console.log('Global DSP connection established');
       
+      // Debug: Log downloaded config shape
+      console.log(`Downloaded config: ${Object.keys(dspInstance.config.filters || {}).length} filters`);
+      
       // Fetch initial volume
       await refreshVolume();
       
@@ -231,9 +234,67 @@ export async function autoConnectFromLocalStorage(): Promise<boolean> {
   // If failed and auto-reconnect is enabled, start retry loop
   if (!connected) {
     await attemptReconnect(server, Number(controlPort), Number(spectrumPort));
+    return false;
   }
 
+  // After successful connect, check if we need to restore latest state
+  await maybeRestoreLatestState();
+
   return connected;
+}
+
+/**
+ * Restore latest DSP state from server if CamillaDSP returned empty config
+ */
+async function maybeRestoreLatestState(): Promise<void> {
+  if (!dspInstance || !dspInstance.config) return;
+
+  const config = dspInstance.config;
+  const filterCount = Object.keys(config.filters || {}).length;
+  const pipelineCount = config.pipeline?.length || 0;
+  
+  // Check if config has any filters or pipeline
+  if (filterCount > 0 || pipelineCount > 0) {
+    console.log(`CamillaDSP has ${filterCount} filters, ${pipelineCount} pipeline steps - using downloaded config`);
+    return;
+  }
+
+  console.log('Downloaded config is empty, attempting to restore latest state from server');
+
+  try {
+    // Dynamically import to avoid circular dependency
+    const { initializeFromConfig } = await import('./eqStore');
+
+    // Fetch latest state from server
+    const response = await fetch('/api/state/latest');
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log('No latest state stored on server');
+      } else {
+        console.error(`Failed to fetch latest state: ${response.statusText}`);
+      }
+      return;
+    }
+
+    const latestConfig = await response.json();
+
+    // Upload to CamillaDSP
+    dspInstance.config = latestConfig;
+    const success = await dspInstance.uploadConfig();
+
+    if (!success) {
+      console.error('Failed to upload restored state to CamillaDSP');
+      return;
+    }
+
+    // Update store
+    updateConfig(latestConfig);
+    initializeFromConfig(latestConfig);
+
+    console.log('Successfully restored latest state from server');
+  } catch (error) {
+    console.error('Error restoring latest state:', error);
+  }
 }
 
 /**

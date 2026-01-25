@@ -1,39 +1,32 @@
 # Active Context
 
 ## Current Focus
-**MVP-0 through MVP-8 complete** - Full interactive EQ editor with real-time spectrum overlay, CamillaDSP integration, and debounced config uploads.
+**MVP-9 complete + Bug fix** - Config library with compact searchable UI + preset persistence across page reloads.
 
 ## Current Milestone
-**MVP-9: Config Screen + Persistence Roundtrip**
+**Post-MVP-9: Maintenance & Future Features**
 
-Implement config load/save via backend with full roundtrip flow.
+All core milestones (MVP-0 through MVP-9) complete. Ready for production use or advanced features (pipeline editor, multi-channel routing, etc.).
 
-## Immediate Next Steps
+## Recent Work
 
-### 1. Create Config Manager Page
-- Build `client/src/pages/ConfigManager.svelte` UI
-- List available configs (fetch from backend)
-- Load button: Backend → Browser → CamillaDSP upload
-- Save button: Capture current state → Backend persistence
-- Display config metadata (name, last modified)
+### Latest State Persistence (2026-01-25)
+**Problem:** Page reload showed empty EQ (0 bands) because CamillaDSP returned empty config on reconnect.
 
-### 2. Backend Endpoint for Config List
-- Implement `GET /api/configs` endpoint
-- Read config directory, return file names + metadata
-- Error handling for missing/inaccessible directory
-- Unit tests for config list endpoint
+**Solution:** Server-side persistence of latest applied DSP state
+- Added `GET /api/state/latest` and `PUT /api/state/latest` endpoints
+- Storage location: `server/data/latest_dsp_state.json`
+- Write-through on every successful EQ upload (non-fatal if server unavailable)
+- Startup restore: if CamillaDSP returns empty config, fetch and upload `/api/state/latest`
+- Removed old preset auto-restore behavior (presets now only load on explicit user action)
 
-### 3. Implement Config Flow Logic
-- **Load flow**: Backend → Browser state → CamillaDSP `SetConfigJson` + `Reload`
-- **Save flow**: CamillaDSP `GetConfigJson` → Browser → Backend `PUT /api/config`
-- Validation: Ensure browser/CamillaDSP state sync before save
-- Optional: Force save with warning if out of sync
+**Files Modified:**
+- `server/src/index.ts` - Added latest state endpoints using ConfigStore
+- `client/src/state/eqStore.ts` - Write-through to `/api/state/latest` after successful uploads
+- `client/src/state/dspStore.ts` - `maybeRestoreLatestState()` replaces `maybeRestoreLastPreset()`
+- `client/src/pages/PresetsPage.svelte` - Removed localStorage preset tracking
 
-### 4. Write E2E Test
-- Save config via UI
-- Reload page (or disconnect/reconnect)
-- Load saved config
-- Verify UI state matches saved config
+**Result:** Page reload now shows the most recent edited state, not last loaded preset.
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)
