@@ -10,6 +10,7 @@ export interface ExtractedEqData {
   bands: EqBand[];
   filterNames: string[];
   channels: number[];
+  preampGain: number; // Master-band gain (±24 dB), moves zero-line on EQ plot
 }
 
 /**
@@ -67,17 +68,28 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   const filterNames: string[] = [];
   const channels: number[] = [];
 
+  // Extract preamp gain from mixers (if present)
+  let preampGain = 0;
+  if (config.mixers && config.mixers.preamp) {
+    const preampMixer = config.mixers.preamp;
+    if (preampMixer.mapping && preampMixer.mapping[0]?.sources?.[0]) {
+      preampGain = preampMixer.mapping[0].sources[0].gain || 0;
+      // Clamp to EQ plot range (±24 dB)
+      preampGain = Math.max(-24, Math.min(24, preampGain));
+    }
+  }
+
   // Find all Filter pipeline steps
   const filterSteps = config.pipeline.filter((step) => step.type === 'Filter');
 
   if (filterSteps.length === 0) {
-    return { bands: [], filterNames: [], channels: [] };
+    return { bands: [], filterNames: [], channels: [], preampGain };
   }
 
   // Use channel 0 as the reference for filter order
   const channel0Step = filterSteps.find((step) => (step as any).channel === 0);
   if (!channel0Step) {
-    return { bands: [], filterNames: [], channels: [] };
+    return { bands: [], filterNames: [], channels: [], preampGain };
   }
 
   const refNames = (channel0Step as any).names || [];
@@ -135,7 +147,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     filterNames.push(filterName);
   }
 
-  return { bands, filterNames, channels };
+  return { bands, filterNames, channels, preampGain };
 }
 
 /**
@@ -146,7 +158,7 @@ export function applyEqBandsToConfig(
   config: CamillaDSPConfig,
   data: ExtractedEqData
 ): CamillaDSPConfig {
-  const { bands, filterNames, channels } = data;
+  const { bands, filterNames, channels, preampGain } = data;
 
   if (bands.length !== filterNames.length) {
     throw new Error('Band count and filter name count must match');
@@ -154,6 +166,47 @@ export function applyEqBandsToConfig(
 
   // Clone config to avoid mutation
   const updatedConfig = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
+
+  // Update/create preamp mixer if gain != 0
+  if (preampGain !== 0) {
+    if (!updatedConfig.mixers) {
+      updatedConfig.mixers = {};
+    }
+    
+    updatedConfig.mixers.preamp = {
+      channels: { in: 2, out: 2 },
+      mapping: [
+        {
+          dest: 0,
+          sources: [{ channel: 0, gain: preampGain, inverted: false, mute: false, scale: 'dB' }],
+          mute: false,
+        },
+        {
+          dest: 1,
+          sources: [{ channel: 1, gain: preampGain, inverted: false, mute: false, scale: 'dB' }],
+          mute: false,
+        },
+      ],
+    };
+    
+    // Ensure preamp is in pipeline at start
+    const hasPreampStep = updatedConfig.pipeline.some(
+      (step) => step.type === 'Mixer' && (step as any).name === 'preamp'
+    );
+    
+    if (!hasPreampStep) {
+      updatedConfig.pipeline = [
+        { type: 'Mixer', name: 'preamp' },
+        ...updatedConfig.pipeline,
+      ];
+    }
+  } else {
+    // Preamp gain is 0: set gain to 0 but keep structure (simplest approach)
+    if (updatedConfig.mixers && updatedConfig.mixers.preamp) {
+      updatedConfig.mixers.preamp.mapping[0].sources[0].gain = 0;
+      updatedConfig.mixers.preamp.mapping[1].sources[0].gain = 0;
+    }
+  }
 
   // Update each filter definition
   for (let i = 0; i < bands.length; i++) {

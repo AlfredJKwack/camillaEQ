@@ -1,12 +1,23 @@
 # Active Context
 
 ## Current Focus
-**MVP-9 complete + Bug fix** - Config library with compact searchable UI + preset persistence across page reloads.
+**MVP-10 in progress** - Tooltip & labels on band editor. Fader tooltip with collision-aware positioning complete.
 
 ## Current Milestone
-**Post-MVP-9: Maintenance & Future Features**
+**MVP-10: Tooltip & Labels on Band Editor** - Visual enhancements for band editor
 
-All core milestones (MVP-0 through MVP-9) complete. Ready for production use or advanced features (pipeline editor, multi-channel routing, etc.).
+### Completed in MVP-10:
+- ✅ FaderTooltip component with band-themed SVG callout
+- ✅ Collision-aware left/right positioning (flips if would clip)
+- ✅ Formatted gain value display (±X.X dB)
+- ✅ 1.5s fade-out animation after release
+- ✅ Single global tooltip instance (position: fixed, escapes scroll container)
+- ✅ Band color integration via strokeColor prop
+- ✅ Horizontal mirroring (scaleX) when flipped to right
+- ✅ Fader track tickmarks at 6 dB increments
+- ✅ Master-band zero-line coupling (preamp gain control)
+- ✅ Fader-thumb appearance update (14×28px rounded rect with colored accent)
+- ✅ Selected band brightening (increase --band-ink opacity/lightness)
 
 ## Recent Work
 
@@ -54,9 +65,11 @@ All core milestones (MVP-0 through MVP-9) complete. Ready for production use or 
 - **MVP-8:** Add upload debouncing to avoid overwhelming CamillaDSP with rapid updates
 - **MVP-9:** Prove full persistence roundtrip before considering production-ready
 
-## Next Milestones (after MVP-8)
-1. **MVP-9:** Config persistence roundtrip (load/save via backend)
-2. **Future:** Multi-channel pipeline editor, preset management, operator lock
+## Next Milestones (after MVP-10)
+1. **MVP-11:** EQ page Layout refinement
+2. **MVP-12:** Informative EQ Plot tokens
+3. **MVP-13:** Usability improvements
+4. **Future:** Multi-channel pipeline editor, Update to latest CamillaDSP
 
 ## Context References
 - **`docs/implementation-plan.md`** - Sequential MVP roadmap (NEW - authoritative)

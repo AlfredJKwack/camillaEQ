@@ -198,36 +198,43 @@
   - Result: Page reload now shows most recent edited state
   - All 130 tests passing
 
+- [x] **MVP-10: Tooltip & Labels on Band Editor** (2026-01-25) - 🔄 In Progress
+  - Created FaderTooltip component (`client/src/components/FaderTooltip.svelte`)
+  - Implemented fader value tooltip with band-themed SVG callout shape
+  - Tooltip appears on fader pointerdown, fades out over 1.5s after pointerup
+  - Displays formatted gain value (±X.X dB)
+  - **Collision-aware positioning:** Flips from left to right side if would clip off-screen
+  - Uses `strokeColor` prop with computed band color (color-mix formula)
+  - Single global tooltip instance with position: fixed (escapes scroll container)
+  - Horizontal mirroring via scaleX(-1) when flipped to right
+  - All 84 tests passing (76 client + 54 server)
+  - Fader track tickmarks at 6 dB increments
+  - Master-band zero-line coupling (preamp gain control)
+  - Fader-thumb appearance update (14×28px rounded rect)
+  - Selected band brightening
+
 ## Current Status
-**Phase:** MVP-9 Complete ✓ - Config Library + Persistence Roundtrip
-**State:** Full preset management with compact searchable UI, 130 tests passing. Ready for MVP-10+.
+**Phase:** MVP-10 Completed - Tooltip & Labels on Band Editor
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-### MVP-7: Canvas Spectrum Renderer with Mode Toggles ✓
-- [x] Create Canvas rendering layer (10Hz update loop)
-- [x] Implement spectrum data parsing from WebSocket
-- [x] Add spectrum bar rendering (vertical bars)
-- [x] Implement mode toggles (off, pre-EQ, post-EQ)
-- [x] Add freeze/fade behavior when frames stall
-- [x] Write comprehensive unit tests (19 spectrum parser tests)
+### MVP-11: EQ Page Layout Refinement
+- [ ] New layout structure: Main content area split into 3 rows.
+- [ ] Respect alignment constraints from implementation plan.
+- [ ] Ensure existing functionality remains unchanged.
+- [ ] Ensure CSS precision requirements are met.
 
-### MVP-8: Real CamillaDSP Integration + Upload Policy ✓
-- [x] Extend DSP math to support 7 filter types (HighPass/LowPass/Peaking/HighShelf/LowShelf/BandPass/AllPass)
-- [x] Create CamillaDSP ⇄ EqBand mapping layer (`camillaEqMapping.ts`)
-- [x] Implement upload-on-commit with debounce (200ms default)
-- [x] Wire eqStore to CamillaDSP config initialization
-- [x] Add connection/upload status visualization via nav-icon colors (green/blue/red)
-- [x] All tests passing (68 client + 34 server = 102 total tests)
+### MVP-12: Informative EQ Plot Tokens
+- [ ] Implement Frequency label below token.
+- [ ] Place Q/BW label below frequency label.
+- [ ] Ensure label placement is boundary-aware 
+- [ ] Display band order number in token center
+- [ ] Ensure token aspect maintained despite canvas stretching.
+- [ ] Implement a halo around token when selected.
+- [ ] Implement a Q/BW arc visualization on token
 
-### MVP-9: Config Screen + Persistence Roundtrip
-- [ ] Create config manager page (list/load/save)
-- [ ] Implement `GET /api/configs` endpoint (list directory)
-- [ ] Add load flow: Backend → Browser → CamillaDSP
-- [ ] Add save flow: CamillaDSP → Browser → Backend
-- [ ] Write E2E test for full save/reload cycle
 
 ## Known Issues
 None at this stage.
@@ -236,8 +243,6 @@ None at this stage.
 Items deferred to future iterations:
 - Multi-channel pipeline editor (specified but lower priority than EQ editor)
 - Advanced filter types beyond core set
-- Preset management system
-- Optional operator lock (basic auth for untrusted networks)
 - Client-side log forwarding to backend
 - Accessibility audit and improvements
 - Mobile/touch optimization

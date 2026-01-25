@@ -655,36 +655,35 @@ Load/save configs via backend and keep browser/WebSocket state consistent.
 Visual enhancements for the band editor and EQ graph to improve feedback and precision.
 
 ### Status
-**To Do**
+🔄 **In Progress** (2026-01-25)
 
 ### Deliverables
 
 1. **Fader value tooltip with band-themed styling:**
-   - Remove static fader-value `<span>` display
-   - Show tooltip label hanging off the **left side of fader-thumb** on `mousedown`/`pointerdown`
-   - Tooltip fades out over **1.5 seconds** after `mouseup`/drag end
-   - Uses band color scheme with outline (SVG path-based shape):
-     ```html
-     <svg viewBox="0 0 90 28" xmlns="http://www.w3.org/2000/svg">
-       <path d="M9.586,27.415C4.58,27.419 0.514,24.412 0.511,20.705L0.5,7.271C0.497,3.563 4.559,0.55 9.564,0.546L67.206,0.5C73.001,0.496 89.147,12.018 89.164,13.918C89.181,15.816 73.022,27.364 67.227,27.369L9.586,27.415Z"
-             fill="var(--band-ink)"
-             stroke="var(--band-outline)"
-             stroke-width="1" />
-       <text x="45" y="14" text-anchor="middle" dominant-baseline="middle"
-             font-size="12" fill="var(--ui-text)">-15.0 dB</text>
-     </svg>
+   - ✅ Tooltip component created (`client/src/components/FaderTooltip.svelte`)
+   - ✅ Show tooltip on fader `pointerdown` (positioned via fixed coordinates)
+   - ✅ Tooltip displays formatted gain value (±X.X dB)
+   - ✅ Fades out over 1.5 seconds after `pointerup`
+   - ✅ SVG callout shape with band-colored stroke
+   - ✅ **Collision-aware positioning:** Flips from left to right side if would clip off-screen
+   - ✅ Uses `strokeColor` prop with computed band color:
+     ```ts
+     strokeColor={`color-mix(in oklab, ${
+       bandIndex === null ? 'hsl(0 0% 72%)' : `var(--band-${bandIndex + 1})`
+     } 55%, white 10%)`}
      ```
-   - Text right-aligned, height-centered, positioned 1/3 or 1/4 from right border of label
-   - Component: `client/src/components/FaderTooltip.svelte`
+   - ✅ Single global tooltip instance (avoids DOM churn)
+   - ✅ Position: fixed (escapes scroll container clipping)
+   - ✅ Horizontal mirroring via `scaleX(-1)` when flipped to right
 
 2. **Tickmarks on fader track:**
-   - Render faded tickmarks at **6 dB increments** (matching EQ plot gain grid)
+   - 🔄 **To Do:** Render faded tickmarks at **6 dB increments** (matching EQ plot gain grid)
    - Tickmarks use band color scheme with muted opacity
    - Thickness: 2-3px horizontal lines at fixed gain positions
    - Help users visually align fader position with plot grid
 
 3. **Master-band zero-line coupling:**
-   - **Master-band fader** adjusts a **preamp/gain stage** (not CamillaDSP volume)
+   - 🔄 **To Do:** **Master-band fader** adjusts a **preamp/gain stage** (not CamillaDSP volume)
    - Range: **±24 dB** (same as filter bands, clamped to EQ plot limits)
    - Moving master-band fader **shifts the zero-line** on EQ plot up/down
    - Zero-line Y position = `gainToY(masterGainValue)`
@@ -692,7 +691,7 @@ Visual enhancements for the band editor and EQ graph to improve feedback and pre
    - **Note:** If CamillaDSP config has no gain/volume stage in pipeline, master-band has no audio effect (visual only)
 
 4. **Fader-thumb appearance update:**
-   - Shape: **vertical rectangle** 14px wide × 28px high
+   - 🔄 **To Do:** Shape: **vertical rectangle** 14px wide × 28px high
    - Rounded corners (border-radius: 4px)
    - Fill: neutral dark color (`var(--ui-panel-2)`)
    - Outline: slightly darker than fill (`color-mix(in oklab, var(--ui-panel-2) 85%, black)`)
@@ -700,7 +699,7 @@ Visual enhancements for the band editor and EQ graph to improve feedback and pre
    - Band-selected state: add subtle colored outline using `--band-outline`
 
 5. **Selected band brightening:**
-   - When `band-column[data-selected="true"]`:
+   - 🔄 **To Do:** When `band-column[data-selected="true"]`:
      - Filter type icon → brighter
      - Slope icon → brighter
      - Fader-thumb → brighter (add colored accent)

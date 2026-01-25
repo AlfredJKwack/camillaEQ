@@ -31,6 +31,7 @@ export interface UploadStatus {
 export const bands = writable<EqBand[]>([]);
 export const selectedBandIndex = writable<number | null>(null);
 export const uploadStatus = writable<UploadStatus>({ state: 'idle' });
+export const preampGain = writable<number>(0); // Master-band gain (±24 dB)
 
 // Internal state (not exported as stores)
 let lastConfig: CamillaDSPConfig | null = null;
@@ -46,13 +47,15 @@ const debouncedUpload = debounceCancelable(async () => {
   try {
     uploadStatus.set({ state: 'pending' });
 
-    // Get current bands
+    // Get current state
     const currentBands = get(bands);
+    const currentPreampGain = get(preampGain);
 
-    // Apply bands to config
+    // Apply bands and preamp to config
     const updatedData: ExtractedEqData = {
       ...extractedData,
       bands: currentBands,
+      preampGain: currentPreampGain,
     };
     const updatedConfig = applyEqBandsToConfig(lastConfig, updatedData);
 
@@ -111,14 +114,15 @@ export function initializeFromConfig(config: CamillaDSPConfig): boolean {
   lastConfig = config;
 
   try {
-    // Extract bands from config
+    // Extract bands and preamp from config
     const extracted = extractEqBandsFromConfig(config);
     extractedData = extracted;
 
-    // Update store
+    // Update stores
     bands.set(extracted.bands);
+    preampGain.set(extracted.preampGain);
 
-    console.log(`Loaded ${extracted.bands.length} EQ bands from config`);
+    console.log(`Loaded ${extracted.bands.length} EQ bands, preamp ${extracted.preampGain.toFixed(1)} dB from config`);
     return true;
   } catch (error) {
     console.error('Error initializing from config:', error);
@@ -134,6 +138,7 @@ export function clearEqState(): void {
   lastConfig = null;
   extractedData = null;
   bands.set([]);
+  preampGain.set(0);
   uploadStatus.set({ state: 'idle' });
 }
 
@@ -205,6 +210,11 @@ export function toggleBandEnabled(index: number) {
 
 export function selectBand(index: number | null) {
   selectedBandIndex.set(index);
+}
+
+export function setPreampGain(gain: number) {
+  preampGain.set(clampGain(gain));
+  debouncedUpload.call();
 }
 
 // Derived stores for curves (reactive to bands changes)

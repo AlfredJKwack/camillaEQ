@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import FilterIcon from '../components/icons/FilterIcons.svelte';
   import KnobDial from '../components/KnobDial.svelte';
+  import FaderTooltip from '../components/FaderTooltip.svelte';
   import {
     bands,
     selectedBandIndex,
@@ -15,8 +16,10 @@
     initializeFromConfig,
     clearEqState,
     uploadStatus,
+    preampGain,
+    setPreampGain,
   } from '../state/eqStore';
-  import { connectionState, dspConfig, getDspInstance, dspVolume, setVolumeDb } from '../state/dspStore';
+  import { connectionState, dspConfig, getDspInstance } from '../state/dspStore';
   import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
   import { SpectrumAreaLayer } from '../ui/rendering/canvasLayers/SpectrumAreaLayer';
   import { parseSpectrumData } from '../dsp/spectrumParser';
@@ -47,6 +50,57 @@
     startQ: number;
     shiftKey: boolean;
   } | null = null;
+  
+  // Tooltip state (for faders) - now with fixed positioning
+  let tooltipState: {
+    bandIndex: number | null; // null = master, 0+ = band index
+    visible: boolean;
+    fading: boolean;
+    x: number;
+    y: number;
+    side: 'left' | 'right';
+    value: number;
+  } = { 
+    bandIndex: null, 
+    visible: false, 
+    fading: false,
+    x: 0,
+    y: 0,
+    side: 'left',
+    value: 0
+  };
+  
+  let tooltipFadeTimer: number | null = null;
+  
+  // Collision detection: determine if tooltip should flip to right side
+  function shouldFlipTooltip(thumbElement: HTMLElement): 'left' | 'right' {
+    const rect = thumbElement.getBoundingClientRect();
+    const tooltipWidth = 60; // SVG width
+    const margin = 8; // Minimum margin from edge
+    
+    // Check if left-side placement would go off-screen
+    if (rect.left - tooltipWidth - margin < 0) {
+      return 'right';
+    }
+    
+    return 'left';
+  }
+  
+  // Update tooltip position from thumb element
+  function updateTooltipPosition(thumbElement: HTMLElement, value: number) {
+    const rect = thumbElement.getBoundingClientRect();
+    const side = shouldFlipTooltip(thumbElement);
+    
+    tooltipState.side = side;
+    tooltipState.value = value;
+    tooltipState.y = rect.top + rect.height / 2;
+    
+    if (side === 'left') {
+      tooltipState.x = rect.left;
+    } else {
+      tooltipState.x = rect.right;
+    }
+  }
   
   // Plot dimensions for responsive tokens
   let plotWidth = 1000;
@@ -263,6 +317,34 @@
     setBandQ(bandIndex, band.q + delta);
   }
 
+  // Tooltip helpers
+  function showTooltip(bandIndex: number | null, thumbElement: HTMLElement, value: number) {
+    if (tooltipFadeTimer !== null) {
+      clearTimeout(tooltipFadeTimer);
+      tooltipFadeTimer = null;
+    }
+    tooltipState.bandIndex = bandIndex;
+    tooltipState.visible = true;
+    tooltipState.fading = false;
+    updateTooltipPosition(thumbElement, value);
+  }
+
+  function hideTooltipWithFade() {
+    tooltipState.fading = true;
+    tooltipFadeTimer = window.setTimeout(() => {
+      tooltipState = { 
+        bandIndex: null, 
+        visible: false, 
+        fading: false,
+        x: 0,
+        y: 0,
+        side: 'left',
+        value: 0
+      };
+      tooltipFadeTimer = null;
+    }, 1500); // Fade duration matches CSS transition
+  }
+
   // Fader interaction
   function handleFaderPointerDown(event: PointerEvent, bandIndex: number) {
     event.preventDefault();
@@ -279,9 +361,18 @@
       const relY = (clientY - rect.top) / rect.height;
       const gain = 24 - relY * 48; // Fader: top = +24, bottom = -24
       setBandGain(bandIndex, gain);
+      
+      // Update tooltip position with new value
+      if (tooltipState.visible && tooltipState.bandIndex === bandIndex) {
+        updateTooltipPosition(thumb, gain);
+      }
     };
     
     updateGainFromPointer(event.clientY);
+    
+    // Show tooltip after initial update
+    const currentBand = $bands[bandIndex];
+    showTooltip(bandIndex, thumb, currentBand.gain);
     
     const onMove = (e: PointerEvent) => {
       updateGainFromPointer(e.clientY);
@@ -290,18 +381,14 @@
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      hideTooltipWithFade();
     };
     
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
   }
 
-  // Master fader interaction (volume control)
-  // CamillaDSP range: -150 to +50 dB (full range)
-  const VOLUME_MIN = -150;
-  const VOLUME_MAX = 50;
-  const VOLUME_RANGE = VOLUME_MAX - VOLUME_MIN; // 200 dB
-  
+  // Master fader interaction (preamp gain control)
   function handleMasterFaderPointerDown(event: PointerEvent) {
     event.preventDefault();
     event.stopPropagation();
@@ -312,23 +399,30 @@
     
     const rect = track.getBoundingClientRect();
     
-    const updateVolumeFromPointer = (clientY: number) => {
-      // Clamp relY to [0, 1] to prevent out-of-bounds values
-      const relY = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-      // Map fader to full CamillaDSP range: top = +50 dB, bottom = -150 dB
-      const volumeDb = VOLUME_MAX - relY * VOLUME_RANGE;
-      setVolumeDb(volumeDb);
+    const updatePreampFromPointer = (clientY: number) => {
+      const relY = (clientY - rect.top) / rect.height;
+      const gain = 24 - relY * 48; // Fader: top = +24, bottom = -24
+      setPreampGain(gain);
+      
+      // Update tooltip position with new value
+      if (tooltipState.visible && tooltipState.bandIndex === null) {
+        updateTooltipPosition(thumb, gain);
+      }
     };
     
-    updateVolumeFromPointer(event.clientY);
+    updatePreampFromPointer(event.clientY);
+    
+    // Show tooltip after initial update
+    showTooltip(null, thumb, $preampGain);
     
     const onMove = (e: PointerEvent) => {
-      updateVolumeFromPointer(e.clientY);
+      updatePreampFromPointer(e.clientY);
     };
     
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      hideTooltipWithFade();
     };
     
     window.addEventListener('pointermove', onMove);
@@ -506,13 +600,13 @@
             {/each}
           </g>
 
-          <!-- Zero line (emphasized) -->
+          <!-- Zero line (emphasized, follows preamp gain) -->
           <g class="zero-line">
             <line
               x1="0"
-              y1="200"
+              y1={gainToY($preampGain)}
               x2="1000"
-              y2="200"
+              y2={gainToY($preampGain)}
               stroke="var(--zero-line)"
               stroke-width="1"
             />
@@ -644,7 +738,7 @@
 
   <!-- Right Panel: Band Columns -->
   <div class="band-panel">
-    <!-- Master/General Band Column -->
+    <!-- Master/Preamp Band Column -->
     <div class="band-column master-band band" style="--band-color: var(--band-10);" data-enabled={true}>
       <div class="filter-type-icon" style="visibility: hidden;">
         <!-- Empty spacer -->
@@ -656,13 +750,19 @@
 
       <div class="gain-fader">
         <div class="fader-track">
-          <div
-            class="fader-thumb"
-            style="bottom: {(($dspVolume - VOLUME_MIN) / VOLUME_RANGE) * 100}%;"
-            on:pointerdown={handleMasterFaderPointerDown}
-          ></div>
+          <!-- Tickmarks at ±18, ±12, ±6 dB -->
+          {#each [-18, -12, -6, 6, 12, 18] as tickGain}
+            <div class="fader-tick" style="bottom: {((tickGain + 24) / 48) * 100}%;"></div>
+          {/each}
+          
+          <!-- Thumb wrapper -->
+          <div class="fader-thumb-wrap" style="bottom: {(($preampGain + 24) / 48) * 100}%;">
+            <div
+              class="fader-thumb"
+              on:pointerdown={handleMasterFaderPointerDown}
+            ></div>
+          </div>
         </div>
-        <span class="fader-value">{$dspVolume > 0 ? '+' : ''}{$dspVolume.toFixed(1)} dB</span>
       </div>
 
       <button class="mute-btn" title="Master Mute">
@@ -692,13 +792,19 @@
 
         <div class="gain-fader">
           <div class="fader-track">
-            <div
-              class="fader-thumb"
-              style="bottom: {((band.gain + 24) / 48) * 100}%;"
-              on:pointerdown={(e) => handleFaderPointerDown(e, i)}
-            ></div>
+            <!-- Tickmarks at ±18, ±12, ±6 dB -->
+            {#each [-18, -12, -6, 6, 12, 18] as tickGain}
+              <div class="fader-tick" style="bottom: {((tickGain + 24) / 48) * 100}%;"></div>
+            {/each}
+            
+            <!-- Thumb wrapper -->
+            <div class="fader-thumb-wrap" style="bottom: {((band.gain + 24) / 48) * 100}%;">
+              <div
+                class="fader-thumb"
+                on:pointerdown={(e) => handleFaderPointerDown(e, i)}
+              ></div>
+            </div>
           </div>
-          <span class="fader-value">{band.gain > 0 ? '+' : ''}{band.gain.toFixed(1)} dB</span>
         </div>
 
         <button 
@@ -730,6 +836,21 @@
       </div>
     {/each}
   </div>
+  
+  <!-- Global tooltip overlay (positioned via fixed coordinates) -->
+  <FaderTooltip
+    value={tooltipState.value}
+    visible={tooltipState.visible}
+    fading={tooltipState.fading}
+    x={tooltipState.x}
+    y={tooltipState.y}
+    side={tooltipState.side}
+    strokeColor={`color-mix(in oklab, ${
+      tooltipState.bandIndex === null
+        ? 'hsl(0 0% 72%)'
+        : `var(--band-${(tooltipState.bandIndex % 10) + 1})`
+    } 55%, white 10%)`}
+  />
 </div>
 
 <style>
@@ -1070,21 +1191,42 @@
     touch-action: none;
   }
 
+  /* Thumb wrapper: positions thumb + tooltip together */
+  .fader-thumb-wrap {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+  }
+
   .fader-thumb {
     position: absolute;
     left: 50%;
+    bottom: 0;
     transform: translate(-50%, 50%);
     width: 14px;
-    height: 14px;
+    height: 28px;
     background: var(--band-ink);
-    border: 2px solid var(--band-outline);
-    border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.45);
+    border-radius: 4px;
     cursor: grab;
     touch-action: none;
   }
 
   .fader-thumb:active {
     cursor: grabbing;
+  }
+
+  /* Fader track tickmarks */
+  .fader-tick {
+    position: absolute;
+    left: 20%;
+    width: 60%;
+    height: 3px;
+    background: var(--band-muted);
+    opacity: 0.3;
+    pointer-events: none;
   }
 
   .fader-value {

@@ -76,5 +76,5 @@ body {
 }
 
 .band[data-selected='true'] {
-  --band-ink: color-mix(in oklab, var(--band-color) 7%, white 22%);
+  --band-ink: color-mix(in oklab, var(--band-color) 78%, white 22%);
 }
