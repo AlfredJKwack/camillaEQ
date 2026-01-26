@@ -175,7 +175,7 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-13 Complete ✓ — Filter type selection with side popover and speech-bubble tail
+**Current Milestone:** MVP-14 Complete ✓ — Focus mode with area-of-effect visualization and bandwidth markers
 
 ### Completed Milestones
 
@@ -374,9 +374,25 @@ The application now provides a **fully interactive equalizer editor** with:
   - Upload debounce applies to type changes (200ms)
 - All 113 client tests passing
 
+#### MVP-14: Informative EQ Plot Token Highlighting ✓
+**Focus mode with visual emphasis and area-of-effect visualization:**
+- Focus mode: Selected token bright + labels visible; others dimmed to 30% with labels hidden
+- Curves: Sum curve thin/low contrast + selected band curve thick/bright
+- Spectrum ducking: Partial duck (70%) on selection, stronger duck (40%) while actively editing
+- Area-of-effect per filter type:
+  - Peaking: Filled area under curve to baseline (0 dB)
+  - Shelf: Half-plane tint (left for LowShelf, right for HighShelf)
+  - HP/LP: Localized tint around cutoff frequency
+  - BandPass: Full-height window tint with true -3 dB boundaries
+  - Notch: Localized halo (wider stroke behind curve)
+- Bandwidth markers: -3 dB half-power points for Peaking/Notch (toggle, default ON)
+- Band fill opacity control: Knob dial (0-100%, default 40%) with sum-curve colored arc
+- Deselection: Click plot background clears selection
+- All 137 tests passing
+
 ### Next Milestone
 
-**MVP-14:** Informative EQ plot token highlighting (curve focus, area-of-effect visualization)
+**MVP-15:** Pipeline editor implementation
 
 ## Documentation
 

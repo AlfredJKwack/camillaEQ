@@ -1,9 +1,14 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
 
-  export let value: number; // frequency (20-20000) or Q (0.1-10)
+  export let value: number; // frequency (20-20000) or Q (0.1-10) or custom range
   export let mode: 'frequency' | 'q' = 'frequency';
   export let size: number = 32; // knob diameter in px
+  
+  // Optional: custom range (overrides mode-based defaults)
+  export let min: number | undefined = undefined;
+  export let max: number | undefined = undefined;
+  export let scale: 'linear' | 'log' = 'linear';
 
   const dispatch = createEventDispatcher<{ change: { value: number } }>();
 
@@ -28,25 +33,36 @@
   const MIN_ANGLE = -135;
   const MAX_ANGLE = 135;
 
-  // Calculate arc parameters based on mode
-  $: arcParams = (() => {
-    if (mode === 'frequency') {
-      // Frequency: arc sweep (length) encodes value
-      // Low freq = short arc, high freq = long arc
-      const sweep = mapLog(value, 20, 20000, 30, 270); // 30° to 270° range
-      return {
-        startAngle: MIN_ANGLE,
-        endAngle: MIN_ANGLE + sweep,
-      };
-    } else {
-      // Q: same behavior as frequency - sweep encodes value from fixed start
-      // Low Q = short arc, high Q = long arc
-      const sweep = mapLinear(value, 0.1, 10, 30, 270); // 30° to 270° range
-      return {
-        startAngle: MIN_ANGLE,
-        endAngle: MIN_ANGLE + sweep,
-      };
+  // Determine range based on mode or custom props
+  $: rangeConfig = (() => {
+    // Custom range overrides mode
+    if (min !== undefined && max !== undefined) {
+      return { min, max, scale };
     }
+    
+    // Mode-based defaults
+    if (mode === 'frequency') {
+      return { min: 20, max: 20000, scale: 'log' as const };
+    } else {
+      return { min: 0.1, max: 10, scale: 'linear' as const };
+    }
+  })();
+
+  // Calculate arc parameters based on range
+  $: arcParams = (() => {
+    const { min, max, scale } = rangeConfig;
+    
+    let sweep: number;
+    if (scale === 'log') {
+      sweep = mapLog(value, min, max, 30, 270);
+    } else {
+      sweep = mapLinear(value, min, max, 30, 270);
+    }
+    
+    return {
+      startAngle: MIN_ANGLE,
+      endAngle: MIN_ANGLE + sweep,
+    };
   })();
 
   // SVG path generation for arc
@@ -87,16 +103,18 @@
 
     const deltaY = startY - event.clientY; // Inverted: up = increase
     const sensitivity = event.shiftKey ? 0.2 : 1.0; // Shift = fine adjustment
+    const { min, max, scale } = rangeConfig;
 
     let newValue: number;
-    if (mode === 'frequency') {
-      // Frequency: logarithmic adjustment
-      // Use multiplicative factor based on pixel movement
+    if (scale === 'log') {
+      // Logarithmic adjustment
       const factor = Math.pow(1.01, deltaY * sensitivity);
       newValue = startValue * factor;
     } else {
-      // Q: linear adjustment
-      const step = event.shiftKey ? 0.01 : 0.05;
+      // Linear adjustment
+      const range = max - min;
+      const baseStep = range / 100; // 1% of range per pixel
+      const step = event.shiftKey ? baseStep * 0.2 : baseStep;
       newValue = startValue + (deltaY * step);
     }
 
@@ -157,7 +175,7 @@
   }
 
   :global(.knob-arc) {
-    stroke: var(--band-ink);
+    stroke: var(--knob-arc, var(--band-ink, var(--ui-text)));
     stroke-linecap: butt;
     fill: none;
     opacity: 0.95;

@@ -15,6 +15,7 @@
   export let plotWidth: number;
   export let plotHeight: number;
   export let shiftPressed: boolean;
+  export let focusMode: boolean = false; // MVP-14: dim unselected tokens in focus mode
 
   const dispatch = createEventDispatcher<{
     tokenPointerDown: { bandIndex: number; event: PointerEvent };
@@ -97,7 +98,17 @@
     {@const labelTranslateX = shiftT * targetDeltaX}
     {@const labelTranslateY = shiftT * targetDeltaY}
     
-    <g class="token-group" style="--band-color: var(--band-{(i % 10) + 1})" transform={tokenTransform}>
+    // MVP-14: Focus mode dimming
+    {@const isSelected = selectedBandIndex === i}
+    {@const shouldDim = focusMode && !isSelected}
+    {@const showLabels = !focusMode || isSelected}
+    
+    <g 
+      class="token-group" 
+      class:dimmed={shouldDim}
+      style="--band-color: var(--band-{(i % 10) + 1})" 
+      transform={tokenTransform}
+    >
       <!-- Selection halo (only when selected, 20% bigger = 1.8x) -->
       {#if selectedBandIndex === i}
         <circle
@@ -168,7 +179,8 @@
         {i + 1}
       </text>
       
-      <!-- Labels group with smooth boundary-aware positioning -->
+      <!-- Labels group with smooth boundary-aware positioning (hidden in focus mode for unselected) -->
+      {#if showLabels}
       <g class="token-labels" transform="translate({labelTranslateX} {labelTranslateY})">
         <!-- Frequency label (10px below token, 14px font) -->
         <text
@@ -195,6 +207,7 @@
           {qLabel}
         </text>
       </g>
+      {/if}
     </g>
   {/each}
 </g>
@@ -210,6 +223,12 @@
   /* MVP-12: Token visual enhancements */
   .token-group {
     /* Inherits --band-color from inline style */
+    transition: opacity 0.2s ease;
+  }
+  
+  /* MVP-14: Focus mode dimming for unselected tokens */
+  .token-group.dimmed {
+    opacity: 0.3;
   }
   
   .token-halo {

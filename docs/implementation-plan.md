@@ -956,17 +956,17 @@ Enable the user to select the type of filter applied to a band by clicking on th
 Improve curve editing visual feedback with appropriate shading effects.
 
 ### Status
-**To Do**
+✅ **COMPLETED** (2026-01-27)
 
-### Deliverables:
+### Deliverables
 
-1) Deselection behavior
+**Status:** ✅ All features implemented
+
+1) **Deselection behavior**
 	•	Click target: Any click/tap not on a token will clear selection. This also clear the band selection state
 	•	Result: All tokens become unselected and the plot returns to the default (unfocused) state (normal token opacity, normal spectrum contrast, normal curve visibility per default mode).
 
-⸻
-
-1) Token selection focus mode
+2) **Token selection focus mode**
 
 When a token is selected:
 
@@ -993,9 +993,7 @@ Area shading
 	•	Draw the selected band’s area-of-effect visualization (see section 5) using fill/tint/halo rules per filter type.
 	•	Shading must not fully obscure spectrum (opacity is configurable; see section 5).
 
-⸻
-
-3) Bandwidth emphasis (-3 dB half-power markers)
+3) **Bandwidth emphasis (-3 dB half-power markers)**
 
 Feature
 	•	For the selected band only, compute and render half-power (-3 dB) frequency points and show as tiny ticks on the x-axis.
@@ -1008,9 +1006,7 @@ Toggle
 	•	Add a visualization option: Show bandwidth markers (default: ON or OFF per product decision).
 	•	When OFF: do not compute or draw the ticks.
 
-⸻
-
-4) Spectrum + EQ curve integration (ducking)
+4) **Spectrum + EQ curve integration (ducking)**
 
 Trigger
 	•	Spectrum ducking applies when a band is being edited (e.g., token drag, Q adjustment, slope adjustment, type change gesture).
@@ -1023,9 +1019,7 @@ Behavior
 	•	Partial duck on selection
 	•	Stronger duck while actively editing
 
-⸻
-
-5) Area-of-effect visualization by filter type
+5) **Area-of-effect visualization by filter type**
 
 Global rules
 	•	Area-of-effect is drawn only for the selected band.
@@ -1053,20 +1047,67 @@ Notch
 	•	Render: thicker selected curve + stronger local halo around the notch region to keep thin changes visible.
 	•	Halo should be localized near the notch and respect Band fill opacity.
 
-6) Ensure Layering order is as follows (bttom to top)
+6) **Band fill opacity control**
+	•	Knob dial in viz options bar (0-100%, default 40%)
+	•	Knob arc styled with sum-curve color for visibility
+	•	Controls opacity of area-of-effect visualization
+
+7) **Layering order** (bottom to top)
 	1.	Spectrum (ducked as applicable)
 	2.	Area-of-effect fill/tint/halo (uses Band fill opacity)
 	3.	Total EQ curve (thin / lower contrast)
 	4.	Selected band curve (bright / thicker)
 	5.	Tokens + labels (selected on top)
 
-⸻
+### Visualization options implemented
+	•	**Show bandwidth markers** (checkbox, default ON)
+	•	**Band fill opacity** (knob dial, 0-100%, default 40%)
+	•	Spectrum ducking: Internal constants (70% on selection, 40% while actively editing)
 
-Visualization options (minimum set)
-	•	Show bandwidth markers (bool)
-	•	Band fill opacity (0–100%)
-	•	(Optional) Spectrum ducking strength (0–100%) if you want user control; otherwise keep internal constants.
+### As-Built Implementation
 
+**Focus mode visualization (`client/src/pages/EqPage.svelte`):**
+- Deselection: Click plot background clears selection (`handlePlotBackgroundClick`)
+- Token dimming: Unselected tokens at 30% opacity with labels hidden
+- Curve display: Sum curve (thin, low contrast) + selected band curve (thick, bright)
+- Spectrum ducking: Reactive opacity based on selection state and active editing
+- Active editing tracking: 250ms timeout after parameter changes
+
+**Area-of-effect rendering (`client/src/ui/rendering/eqFocusViz.ts`):**
+- `generatePeakingFillPath()`: Filled area under curve to baseline
+- `generateShelfTintRect()`: Half-plane tint (left for LowShelf, right for HighShelf)
+- `generatePassFilterTint()`: Localized tint around cutoff frequency
+- `generateBandPassTintRect()`: Full-height window with true -3 dB boundaries + octave fallback
+- `generateNotchHaloPath()`: Localized halo (curve path for wider stroke)
+
+**Bandwidth markers (`client/src/dsp/bandwidthMarkers.ts`):**
+- `calculateBandwidthMarkers()`: -3 dB half-power points
+- Supports Peaking and Notch filter types
+- Rendered as ticks on frequency axis when enabled
+
+**Band fill opacity control:**
+- KnobDial component with fallback arc color support (`--knob-arc` CSS variable)
+- Arc styled with `--sum-curve` color for visibility
+- Controls opacity of all area-of-effect visualizations
+
+### Test / Acceptance Criteria
+- ✅ Unit tests: 15 new tests in `eqFocusViz.test.ts`, 9 tests in `bandwidthMarkers.test.ts`
+- ✅ Focus mode: Selected band emphasized, others dimmed
+- ✅ Area-of-effect: All filter types render appropriate visualization
+- ✅ Bandwidth markers: -3 dB points calculated and displayed for Peaking/Notch
+- ✅ Spectrum ducking: Opacity responds to selection and editing state
+- ✅ All 137 tests passing (client + server)
+
+### Risk Reduced Early
+- ✅ Validated complex SVG path generation for area fills
+- ✅ Proved reactive opacity updates perform smoothly
+- ✅ Confirmed focus mode doesn't break existing interactions
+
+### Deferred Complexity
+- Advanced bandwidth visualization (filled regions vs tick marks)
+- User-configurable spectrum ducking strength
+- Animated transitions for focus mode state changes
+- Alternative area-of-effect visualization styles
 
 ⸻
 
@@ -1124,6 +1165,7 @@ To Do.
 3. **More informative connection page**
   - Indicate the version of Camilla your're connected to
 4. **Implement a system information page**
+  This only makes sense if CamillaEQ runs on the same machine as CamillaDSP.
   - Indicate the OS version, and the CPU architecture
   - Indicate load on OS
   - Provide output of aplay/arecord in a sensible way (or nothing if not running linux/macos)
@@ -1131,6 +1173,12 @@ To Do.
   - show the camilladsp yml file in a read-only pane
 5. Wherever it says console.log in the code, put that behind a switch. Maybe make that switch available to the system information page (eg debug log)
 6. **Aria roles**
+7. **Connection page shows last _n_ messages from camillaDSP**
+  - Ensure failures are shown in a sensible way, for instance when uploads fail validation etc.
+8. Band re-ordering with drag
+  - Allow user to select the order (number) where the band sits in the pipeline by click-dragging icon-placeholder.
+  - Hover will change the cursor to scroll
+  - The visual feedback is a box with dots. One dot is position 1, ten dots is positoin 10. Beyond ten we change the type of dot, for instance a circle. 
 
 ## Explicitly Deferred Complexity
 

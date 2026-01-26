@@ -251,20 +251,35 @@
   - Collision-aware positioning with viewport clamping
   - All 113 client tests passing
 
+- [x] **MVP-14: Informative EQ Plot Token Highlighting** (2026-01-27)
+  - **Focus mode visualization:**
+    - Deselection: Click plot background clears selection
+    - Token dimming: Unselected tokens at 30% opacity with labels hidden
+    - Curve display: Sum curve (thin, low contrast) + selected band curve (thick, bright)
+    - Spectrum ducking: 70% on selection, 40% while actively editing
+    - Active editing tracking with 250ms timeout
+  - **Area-of-effect rendering** (`client/src/ui/rendering/eqFocusViz.ts`):
+    - Peaking: Filled area under curve to baseline
+    - Shelf: Half-plane tint (left for LowShelf, right for HighShelf)
+    - HP/LP: Localized tint around cutoff
+    - BandPass: Full-height window with true -3 dB boundaries + octave fallback
+    - Notch: Localized halo (wider stroke behind curve)
+  - **Bandwidth markers** (`client/src/dsp/bandwidthMarkers.ts`):
+    - -3 dB half-power points for Peaking/Notch
+    - Rendered as ticks on frequency axis
+    - Toggle control (default: ON)
+  - **Band fill opacity control:**
+    - Knob dial (0-100%, default 40%)
+    - Arc styled with sum-curve color for visibility
+    - Controls all area-of-effect visualizations
+  - All 137 tests passing (15 eqFocusViz tests, 9 bandwidthMarkers tests)
+
 ## Current Status
-**Phase:** MVP-13 Completed - Filter Type Selection
+**Phase:** MVP-14 Completed - Focus Mode with Area-of-Effect Visualization
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
-
-## MVP-14 — Informative EQ Plot Token highlighting
-- [ ] Ensure deselection behavior is implemented
-- [ ] Visually emphasize selected token curve and effect area
-- [ ] Provide a visual Bandwidth emphasis
-- [ ] Manage the spectrum + EQ curve integration
-- [ ] Ensure the area-of-effect visualization is implemented by filter type
-- [ ] Implement appropriate layering order
 
 ## MVP-15 - Implement pipeline editor
 ## MVP-16 - Update to latest CamillaDSP

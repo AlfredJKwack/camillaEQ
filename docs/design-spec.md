@@ -7,9 +7,9 @@ Real-time: Spectrum frames ~ every 100ms (10 Hz) via WebSocket to browser
 
 ---
 
-## Current Implementation Status (as of 2026-01-26)
+## Current Implementation Status (as of 2026-01-27)
 
-**Milestone:** MVP-13 Complete ✅
+**Milestone:** MVP-14 Complete ✅
 
 This specification describes both **implemented** and **planned** features. For the current as-built architecture, see [`docs/current-architecture.md`](current-architecture.md).
 

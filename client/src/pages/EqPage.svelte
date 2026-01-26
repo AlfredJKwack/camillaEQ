@@ -27,10 +27,25 @@
   import { SpectrumAreaLayer } from '../ui/rendering/canvasLayers/SpectrumAreaLayer';
   import { parseSpectrumData } from '../dsp/spectrumParser';
   import EqTokensLayer from '../ui/tokens/EqTokensLayer.svelte';
+  import { calculateBandwidthMarkers } from '../dsp/bandwidthMarkers';
+  import {
+    generatePeakingFillPath,
+    generateShelfTintRect,
+    generatePassFilterTint,
+    generateBandPassTintRect,
+    generateNotchHaloPath,
+  } from '../ui/rendering/eqFocusViz';
+  import { generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
 
   let showPerBandCurves = false;
   let spectrumMode = 'off'; // 'off' | 'pre' | 'post'
   let spectrumSmooth = false; // Spectrum curve smoothing
+  
+  // MVP-14: Focus mode and visualization controls
+  let showBandwidthMarkers = true; // Default: ON per spec
+  let bandFillOpacity = 0.4; // Default: 40% per spec
+  let isActivelyEditing = false; // Track active editing state
+  let editingTimeoutId: number | null = null;
   
   // Track initialization state
   let eqInitialized = false;
@@ -281,6 +296,27 @@
     return (200 - y) / 400 * gainRange;
   }
 
+  // MVP-14: Active editing tracking helpers
+  function setActiveEditing() {
+    isActivelyEditing = true;
+    if (editingTimeoutId !== null) {
+      clearTimeout(editingTimeoutId);
+    }
+    editingTimeoutId = window.setTimeout(() => {
+      isActivelyEditing = false;
+      editingTimeoutId = null;
+    }, 250);
+  }
+
+  // MVP-14: Deselect band on plot background click
+  function handlePlotBackgroundClick(event: MouseEvent) {
+    // Only deselect if clicking directly on plot (not on tokens or interactive elements)
+    const target = event.target as Element;
+    if (target.tagName === 'svg' || target.classList.contains('eq-plot')) {
+      selectBand(null);
+    }
+  }
+
   // Token interaction handlers
   function handleTokenPointerDown(event: PointerEvent, bandIndex: number) {
     event.preventDefault();
@@ -301,6 +337,7 @@
     };
     
     selectBand(bandIndex);
+    setActiveEditing(); // MVP-14: Mark as actively editing
   }
 
   function handleTokenPointerMove(event: PointerEvent) {
@@ -365,6 +402,7 @@
     const target = event.currentTarget as SVGElement;
     target.releasePointerCapture(event.pointerId);
     dragState = null;
+    // Active editing state will timeout after 250ms
   }
 
   function handleTokenWheel(event: WheelEvent, bandIndex: number) {
@@ -415,6 +453,8 @@
     
     const rect = track.getBoundingClientRect();
     
+    setActiveEditing(); // MVP-14: Mark as actively editing
+    
     const updateGainFromPointer = (clientY: number) => {
       const relY = (clientY - rect.top) / rect.height;
       const gain = 24 - relY * 48; // Fader: top = +24, bottom = -24
@@ -434,12 +474,14 @@
     
     const onMove = (e: PointerEvent) => {
       updateGainFromPointer(e.clientY);
+      setActiveEditing(); // Extend editing state on continuous drag
     };
     
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       hideTooltipWithFade();
+      // Active editing state will timeout after 250ms
     };
     
     window.addEventListener('pointermove', onMove);
@@ -600,6 +642,64 @@
     }
     return `${freq}`;
   }
+  
+  // MVP-14: Reactive computed values for focus mode
+  $: focusMode = $selectedBandIndex !== null;
+  $: selectedBand = $selectedBandIndex !== null ? $bands[$selectedBandIndex] : null;
+  
+  // MVP-14: Spectrum ducking based on selection and active editing
+  $: spectrumOpacity = (() => {
+    if (!focusMode) return 1.0; // No selection: full opacity
+    if (isActivelyEditing || dragState !== null) return 0.4; // Actively editing: strong duck
+    return 0.7; // Selected but not editing: partial duck
+  })();
+  
+  // MVP-14: Focus mode curves (selected band only)
+  $: selectedBandCurvePath = selectedBand ? generateBandCurvePath(selectedBand, {
+    width: 1000,
+    height: 400,
+    numPoints: 128,
+  }) : '';
+  
+  // MVP-14: Area-of-effect visualization paths
+  $: focusAreaPath = (() => {
+    if (!selectedBand) return '';
+    
+    const options = { width: 1000, height: 400 };
+    
+    if (selectedBand.type === 'Peaking') {
+      return generatePeakingFillPath(selectedBand, options);
+    } else if (selectedBand.type === 'Notch') {
+      return generateNotchHaloPath(selectedBand, options);
+    }
+    
+    return '';
+  })();
+  
+  $: focusAreaRect = (() => {
+    if (!selectedBand) return null;
+    
+    const options = { width: 1000, height: 400 };
+    
+    if (selectedBand.type === 'LowShelf' || selectedBand.type === 'HighShelf') {
+      return generateShelfTintRect(selectedBand, options);
+    } else if (selectedBand.type === 'LowPass' || selectedBand.type === 'HighPass') {
+      return generatePassFilterTint(selectedBand, options);
+    } else if (selectedBand.type === 'BandPass') {
+      return generateBandPassTintRect(selectedBand, options);
+    }
+    
+    return null;
+  })();
+  
+  // MVP-14: Bandwidth markers (only for peaking/notch)
+  $: bandwidthMarkers = (() => {
+    if (!showBandwidthMarkers || !selectedBand) {
+      return { leftFreq: null, rightFreq: null };
+    }
+    
+    return calculateBandwidthMarkers(selectedBand);
+  })();
 </script>
 
 <div class="eq-layout">
@@ -643,11 +743,11 @@
     <!-- Row 2: Middle (Plot + Faders) -->
     <div class="eq-left-middle">
       <div class="eq-plot-area">
-        <div class="eq-plot" bind:this={plotElement}>
-          <!-- Canvas spectrum layer (behind SVG) -->
-          <canvas class="spectrum-canvas" bind:this={canvasElement}></canvas>
+        <div class="eq-plot" bind:this={plotElement} on:click={handlePlotBackgroundClick}>
+          <!-- Canvas spectrum layer (behind SVG) with ducking -->
+          <canvas class="spectrum-canvas" bind:this={canvasElement} style="opacity: {spectrumOpacity}; transition: opacity 0.2s ease;"></canvas>
           
-          <svg viewBox="0 0 1000 400" preserveAspectRatio="none">
+          <svg viewBox="0 0 1000 400" preserveAspectRatio="none" on:click={handlePlotBackgroundClick}>
           <!-- Grid: Horizontal lines -->
           <g class="grid-horizontal">
             {#each gainTicks as gain}
@@ -707,9 +807,48 @@
 
           <!-- Placeholder: Analyzer layer -->
           <g class="analyzer"></g>
+          
+          <!-- MVP-14: Focus mode area-of-effect visualization -->
+          {#if focusMode && selectedBand && $selectedBandIndex !== null}
+            <g class="focus-area" opacity={bandFillOpacity}>
+              <!-- Area fill/tint for different filter types -->
+              {#if focusAreaPath}
+                <path
+                  d={focusAreaPath}
+                  fill={`var(--band-${($selectedBandIndex % 10) + 1})`}
+                  opacity="0.3"
+                  class="focus-area-path"
+                />
+              {/if}
+              
+              {#if focusAreaRect}
+                <rect
+                  x={focusAreaRect.x}
+                  y={focusAreaRect.y}
+                  width={focusAreaRect.width}
+                  height={focusAreaRect.height}
+                  fill={`var(--band-${($selectedBandIndex % 10) + 1})`}
+                  opacity="0.2"
+                  class="focus-area-rect"
+                />
+              {/if}
+              
+              <!-- Notch halo (wider stroke behind curve) -->
+              {#if selectedBand.type === 'Notch' && focusAreaPath}
+                <path
+                  d={focusAreaPath}
+                  fill="none"
+                  stroke={`var(--band-${($selectedBandIndex % 10) + 1})`}
+                  stroke-width="8"
+                  opacity="0.25"
+                  class="focus-notch-halo"
+                />
+              {/if}
+            </g>
+          {/if}
 
-          <!-- Curves: Per-band (optional) -->
-          {#if showPerBandCurves}
+          <!-- Curves: Per-band (optional, hidden in focus mode) -->
+          {#if showPerBandCurves && !focusMode}
             <g class="curves-per-band">
               {#each $perBandCurvePaths as path, i}
                 <path
@@ -724,16 +863,60 @@
             </g>
           {/if}
 
-          <!-- Curves: Sum curve -->
+          <!-- Curves: Sum curve (thinner in focus mode) -->
           <g class="curves-sum">
             <path
               d={$sumCurvePath}
               fill="none"
               stroke="var(--sum-curve)"
-              stroke-width="2.25"
+              stroke-width={focusMode ? "1.5" : "2.25"}
+              opacity={focusMode ? "0.6" : "1"}
               class="eq-curve-sum"
+              class:focused={focusMode}
             />
           </g>
+          
+          <!-- MVP-14: Selected band curve (focus mode only) -->
+          {#if focusMode && selectedBandCurvePath && $selectedBandIndex !== null}
+            <g class="curves-selected">
+              <path
+                d={selectedBandCurvePath}
+                fill="none"
+                stroke={`var(--band-${($selectedBandIndex % 10) + 1})`}
+                stroke-width="2.75"
+                opacity="0.95"
+                class="eq-curve-selected"
+              />
+            </g>
+          {/if}
+
+          <!-- MVP-14: Bandwidth markers (on frequency axis) -->
+          {#if showBandwidthMarkers && bandwidthMarkers.leftFreq && bandwidthMarkers.rightFreq && $selectedBandIndex !== null}
+            <g class="bandwidth-markers">
+              <!-- Left marker -->
+              <line
+                x1={freqToX(bandwidthMarkers.leftFreq, 1000)}
+                y1="395"
+                x2={freqToX(bandwidthMarkers.leftFreq, 1000)}
+                y2="400"
+                stroke={`var(--band-${($selectedBandIndex % 10) + 1})`}
+                stroke-width="2"
+                opacity="0.8"
+                class="bandwidth-marker"
+              />
+              <!-- Right marker -->
+              <line
+                x1={freqToX(bandwidthMarkers.rightFreq, 1000)}
+                y1="395"
+                x2={freqToX(bandwidthMarkers.rightFreq, 1000)}
+                y2="400"
+                stroke={`var(--band-${($selectedBandIndex % 10) + 1})`}
+                stroke-width="2"
+                opacity="0.8"
+                class="bandwidth-marker"
+              />
+            </g>
+          {/if}
 
           <!-- Tokens Layer Component -->
           <EqTokensLayer
@@ -742,6 +925,7 @@
             {plotWidth}
             {plotHeight}
             {shiftPressed}
+            {focusMode}
             on:tokenPointerDown={(e) => handleTokenPointerDown(e.detail.event, e.detail.bandIndex)}
             on:tokenPointerMove={(e) => handleTokenPointerMove(e.detail.event)}
             on:tokenPointerUp={(e) => handleTokenPointerUp(e.detail.event)}
@@ -813,6 +997,25 @@
             <input type="checkbox" bind:checked={spectrumSmooth} />
             Smooth spectrum
           </label>
+        </div>
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={showBandwidthMarkers} />
+            Show bandwidth markers
+          </label>
+        </div>
+        <div class="option-group">
+          <label>Band fill opacity:</label>
+          <span style="--knob-arc: var(--sum-curve);">
+            <KnobDial 
+              value={bandFillOpacity}
+              min={0}
+              max={1}
+              scale="linear"
+              size={24}
+              on:change={(e) => (bandFillOpacity = Math.max(0, Math.min(1, e.detail.value)))}
+            />
+          </span>
         </div>
       </div>
       <div class="viz-options-spacer"></div>
@@ -1425,4 +1628,5 @@
     letter-spacing: 0.05em;
     height: 31px;
   }
+
 </style>
