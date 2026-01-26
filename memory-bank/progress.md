@@ -220,21 +220,32 @@
   - No visual gaps or misalignments
   - CSS precision requirements met (no double borders, clean corners)
 
+- [x] **MVP-12: Informative EQ Plot Tokens** (2026-01-26)
+  - Created dedicated EqTokensLayer component with full token enhancements
+  - Token center index number (1, 2, 3...) showing filter pipeline position
+  - Selection halo effect (1.8× radius, band-colored with blur)
+  - Q/BW arc indicator around token perimeter (30°-270° sweep range)
+  - Arc path split into 2 segments for sweeps >180° (prevents jitter/deformation)
+  - Frequency label below token ("1.2k Hz" format) in band accent color
+  - Q label below frequency ("Q 2.5" format) in muted band color
+  - Boundary-aware label placement with smoothstep interpolation
+  - Labels transition from "below" to "side orbit" when near bottom boundary
+  - Shift-mode cursor feedback (ns-resize) for Q adjustment mode
+  - Token circularity maintained via compensated ellipse with inverse-scale transform
+  - Created tokenUtils module with formatting and geometry helpers
+  - All 112 client tests passing (25 tokenUtils tests, 8 EqPage tests)
+
 ## Current Status
-**Phase:** MVP-11 Completed - EQ Page Layout Refinement
+**Phase:** MVP-12 Completed - Informative EQ Plot Tokens
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-### MVP-12: Informative EQ Plot Tokens
-- [ ] Implement Frequency label below token.
-- [ ] Place Q/BW label below frequency label.
-- [ ] Ensure label placement is boundary-aware 
-- [ ] Display band order number in token center
-- [ ] Ensure token aspect maintained despite canvas stretching.
-- [ ] Implement a halo around token when selected.
-- [ ] Implement a Q/BW arc visualization on token
+### MVP-13: Usability Improvements
+- [ ] Double-click fader/knobs to reset to zero
+- [ ] Filter-type-icon hover shows name
+- [ ] Click-drag on filter-type-icon to change filter type
 
 
 ## Known Issues

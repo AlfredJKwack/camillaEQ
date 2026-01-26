@@ -23,6 +23,7 @@
   import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
   import { SpectrumAreaLayer } from '../ui/rendering/canvasLayers/SpectrumAreaLayer';
   import { parseSpectrumData } from '../dsp/spectrumParser';
+  import EqTokensLayer from '../ui/tokens/EqTokensLayer.svelte';
 
   let showPerBandCurves = false;
   let spectrumMode = 'off'; // 'off' | 'pre' | 'post'
@@ -50,6 +51,9 @@
     startQ: number;
     shiftKey: boolean;
   } | null = null;
+  
+  // Track global shift key state for cursor feedback
+  let shiftPressed = false;
   
   // Tooltip state (for faders) - now with fixed positioning
   let tooltipState: {
@@ -131,6 +135,27 @@
       spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [spectrumAreaLayer]);
       spectrumRenderer.resize(plotWidth, plotHeight);
     }
+    
+    // Track shift key for cursor feedback
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        shiftPressed = true;
+      }
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        shiftPressed = false;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   });
   
   // Reactive: Initialize EQ when connection becomes available
@@ -276,9 +301,24 @@
     const deltaY = event.clientY - dragState.startY;
     
     if (event.shiftKey) {
-      // Shift + drag Y = adjust Q
-      const qSensitivity = 0.01; // Q units per pixel
-      const newQ = dragState.startQ - deltaY * qSensitivity;
+      // Shift + drag Y = adjust Q (log-space for consistent feel)
+      const Q_MIN = 0.1;
+      const Q_MAX = 10;
+      
+      const logMin = Math.log(Q_MIN);
+      const logMax = Math.log(Q_MAX);
+      const logRange = logMax - logMin;
+      
+      // Half viewport height to traverse the full [min..max] range
+      const logPerPx = logRange / (window.innerHeight / 2);
+      
+      // Dragging up (deltaY negative) should increase Q
+      const startLogQ = Math.log(Math.max(Q_MIN, Math.min(Q_MAX, dragState.startQ)));
+      const newLogQ = startLogQ - deltaY * logPerPx;
+      
+      const clampedLogQ = Math.max(logMin, Math.min(logMax, newLogQ));
+      const newQ = Math.exp(clampedLogQ);
+      
       setBandQ(dragState.bandIndex, newQ);
     } else {
       // Normal drag: X = freq, Y = gain
@@ -644,30 +684,18 @@
             />
           </g>
 
-          <!-- Tokens (band handles) - compensated ellipses to remain circular when stretched -->
-          <g class="tokens">
-            {#each $bands as band, i}
-              {@const sx = plotWidth / 1000}
-              {@const sy = plotHeight / 400}
-              {@const r = 8}
-              <ellipse
-                cx={freqToX(band.freq, 1000)}
-                cy={gainToY(band.gain)}
-                rx={r / sx}
-                ry={r / sy}
-                fill="var(--ui-panel)"
-                stroke="var(--band-{(i % 10) + 1})"
-                stroke-width={$selectedBandIndex === i ? '3.5' : '2'}
-                class="band-token"
-                data-band-index={i}
-                data-selected={$selectedBandIndex === i}
-                on:pointerdown={(e) => handleTokenPointerDown(e, i)}
-                on:pointermove={handleTokenPointerMove}
-                on:pointerup={handleTokenPointerUp}
-                on:wheel={(e) => handleTokenWheel(e, i)}
-              />
-            {/each}
-          </g>
+          <!-- Tokens Layer Component -->
+          <EqTokensLayer
+            bands={$bands}
+            selectedBandIndex={$selectedBandIndex}
+            {plotWidth}
+            {plotHeight}
+            {shiftPressed}
+            on:tokenPointerDown={(e) => handleTokenPointerDown(e.detail.event, e.detail.bandIndex)}
+            on:tokenPointerMove={(e) => handleTokenPointerMove(e.detail.event)}
+            on:tokenPointerUp={(e) => handleTokenPointerUp(e.detail.event)}
+            on:tokenWheel={(e) => handleTokenWheel(e.detail.event, e.detail.bandIndex)}
+          />
           </svg>
         </div>
 
@@ -1081,25 +1109,6 @@
 
   .freq-label-first {
     transform: none;
-  }
-
-  /* Band tokens */
-  .band-token {
-    cursor: grab;
-    transition: stroke-width 0.15s ease;
-    touch-action: none;
-  }
-
-  .band-token:hover {
-    stroke-width: 3;
-  }
-
-  .band-token:active {
-    cursor: grabbing;
-  }
-
-  .band-token[data-selected='true'] {
-    filter: drop-shadow(0 0 6px color-mix(in oklab, currentColor 45%, transparent));
   }
 
   .viz-options-area {

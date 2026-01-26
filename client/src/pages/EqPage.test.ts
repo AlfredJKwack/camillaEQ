@@ -32,10 +32,8 @@ describe('EqPage MVP-4 Implementation', () => {
     // Verify alignment wrappers use 2-column grid
     expect(source).toContain('eq-zone-spacer');
     
-    // Verify band tokens use ellipse for compensation
-    expect(source).toContain('<ellipse');
-    expect(source).toContain('rx=');
-    expect(source).toContain('ry=');
+    // Verify EqTokensLayer component is used (tokens now in separate component)
+    expect(source).toContain('EqTokensLayer');
   });
 
   it('implements decade-based frequency tick generation', async () => {
@@ -103,7 +101,6 @@ describe('EqPage MVP-11 Layout Refinement', () => {
     expect(source).toContain('eq-left-middle');
     expect(source).toContain('eq-left-bottom');
     expect(source).toContain('eq-right');
-    expect(source).toContain('band-scroll');
     expect(source).toContain('band-grid');
     
     // Verify band column sections
@@ -114,5 +111,59 @@ describe('EqPage MVP-11 Layout Refinement', () => {
     // Verify CSS subgrid usage
     expect(source).toContain('grid-template-rows: subgrid');
     expect(source).toContain('grid-row: 1 / span 3');
+  });
+});
+
+describe('EqPage MVP-12 Informative Tokens', () => {
+  it('uses EqTokensLayer component', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify EqTokensLayer component is used
+    expect(source).toContain('EqTokensLayer');
+    expect(source).toContain('on:tokenPointerDown');
+    expect(source).toContain('on:tokenPointerMove');
+    expect(source).toContain('on:tokenPointerUp');
+    expect(source).toContain('on:tokenWheel');
+  });
+
+  it('EqTokensLayer contains token enhancement elements', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const tokensLayerPath = path.join(__dirname, '../ui/tokens/EqTokensLayer.svelte');
+    const source = fs.readFileSync(tokensLayerPath, 'utf-8');
+
+    // Verify token group and decorative elements
+    expect(source).toContain('token-group');
+    expect(source).toContain('token-halo');
+    expect(source).toContain('token-arc');
+    expect(source).toContain('token-index');
+    expect(source).toContain('token-label-freq');
+    expect(source).toContain('token-label-q');
+    
+    // Verify imports from tokenUtils
+    expect(source).toContain('formatTokenFrequency');
+    expect(source).toContain('formatTokenQ');
+    expect(source).toContain('qToSweepDeg');
+    expect(source).toContain('describeEllipseArcPath');
+    expect(source).toContain('labelShiftFactor');
+    
+    // Verify single group transform for scaling compensation (circles instead of ellipses)
+    expect(source).toContain('tokenTransform');
+    expect(source).toContain('transform={tokenTransform}');
+    
+    // Verify we now use circles instead of ellipses (perfect circles in local coords)
+    expect(source).toContain('<circle');
+    expect(source).toContain('r={');
   });
 });

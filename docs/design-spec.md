@@ -614,9 +614,11 @@ Context Menu (per band)
 
 Token Visual Elements (MVP-12)
 
+**Status:** ✅ **Implemented** (2026-01-26)
+
 1. **Filter order number (center of token):**
    - Displays filter's position in pipeline (1-based index)
-   - Font: 12px, bold, monospace or sans-serif
+   - Font: 12px, bold, sans-serif
    - Color: `var(--ui-text)` (neutral bright)
    - Design accommodates 2-digit numbers (max: "20")
    - Always visible (layered above token fill)

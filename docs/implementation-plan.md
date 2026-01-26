@@ -811,61 +811,60 @@ Vertically align EQ plot and fader track to create visual continuity and improve
 Improve token visual feedback with labels, order numbers, and Q/BW arc indicators.
 
 ### Status
-**To Do**
+✅ **COMPLETED** (2026-01-26)
 
 ### Deliverables
 
-1. **Frequency label (below token):**
-   - Format: `"1.2k Hz"` or `"150 Hz"` (smart unit formatting)
-   - Value in **band accent color** (`--band-ink`)
-   - Unit "Hz" in **slightly muted band color** (`color-mix(in oklab, var(--band-ink) 70%, transparent)`)
-   - Font size: 11px, semi-bold
-   - Positioned directly below token with 4px gap
+1. **Token center index number:**
+   - ✅ Displays filter's position in pipeline (1-based index: 1, 2, 3...)
+   - ✅ Rendered at token center in neutral bright color (`var(--ui-text)`)
+   - ✅ Font: 12px, bold, sans-serif
+   - ✅ Always visible, layered above token fill
 
-2. **Q/BW label (below frequency label):**
-   - Format: `"Q 2.5"` or `"BW 1.2"` (depends on filter type)
-   - Entire label in **muted band color** (same as Hz unit)
-   - Font size: 10px, regular weight
-   - Positioned 2px below frequency label
+2. **Selection halo effect:**
+   - ✅ Outer glow ring appears when `token[data-selected="true"]`
+   - ✅ Radius: ~1.8× token radius (20% bigger)
+   - ✅ Color: `color-mix(in oklab, var(--band-color) 30%, transparent)`
+   - ✅ Uses SVG `<filter>` with Gaussian blur (stdDeviation=2)
 
-3. **Boundary-aware label placement:**
-   - Labels normally render **below** token
-   - If token Y position > (plot height - 60px), move labels **above** token
-   - Prevents clipping when token is dragged to bottom of plot
-   - Smooth transition (no abrupt jumps)
+3. **Q/BW arc indicator:**
+   - ✅ Arc rendered around token perimeter (radius = token + gap + stroke/2)
+   - ✅ Stroke: 6px width, butt caps
+   - ✅ Sweep range: 30° (Q=0.1) to 270° (Q=10)
+   - ✅ Centered at top (0° = 12 o'clock), grows symmetrically
+   - ✅ Color: band color at 85% opacity
+   - ✅ **Arc path split into 2 segments for sweeps >180°** to prevent jitter at boundary
 
-4. **Token center number (filter order):**
-   - Display filter's **position in pipeline** as number (1-based index)
-   - Rendered at token center in **neutral bright color** (`var(--ui-text)`)
-   - Font size: 12px, bold, monospace or sans-serif
-   - Design accounts for **2-digit numbers** (max: "20")
-   - Number always visible (layered above token fill)
+4. **Frequency label (below token):**
+   - ✅ Format: `"1.2k Hz"` or `"150 Hz"` (smart unit formatting via `formatTokenFrequency()`)
+   - ✅ Numeric value in band accent color (`var(--band-color)`)
+   - ✅ Unit "Hz" in muted band color (70% opacity mix)
+   - ✅ Font: 14px, semi-bold
+   - ✅ Positioned 10px below token baseline
 
-5. **Token circularity maintained:**
-   - Token remains perfectly circular regardless of SVG `preserveAspectRatio` stretching
-   - Uses compensated `<ellipse>` with `rx`/`ry` adjusted for aspect ratio
-   - ResizeObserver updates compensation when plot dimensions change
+5. **Q label (below frequency label):**
+   - ✅ Format: `"Q 2.5"` (1 decimal place via `formatTokenQ()`)
+   - ✅ Color: muted band color (same as Hz unit)
+   - ✅ Font: 14px, medium weight
+   - ✅ Positioned 5px below frequency label
 
-6. **Selection halo effect:**
-   - When `token[data-selected="true"]`:
-     - Add outer glow/halo ring at **~2× token radius**
-     - Halo color: `color-mix(in oklab, var(--band-color) 30%, transparent)`
-     - Halo blur: 8-12px
-     - SVG filter or box-shadow approach
+6. **Boundary-aware label placement:**
+   - ✅ Labels smoothly transition from "below" to "side orbit" when token approaches bottom
+   - ✅ Uses `labelShiftFactor()` with smoothstep interpolation
+   - ✅ Chooses left/right side based on token X position (< 500 → right, > 500 → left)
+   - ✅ Smooth CSS transition (120ms ease-out)
+   - ✅ No abrupt jumps when dragging near boundaries
 
-7. **Q/BW arc visualization on token:**
-   - Arc rendered **around token perimeter** (radius slightly larger than token)
-   - **Stroke thickness:** 10-15% of token radius (thin but legible)
-   - **Stroke cap:** butt or round (not square)
-   - **Arc sweep range:**
-     - Minimum sweep: **30°**
-     - Maximum sweep: **270°**
-   - **Arc positioning:** Centered at **top of token** (0° = 12 o'clock)
-   - **Arc growth:** Increasing Q/BW makes arc **grow symmetrically** in both directions from top
-     - Low Q → small arc centered at top (e.g., ±15° from vertical)
-     - High Q → large arc wrapping around sides (e.g., ±135° from vertical)
-   - **Mapping:** `arcStartAngle = -sweep/2`, `arcEndAngle = +sweep/2` where `sweep = map(Q, minQ, maxQ, 30°, 270°)`
-   - **Color:** Same `--band-ink` as token stroke, slightly transparent (~85% opacity)
+7. **Shift-mode cursor feedback:**
+   - ✅ Cursor changes to `ns-resize` when Shift key held (Q adjustment mode)
+   - ✅ Global shift key tracking via window keyboard event listeners
+   - ✅ Cursor feedback for both hover and active (dragging) states
+
+8. **Token circularity maintained:**
+   - ✅ Compensated ellipse approach with single group transform
+   - ✅ Each token has `transform="translate(cx, cy) scale(1/sx, 1/sy)"`
+   - ✅ All child elements (circles, paths, text) use unscaled coordinates
+   - ✅ Remains perfectly circular when plot stretches
 
 ### Test / Acceptance Criteria
 - ✅ Component tests:
@@ -895,6 +894,178 @@ Improve token visual feedback with labels, order numbers, and Q/BW arc indicator
 - Alternative arc visualizations (filled wedge, dotted arc)
 
 ---
+
+## MVP-13 - Usability improvements
+
+### Goal: 
+
+### Status
+To Do.
+
+### Deliverables:
+
+1. **double click sets to zero**
+	- double-clicking fader-thumb resets is to zero value (and updates data accordingly)
+	- double click on knobs resets is to zero value (and updates data accordingly)
+3. **filter-type-icon hover shows name**
+    - hovering will show the name of the currently selected filter type
+3. **click-drag on filter-type-icon**
+    - click drag changes the filter type
+    - the icon is updated accordingly
+    - the global state of the filter is updated
+    - ...
+
+⸻
+
+
+## MVP-14 — Informative EQ Plot Tokens
+
+### Goal
+Improve curve editing visual feedback with appropriate shading effects.
+
+### Status
+**To Do**
+
+### Deliverables:
+
+1) Deselection behavior
+	•	Click target: Any click/tap on the EQ plot background that is not on a token (and not on token handles) will clear selection. This also clear the band selection state
+	•	Result: All tokens become unselected and the plot returns to the default (unfocused) state (normal token opacity, normal spectrum contrast, normal curve visibility per default mode).
+
+⸻
+
+2) Token selection focus mode
+
+When a token is selected:
+
+Curves
+	•	Show only:
+		•	Selected band curve
+		•	Total EQ curve
+	•	Hide:
+		•	All other individual band curves
+
+Selected band curve styling
+	•	Stroke: bright + thicker than total curve
+	•	Draw order: above total curve and spectrum
+
+Total curve styling
+	•	Stroke: thinner + lower contrast than selected band curve
+	•	Remains visible for context at all times during selection
+
+Tokens
+	•	Selected token: full opacity; keep its value labels visible (Hz, Q, and gain if you show it).
+	•	Other tokens: dimmed; hide Hz and Q labels (and any other per-token labels, unless required for accessibility).
+
+Area shading
+	•	Draw the selected band’s area-of-effect visualization (see section 5) using fill/tint/halo rules per filter type.
+	•	Shading must not fully obscure spectrum (opacity is configurable; see section 5).
+
+⸻
+
+3) Bandwidth emphasis (-3 dB half-power markers)
+
+Feature
+	•	For the selected band only, compute and render half-power (-3 dB) frequency points and show as tiny ticks on the x-axis.
+
+Rendering
+	•	Two ticks for bell/peak and notch where applicable (left/right of center frequency).
+	•	For shelves and HP/LP: if -3 dB points are not meaningful/defined in your filter model, do not render ticks (or render a single knee marker if you prefer, but only if consistent with your DSP definition).
+
+Toggle
+	•	Add a visualization option: Show bandwidth markers (default: ON or OFF per product decision).
+	•	When OFF: do not compute or draw the ticks.
+
+⸻
+
+4) Spectrum + EQ curve integration (ducking)
+
+Trigger
+	•	Spectrum ducking applies when a band is being edited (e.g., token drag, Q adjustment, slope adjustment, type change gesture).
+
+Behavior
+	•	Reduce spectrum visual prominence so it does not compete with the selected band:
+	•	Decrease spectrum opacity and/or brightness/contrast (implementation choice).
+	•	Ducking begins on edit start and returns to normal on edit end.
+	•	If a token is merely selected (but not actively edited), spectrum may remain normal or partially ducked; recommended:
+	•	Partial duck on selection
+	•	Stronger duck while actively editing
+
+⸻
+
+5) Area-of-effect visualization by filter type
+
+Global rules
+	•	Area-of-effect is drawn only for the selected band.
+	•	The fill/tint/halo uses the band specific color scheme.
+	•	Fill must preserve spectrum legibility behind it.
+
+Bell/Peak
+	•	Render: fill under the selected band curve to the baseline (0 dB reference line).
+	•	Fill follows the curve shape precisely.
+
+Shelf (High/Low shelf)
+	•	Render: half-plane tint indicating the affected side of the spectrum:
+	•	Low shelf: tint the region below the shelf knee (frequency side depends on implementation, but should visually communicate “below knee” region).
+	•	High shelf: tint the region above the shelf knee.
+	•	Also render the shelf curve line (selected band curve styling).
+
+HP/LP (High-pass / Low-pass)
+	•	Render: emphasize the cutoff region:
+	•	A localized tint/gradient centered around cutoff frequency (not a full under-curve fill).
+	•	Show slope clearly:
+	•	Stroke styling remains “selected band bright + thick”
+	•	Optionally annotate slope (e.g., 12/24/48 dB/oct) near the token or on hover (optional).
+
+Notch
+	•	Render: thicker selected curve + stronger local halo around the notch region to keep thin changes visible.
+	•	Halo should be localized near the notch and respect Band fill opacity.
+
+Layering order (recommended)
+	1.	Spectrum (ducked as applicable)
+	2.	Area-of-effect fill/tint/halo (uses Band fill opacity)
+	3.	Total EQ curve (thin / lower contrast)
+	4.	Selected band curve (bright / thicker)
+	5.	Tokens + labels (selected on top)
+
+⸻
+
+Visualization options (minimum set)
+	•	Show bandwidth markers (bool)
+	•	Band fill opacity (0–100%)
+	•	(Optional) Spectrum ducking strength (0–100%) if you want user control; otherwise keep internal constants.
+
+
+⸻
+
+## MVP-15 - Implement pipeline editor
+
+### Goal: Implement an easy to use, multi-channel pipeline editor.
+
+### Status
+To Do.
+
+### Deliverables:
+
+1. **todo**
+
+⸻
+
+## MVP-16 - Update to latest CamillaDSP
+
+### Goal: Update the ws definition and app to CamillaDSP v3
+
+### Status
+To Do.
+
+### Deliverables:
+
+1. **Update the WebService layer**
+2. **Update the internal data representation**
+3. **Update usage of volume controls to incorporate limits**
+4. **Leverage websocket command for reading all faders in a single call**
+
+--
 
 ## Explicitly Deferred Complexity
 

@@ -175,7 +175,7 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-11 Complete ✓ — EQ page layout refinement with plot/fader alignment
+**Current Milestone:** MVP-12 Complete ✓ — Informative EQ plot tokens with labels, arcs, and visual feedback
 
 ### Completed Milestones
 
@@ -327,9 +327,25 @@ The application now provides a **fully interactive equalizer editor** with:
 - All existing functionality preserved (dragging, curves, synchronization)
 - No visual gaps or misalignments
 
+#### MVP-12: Informative EQ Plot Tokens ✓
+**Enhanced token visuals with comprehensive feedback:**
+- **Token center index number**: Shows filter's position in pipeline (1, 2, 3...)
+- **Selection halo**: Outer glow ring (1.8× radius) when token selected
+- **Q/BW arc indicator**: Visual arc around token perimeter
+  - Sweep range: 30° (Q=0.1) to 270° (Q=10), centered at top
+  - Arc split into 2 segments for sweeps >180° (prevents jitter)
+- **Frequency label**: Smart formatting ("1.2k Hz" or "150 Hz") in band accent color
+- **Q label**: "Q 2.5" format (1 decimal place) in muted band color
+- **Boundary-aware label placement**: Labels smoothly transition from "below" to "side orbit" when token approaches bottom
+  - Uses smoothstep interpolation for smooth movement
+  - Chooses left/right side based on token X position
+- **Shift-mode cursor feedback**: Cursor changes to `ns-resize` when Shift held (Q adjustment mode)
+- **Token circularity maintained**: Compensated ellipse approach ensures tokens remain circular when plot stretches
+- All 112 client tests passing (including 25 tokenUtils tests, 8 EqPage tests)
+
 ### Next Milestone
 
-**MVP-12:** Informative EQ plot tokens (labels, order numbers, Q/BW arcs)
+**MVP-13:** Usability improvements (double-click reset, filter type selection)
 
 ## Documentation
 
