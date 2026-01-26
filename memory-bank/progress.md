@@ -242,10 +242,24 @@
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-### MVP-13: Usability Improvements
-- [ ] Double-click fader/knobs to reset to zero
-- [ ] Filter-type-icon hover shows name
-- [ ] Click-drag on filter-type-icon to change filter type
+### MVP-13 - Band filter selection from 'filter-type-icon'
+- [ ] Allow selection of appropriate biquad & subtypes
+- [ ] Implement Conversion rules when switching filter types
+- [ ] Craft appropriate user interaction behaviours
+- [ ] Manage band type selection effects
+- [ ] Be attentive of applicability to other potential scenarios
+
+## MVP-14 — Informative EQ Plot Token highlighting
+- [ ] Ensure deselection behavior is implemented
+- [ ] Visually emphasize selected token curve and effect area
+- [ ] Provide a visual Bandwidth emphasis
+- [ ] Manage the spectrum + EQ curve integration
+- [ ] Ensure the area-of-effect visualization is implemented by filter type
+- [ ] Implement appropriate layering order
+
+## MVP-15 - Implement pipeline editor
+## MVP-16 - Update to latest CamillaDSP
+## MVP-17 - Review and refine state management
 
 
 ## Known Issues

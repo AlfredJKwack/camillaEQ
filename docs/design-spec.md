@@ -5,6 +5,31 @@ Target platform: Low-power Linux SBC (e.g., Raspberry Pi Zero / OrangePi Zero 2W
 Primary use: Tablet/desktop browser connecting over LAN
 Real-time: Spectrum frames ~ every 100ms (10 Hz) via WebSocket to browser
 
+---
+
+## Current Implementation Status (as of 2026-01-26)
+
+**Milestone:** MVP-12 Complete ✅
+
+This specification describes both **implemented** and **planned** features. For the current as-built architecture, see [`docs/current-architecture.md`](current-architecture.md).
+
+**Key Implementation Notes:**
+- ✅ Backend REST API implemented (health, version, config, state, preset library)
+- ✅ Direct browser-to-CamillaDSP WebSocket topology working
+- ✅ Spectrum rendering via polling (10Hz) with Canvas + pluggable layers
+- ✅ Interactive EQ editor with 3-row grid layout (MVP-11)
+- ✅ Token visual enhancements (labels, arcs, halos) (MVP-12)
+- ✅ Preset library with search/keyboard nav (MVP-9)
+- ✅ Write-through state persistence for recovery
+- ⏳ Static asset serving from Fastify (planned for production)
+- ⏳ ALSA/systemctl endpoints (infrastructure ready, routes not implemented)
+- ⏳ Pipeline editor (placeholder page exists)
+- ⏳ Filter type selection UI (spec complete, not implemented)
+
+See [`README.md`](../README.md) for detailed milestone completion status. For complete API documentation, see [`docs/rest-api.md`](rest-api.md).
+
+---
+
 ⸻
 ## Implementation Architecture Specification
 

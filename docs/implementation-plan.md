@@ -895,30 +895,63 @@ Improve token visual feedback with labels, order numbers, and Q/BW arc indicator
 
 ---
 
-## MVP-13 - Usability improvements
+## MVP-13 - Band filter selection from 'filter-type-icon'
 
-### Goal: 
+### Goal: Enable editing of filter type on band icon.
+
+Enable the user to select the type of filter applied to a band by clicking on the 'filter-type-icon'. The equalizer filter type selection system provides a curated set of CamillaDSP-backed filter functions presented through familiar Parametric EQ metaphors, allowing each band to switch cleanly between peaking, shelf, pass, and notch behaviors without breaking the user’s mental model of frequency shaping. Each band type explicitly defines which parameters are active, how values are preserved across type changes, and how it maps to a single CamillaDSP filter node, ensuring real-time control feels immediate, reversible, and technically accurate. The interaction prioritizes fast visual feedback and safe defaults while exposing deeper DSP capabilities progressively.
 
 ### Status
 To Do.
 
 ### Deliverables:
 
-1. **double click sets to zero**
-	- double-clicking fader-thumb resets is to zero value (and updates data accordingly)
-	- double click on knobs resets is to zero value (and updates data accordingly)
-3. **filter-type-icon hover shows name**
-    - hovering will show the name of the currently selected filter type
-3. **click-drag on filter-type-icon**
-    - click drag changes the filter type
-    - the icon is updated accordingly
-    - the global state of the filter is updated
-    - ...
+1 **Allow selection of appropriate biquad & subtypes**
+  - Peaking (freq + gain + q OR bandwidth)
+  - Lowshelf (freq + gain + slope OR q)
+  - Highshelf (freq + gain + slope OR q)
+  - Notch (freq + q OR bandwidth)
+  - Bandpass (freq + q OR bandwidth)
+  - Highpass (freq + q)
+  - Lowpass (freq + q)
+
+1. **Conversion rules when switching filter types**
+  - Values are preserved where possible (typically freq, then gain if supported, then “width” as q)
+  - Values can become “stored but inactive” (e.g. keep prior gain in UI state even when switching to Highpass). Only do this if the data model supports it, otherwise discard.
+
+2. **User interaction behaviours**
+  - Opening the type chooser:
+		•	Click / tap the band-type icon → opens a compact popover anchored to that icon.
+		•	Popover shows a grid/list of icons: Peaking, Shelf, HP, LP, Notch, etc.
+		•	Hover shows tooltip (“High-pass 12 dB/oct”, “Peaking”, “Shelf”, etc.) and ideally the parameter implications (e.g., “Gain disabled”).
+
+  - Keyboard expectations (power users):
+	  •	Enter / Space on focused icon opens chooser
+	  •	Arrow keys navigate options
+	  •	Enter selects
+	  •	Esc closes
+
+  - Touch expectations:
+	  •	Tap icon opens menu
+	  •	Tap outside closes
+	  •	Menu items large enough for fingers (don’t make it a tiny desktop-only dropdown)
+
+3. **Band type selection effects**
+  - The band’s curve updates instantly.
+  - The band “handle” behavior changes appropriately:
+    •	Peaking: draggable dot controls freq + gain; a width handle (or wheel modifier) controls Q
+    •	HP/LP: gain control disappears; dragging becomes freq-only; Q available only if 2nd order type
+    •	Shelves: drag controls freq + gain; “Q” control shown (slope is deferred to later)
+  - The band type icon updates to reflect the new type.
+  - camillaDSP and app config is updated with the new band type and parameter
+
+4. **Applicability to other interactions**
+  - The same pattern may be applied at a later time for tokens on the eq-plot once an appropriate menuing notion has been defined.
 
 ⸻
 
 
-## MVP-14 — Informative EQ Plot Tokens
+## MVP-14 — Informative EQ Plot Token highlighting
 
 ### Goal
 Improve curve editing visual feedback with appropriate shading effects.
@@ -929,12 +962,12 @@ Improve curve editing visual feedback with appropriate shading effects.
 ### Deliverables:
 
 1) Deselection behavior
-	•	Click target: Any click/tap on the EQ plot background that is not on a token (and not on token handles) will clear selection. This also clear the band selection state
+	•	Click target: Any click/tap not on a token will clear selection. This also clear the band selection state
 	•	Result: All tokens become unselected and the plot returns to the default (unfocused) state (normal token opacity, normal spectrum contrast, normal curve visibility per default mode).
 
 ⸻
 
-2) Token selection focus mode
+1) Token selection focus mode
 
 When a token is selected:
 
@@ -1021,7 +1054,7 @@ Notch
 	•	Render: thicker selected curve + stronger local halo around the notch region to keep thin changes visible.
 	•	Halo should be localized near the notch and respect Band fill opacity.
 
-Layering order (recommended)
+6) Ensure Layering order is as follows (bttom to top)
 	1.	Spectrum (ducked as applicable)
 	2.	Area-of-effect fill/tint/halo (uses Band fill opacity)
 	3.	Total EQ curve (thin / lower contrast)
@@ -1065,7 +1098,38 @@ To Do.
 3. **Update usage of volume controls to incorporate limits**
 4. **Leverage websocket command for reading all faders in a single call**
 
---
+## MVP-17 - Review and refine state management
+
+### Goal: Ensure that the state management is robust and efficient.
+
+### Status
+To Do.
+
+### Deliverables:
+
+1. 
+⸻
+## Future MVPs 
+
+### Deliverables:
+1. **double click sets to zero**
+	- double-clicking fader-thumb resets is to zero value (and updates data accordingly)
+	- double click on knobs resets is to zero value (and updates data accordingly)
+2. **Update visualization options**
+  - create icons for spectrum [pre|post|off] selections
+  - create a heatmap spectrum visualization with appropriate colors. The heatmap should be a gradient from blue to red. Consider its interactions with regular spectrum and band selection.
+  - create toggle buttons with icons for:
+    - per band curves (including tooltip)
+    - smooth spectrum
+    - spectrum heatmap.
+3. **More informative connection page**
+  - Indicate the version of Camilla your're connected to
+4. **Implement a system information page**
+  - Indicate the OS version, and the CPU architecture
+  - Indicate load on OS
+  - Provide output of aplay/arecord in a sensible way (or nothing if not running linux/macos)
+  - Provide output of `cat /proc/asound/cards` in a sensible way (or nothing if not running linux/macos)
+  - show the camilladsp yml file in a read-only pane
 
 ## Explicitly Deferred Complexity
 
