@@ -9,7 +9,7 @@ Real-time: Spectrum frames ~ every 100ms (10 Hz) via WebSocket to browser
 
 ## Current Implementation Status (as of 2026-01-26)
 
-**Milestone:** MVP-12 Complete ✅
+**Milestone:** MVP-13 Complete ✅
 
 This specification describes both **implemented** and **planned** features. For the current as-built architecture, see [`docs/current-architecture.md`](current-architecture.md).
 
@@ -19,12 +19,12 @@ This specification describes both **implemented** and **planned** features. For 
 - ✅ Spectrum rendering via polling (10Hz) with Canvas + pluggable layers
 - ✅ Interactive EQ editor with 3-row grid layout (MVP-11)
 - ✅ Token visual enhancements (labels, arcs, halos) (MVP-12)
+- ✅ Filter type selection UI with popover + speech-bubble tail (MVP-13)
 - ✅ Preset library with search/keyboard nav (MVP-9)
 - ✅ Write-through state persistence for recovery
 - ⏳ Static asset serving from Fastify (planned for production)
 - ⏳ ALSA/systemctl endpoints (infrastructure ready, routes not implemented)
 - ⏳ Pipeline editor (placeholder page exists)
-- ⏳ Filter type selection UI (spec complete, not implemented)
 
 See [`README.md`](../README.md) for detailed milestone completion status. For complete API documentation, see [`docs/rest-api.md`](rest-api.md).
 

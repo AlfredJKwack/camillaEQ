@@ -199,6 +199,25 @@ export function setBandQ(index: number, q: number) {
   debouncedUpload.call();
 }
 
+export function setBandType(index: number, type: EqBand['type']) {
+  bands.update((b) => {
+    const updated = [...b];
+    const currentBand = updated[index];
+    
+    // Preserve freq and q, but handle gain based on type
+    const supportsGain = type === 'Peaking' || type === 'LowShelf' || type === 'HighShelf';
+    
+    updated[index] = {
+      ...currentBand,
+      type,
+      gain: supportsGain ? currentBand.gain : 0,
+    };
+    
+    return updated;
+  });
+  debouncedUpload.call();
+}
+
 export function toggleBandEnabled(index: number) {
   bands.update((b) => {
     const updated = [...b];

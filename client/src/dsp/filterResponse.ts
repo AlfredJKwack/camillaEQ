@@ -5,9 +5,9 @@
 
 export interface EqBand {
   enabled: boolean;
-  type: 'Peaking' | 'LowShelf' | 'HighShelf' | 'LowPass' | 'HighPass' | 'BandPass' | 'AllPass';
+  type: 'Peaking' | 'LowShelf' | 'HighShelf' | 'LowPass' | 'HighPass' | 'BandPass' | 'Notch' | 'AllPass';
   freq: number;  // Hz
-  gain: number;  // dB
+  gain: number;  // dB (only applicable for Peaking, LowShelf, HighShelf)
   q: number;
 }
 
@@ -133,6 +133,17 @@ export function bandResponseDb(freqHz: number, band: EqBand): number {
       b0 = alpha;
       b1 = 0;
       b2 = -alpha;
+      a0 = 1 + alpha;
+      a1 = -2 * cosW0;
+      a2 = 1 - alpha;
+      break;
+    }
+
+    case 'Notch': {
+      const cosW0 = Math.cos(w0);
+      b0 = 1;
+      b1 = -2 * cosW0;
+      b2 = 1;
       a0 = 1 + alpha;
       a1 = -2 * cosW0;
       a2 = 1 - alpha;

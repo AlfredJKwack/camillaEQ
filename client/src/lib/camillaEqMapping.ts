@@ -30,6 +30,8 @@ function mapCamillaBiquadType(camillaType: string): EqBand['type'] | null {
       return 'LowShelf';
     case 'Bandpass':
       return 'BandPass';
+    case 'Notch':
+      return 'Notch';
     case 'Allpass':
       return 'AllPass';
     default:
@@ -54,6 +56,8 @@ function mapEqBandTypeToCamilla(type: EqBand['type']): string {
       return 'Lowshelf';
     case 'BandPass':
       return 'Bandpass';
+    case 'Notch':
+      return 'Notch';
     case 'AllPass':
       return 'Allpass';
   }

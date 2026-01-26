@@ -3,6 +3,8 @@
   import FilterIcon from '../components/icons/FilterIcons.svelte';
   import KnobDial from '../components/KnobDial.svelte';
   import FaderTooltip from '../components/FaderTooltip.svelte';
+  import FilterTypePicker from '../components/FilterTypePicker.svelte';
+  import type { EqBand } from '../dsp/filterResponse';
   import {
     bands,
     selectedBandIndex,
@@ -11,6 +13,7 @@
     setBandFreq,
     setBandGain,
     setBandQ,
+    setBandType,
     toggleBandEnabled,
     selectBand,
     initializeFromConfig,
@@ -75,6 +78,13 @@
   };
   
   let tooltipFadeTimer: number | null = null;
+  
+  // Filter type picker state
+  let typePickerOpen = false;
+  let typePickerBandIndex: number | null = null;
+  let typePickerBandLeft = 0;
+  let typePickerBandRight = 0;
+  let typePickerIconCenterY = 0;
   
   // Collision detection: determine if tooltip should flip to right side
   function shouldFlipTooltip(thumbElement: HTMLElement): 'left' | 'right' {
@@ -296,6 +306,9 @@
   function handleTokenPointerMove(event: PointerEvent) {
     if (!dragState || !plotElement) return;
     
+    const band = $bands[dragState.bandIndex];
+    const supportsGain = band.type === 'Peaking' || band.type === 'LowShelf' || band.type === 'HighShelf';
+    
     const rect = plotElement.getBoundingClientRect();
     const deltaX = event.clientX - dragState.startX;
     const deltaY = event.clientY - dragState.startY;
@@ -321,23 +334,28 @@
       
       setBandQ(dragState.bandIndex, newQ);
     } else {
-      // Normal drag: X = freq, Y = gain
+      // Normal drag: X = freq, Y = gain (only for gain-capable types)
       const pixelToViewBoxX = 1000 / rect.width;
-      const pixelToViewBoxY = 400 / rect.height;
       
       const deltaViewBoxX = deltaX * pixelToViewBoxX;
-      const deltaViewBoxY = deltaY * pixelToViewBoxY;
       
       const currentX = freqToX(dragState.startFreq, 1000);
       const newX = currentX + deltaViewBoxX;
       const newFreq = xToFreq(newX, 1000);
       
-      const currentY = gainToY(dragState.startGain);
-      const newY = currentY + deltaViewBoxY;
-      const newGain = yToGain(newY);
-      
       setBandFreq(dragState.bandIndex, newFreq);
-      setBandGain(dragState.bandIndex, newGain);
+      
+      // Only adjust gain for types that support it
+      if (supportsGain) {
+        const pixelToViewBoxY = 400 / rect.height;
+        const deltaViewBoxY = deltaY * pixelToViewBoxY;
+        
+        const currentY = gainToY(dragState.startGain);
+        const newY = currentY + deltaViewBoxY;
+        const newGain = yToGain(newY);
+        
+        setBandGain(dragState.bandIndex, newGain);
+      }
     }
   }
 
@@ -426,6 +444,39 @@
     
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+  }
+
+  // Filter type picker handlers
+  function handleFilterIconClick(event: MouseEvent, bandIndex: number) {
+    event.stopPropagation();
+    
+    const target = event.currentTarget as HTMLElement;
+    const iconRect = target.getBoundingClientRect();
+    
+    // Find the band column container
+    const bandColumn = target.closest('.band-column') as HTMLElement;
+    if (!bandColumn) return;
+    
+    const bandRect = bandColumn.getBoundingClientRect();
+    
+    typePickerBandIndex = bandIndex;
+    typePickerBandLeft = bandRect.left;
+    typePickerBandRight = bandRect.right;
+    typePickerIconCenterY = iconRect.top + iconRect.height / 2;
+    typePickerOpen = true;
+    
+    selectBand(bandIndex);
+  }
+  
+  function handleTypeSelect(event: CustomEvent<{ type: EqBand['type'] }>) {
+    if (typePickerBandIndex !== null) {
+      setBandType(typePickerBandIndex, event.detail.type);
+    }
+  }
+  
+  function handleTypePickerClose() {
+    typePickerOpen = false;
+    typePickerBandIndex = null;
   }
 
   // Master fader interaction (preamp gain control)
@@ -823,7 +874,7 @@
             on:pointerdown|capture={() => selectBand(i)}
           >
             <div class="band-top">
-              <div class="filter-type-icon" title="Band {i + 1} — {band.type}" on:click={() => selectBand(i)}>
+              <div class="filter-type-icon" title="Band {i + 1} — {band.type}" on:click={(e) => handleFilterIconClick(e, i)}>
                 <FilterIcon type={band.type} />
               </div>
 
@@ -833,7 +884,7 @@
             </div>
 
             <div class="band-middle">
-              <div class="gain-fader">
+              <div class="gain-fader" data-supports-gain={band.type === 'Peaking' || band.type === 'LowShelf' || band.type === 'HighShelf'}>
                 <div class="fader-track">
                   <!-- Tickmarks at ±18, ±12, ±6 dB -->
                   {#each [-18, -12, -6, 6, 12, 18] as tickGain}
@@ -898,6 +949,18 @@
         : `var(--band-${(tooltipState.bandIndex % 10) + 1})`
     } 55%, white 10%)`}
   />
+  
+  <!-- Filter type picker popover -->
+  {#if typePickerOpen && typePickerBandIndex !== null}
+    <FilterTypePicker
+      currentType={$bands[typePickerBandIndex].type}
+      bandLeft={typePickerBandLeft}
+      bandRight={typePickerBandRight}
+      iconCenterY={typePickerIconCenterY}
+      on:select={handleTypeSelect}
+      on:close={handleTypePickerClose}
+    />
+  {/if}
 </div>
 
 <style>
@@ -1247,6 +1310,12 @@
     height: 100%;
     min-height: 120px;
     justify-self: stretch;
+  }
+  
+  /* Dim faders for non-gain filter types */
+  .gain-fader[data-supports-gain='false'] {
+    opacity: 0.35;
+    pointer-events: none;
   }
 
   .fader-track {

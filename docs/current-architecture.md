@@ -1,7 +1,7 @@
 # Current Architecture (as-built)
 
 **Last updated:** 2026-01-26  
-**Status:** MVP-12 Complete
+**Status:** MVP-13 Complete
 
 This document describes the actual implementation as it exists in the codebase.
 

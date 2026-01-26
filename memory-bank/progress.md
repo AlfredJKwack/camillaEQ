@@ -235,19 +235,28 @@
   - Created tokenUtils module with formatting and geometry helpers
   - All 112 client tests passing (25 tokenUtils tests, 8 EqPage tests)
 
+- [x] **MVP-13: Filter Type Selection** (2026-01-26)
+  - Created FilterTypePicker component with side popover placement
+  - 7 filter types supported: Peaking, LowShelf, HighShelf, HighPass, LowPass, BandPass, Notch
+  - 4×2 grid layout with filter icon + label + subtitle per type
+  - Side placement (left/right of 38px band column with 6px gap)
+  - Speech-bubble tail (CSS double-triangle) points to filter icon
+  - Keyboard navigation: arrow keys, Enter/Space to select, Escape to close
+  - Parameter preservation: frequency always preserved, gain/Q preserved when applicable
+  - Current type highlighted in popover, keyboard selection separate highlight
+  - Extended eqStore with `setBandType()` action
+  - Type changes trigger immediate curve regeneration
+  - Upload debounce applies to type changes (200ms)
+  - Lighter border color for better visual separation
+  - Collision-aware positioning with viewport clamping
+  - All 113 client tests passing
+
 ## Current Status
-**Phase:** MVP-12 Completed - Informative EQ Plot Tokens
+**Phase:** MVP-13 Completed - Filter Type Selection
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
-
-### MVP-13 - Band filter selection from 'filter-type-icon'
-- [ ] Allow selection of appropriate biquad & subtypes
-- [ ] Implement Conversion rules when switching filter types
-- [ ] Craft appropriate user interaction behaviours
-- [ ] Manage band type selection effects
-- [ ] Be attentive of applicability to other potential scenarios
 
 ## MVP-14 — Informative EQ Plot Token highlighting
 - [ ] Ensure deselection behavior is implemented

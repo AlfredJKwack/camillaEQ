@@ -899,54 +899,53 @@ Improve token visual feedback with labels, order numbers, and Q/BW arc indicator
 
 ### Goal: Enable editing of filter type on band icon.
 
-Enable the user to select the type of filter applied to a band by clicking on the 'filter-type-icon'. The equalizer filter type selection system provides a curated set of CamillaDSP-backed filter functions presented through familiar Parametric EQ metaphors, allowing each band to switch cleanly between peaking, shelf, pass, and notch behaviors without breaking the user’s mental model of frequency shaping. Each band type explicitly defines which parameters are active, how values are preserved across type changes, and how it maps to a single CamillaDSP filter node, ensuring real-time control feels immediate, reversible, and technically accurate. The interaction prioritizes fast visual feedback and safe defaults while exposing deeper DSP capabilities progressively.
+Enable the user to select the type of filter applied to a band by clicking on the 'filter-type-icon'. The equalizer filter type selection system provides a curated set of CamillaDSP-backed filter functions presented through familiar Parametric EQ metaphors, allowing each band to switch cleanly between peaking, shelf, pass, and notch behaviors without breaking the user's mental model of frequency shaping. Each band type explicitly defines which parameters are active, how values are preserved across type changes, and how it maps to a single CamillaDSP filter node, ensuring real-time control feels immediate, reversible, and technically accurate. The interaction prioritizes fast visual feedback and safe defaults while exposing deeper DSP capabilities progressively.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-01-26)
 
-### Deliverables:
+### As Built
 
-1 **Allow selection of appropriate biquad & subtypes**
-  - Peaking (freq + gain + q OR bandwidth)
-  - Lowshelf (freq + gain + slope OR q)
-  - Highshelf (freq + gain + slope OR q)
-  - Notch (freq + q OR bandwidth)
-  - Bandpass (freq + q OR bandwidth)
-  - Highpass (freq + q)
-  - Lowpass (freq + q)
+**Filter type selection UI** (`client/src/components/FilterTypePicker.svelte`):
+- **7 filter types supported** (excludes AllPass per spec):
+  - Peaking (freq + gain + q)
+  - LowShelf, HighShelf (freq + gain + q)
+  - HighPass, LowPass (freq + q, gain disabled)
+  - BandPass (freq + q, gain disabled)
+  - Notch (freq + q, gain disabled)
+- **Popover interaction:**
+  - Click filter icon → opens popover positioned left/right of 38px band column (6px gap)
+  - Speech-bubble tail (CSS double-triangle) points to filter icon
+  - 4×2 grid layout with filter icon + label + subtitle per type
+  - Side placement prefers right, falls back to left if no room
+  - Vertical centering on icon with viewport clamping
+- **Keyboard navigation:**
+  - Arrow keys (up/down/left/right) navigate grid
+  - Enter/Space selects highlighted type
+  - Escape closes popover
+- **Parameter preservation:**
+  - Frequency always preserved
+  - Gain preserved when switching to/from gain-supporting types
+  - Q preserved across all types
+  - Band curve updates immediately on type change
+- **Visual feedback:**
+  - Current type highlighted in popover
+  - Keyboard-selected type highlighted differently
+  - Band icon updates to reflect new type
+  - CamillaDSP config uploaded with debounced write-through
+- **Accessibility:**
+  - Touch-friendly button sizes
+  - Click-outside to close
+  - Collision-aware positioning (flips side when needed)
+  - Lighter border color for better contrast
 
-1. **Conversion rules when switching filter types**
-  - Values are preserved where possible (typically freq, then gain if supported, then “width” as q)
-  - Values can become “stored but inactive” (e.g. keep prior gain in UI state even when switching to Highpass). Only do this if the data model supports it, otherwise discard.
+**State management updates:**
+- `eqStore.ts` extended with `setBandType()` action
+- Type changes trigger immediate curve regeneration
+- Fader/knobs reflect parameter availability (gain disabled for non-gain types)
+- Upload debounce applies to type changes (200ms)
 
-2. **User interaction behaviours**
-  - Opening the type chooser:
-		•	Click / tap the band-type icon → opens a compact popover anchored to that icon.
-		•	Popover shows a grid/list of icons: Peaking, Shelf, HP, LP, Notch, etc.
-		•	Hover shows tooltip (“High-pass 12 dB/oct”, “Peaking”, “Shelf”, etc.) and ideally the parameter implications (e.g., “Gain disabled”).
-
-  - Keyboard expectations (power users):
-	  •	Enter / Space on focused icon opens chooser
-	  •	Arrow keys navigate options
-	  •	Enter selects
-	  •	Esc closes
-
-  - Touch expectations:
-	  •	Tap icon opens menu
-	  •	Tap outside closes
-	  •	Menu items large enough for fingers (don’t make it a tiny desktop-only dropdown)
-
-3. **Band type selection effects**
-  - The band’s curve updates instantly.
-  - The band “handle” behavior changes appropriately:
-    •	Peaking: draggable dot controls freq + gain; a width handle (or wheel modifier) controls Q
-    •	HP/LP: gain control disappears; dragging becomes freq-only; Q available only if 2nd order type
-    •	Shelves: drag controls freq + gain; “Q” control shown (slope is deferred to later)
-  - The band type icon updates to reflect the new type.
-  - camillaDSP and app config is updated with the new band type and parameter
-
-4. **Applicability to other interactions**
-  - The same pattern may be applied at a later time for tokens on the eq-plot once an appropriate menuing notion has been defined.
+**All tests passing** (113 client tests)
 
 ⸻
 
@@ -1130,6 +1129,8 @@ To Do.
   - Provide output of aplay/arecord in a sensible way (or nothing if not running linux/macos)
   - Provide output of `cat /proc/asound/cards` in a sensible way (or nothing if not running linux/macos)
   - show the camilladsp yml file in a read-only pane
+5. Wherever it says console.log in the code, put that behind a switch. Maybe make that switch available to the system information page (eg debug log)
+6. **Aria roles**
 
 ## Explicitly Deferred Complexity
 

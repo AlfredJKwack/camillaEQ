@@ -175,7 +175,7 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-12 Complete ✓ — Informative EQ plot tokens with labels, arcs, and visual feedback
+**Current Milestone:** MVP-13 Complete ✓ — Filter type selection with side popover and speech-bubble tail
 
 ### Completed Milestones
 
@@ -343,9 +343,40 @@ The application now provides a **fully interactive equalizer editor** with:
 - **Token circularity maintained**: Compensated ellipse approach ensures tokens remain circular when plot stretches
 - All 112 client tests passing (including 25 tokenUtils tests, 8 EqPage tests)
 
+#### MVP-13: Filter Type Selection ✓
+**Interactive filter type picker with polished popover UI:**
+- **Filter type picker component** (`client/src/components/FilterTypePicker.svelte`):
+  - 7 filter types supported: Peaking, LowShelf, HighShelf, HighPass, LowPass, BandPass, Notch
+  - 4×2 grid layout with filter icon + label + subtitle per type
+  - Subtitles indicate parameter availability ("Gain + Q" vs "Q only")
+- **Side popover placement**:
+  - Positioned left or right of 38px band column with 6px gap
+  - Prefers right side, falls back to left if insufficient room
+  - Vertical centering on filter icon with viewport clamping
+  - Speech-bubble tail (CSS double-triangle) points to filter icon
+  - Lighter border color for better visual separation
+- **Keyboard navigation**:
+  - Arrow keys (up/down/left/right) navigate grid
+  - Enter/Space selects highlighted type
+  - Escape closes popover
+- **Parameter preservation**:
+  - Frequency always preserved across type changes
+  - Gain preserved when switching between gain-supporting types
+  - Q preserved across all types
+- **Visual feedback**:
+  - Current type highlighted in popover
+  - Keyboard-selected type highlighted differently
+  - Band icon updates to reflect new type
+  - Curve updates immediately on type change
+- **Integration**:
+  - `eqStore.ts` extended with `setBandType()` action
+  - Type changes trigger curve regeneration
+  - Upload debounce applies to type changes (200ms)
+- All 113 client tests passing
+
 ### Next Milestone
 
-**MVP-13:** Usability improvements (double-click reset, filter type selection)
+**MVP-14:** Informative EQ plot token highlighting (curve focus, area-of-effect visualization)
 
 ## Documentation
 
