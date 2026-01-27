@@ -268,7 +268,7 @@ export class CamillaDSP {
         if (success) {
           resolve(value);
         } else {
-          reject(new Error(`DSP command failed: ${commandName} - ${value}`));
+          reject(new Error(`DSP command failed: ${commandName} - ${value || '<no error message>'}`));
         }
       };
 

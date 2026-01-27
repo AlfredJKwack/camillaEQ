@@ -246,10 +246,8 @@ export function applyEqBandsToConfig(
     if (band.type === 'Peaking' || band.type === 'LowShelf' || band.type === 'HighShelf') {
       params.gain = band.gain;
     } else {
-      // For filters that don't use gain, keep it if it exists or set to 0
-      if ('gain' in params) {
-        params.gain = 0;
-      }
+      // For filters that don't use gain, remove it to avoid validation errors
+      delete params.gain;
     }
 
     // Handle bypass status (enabled = not bypassed)
