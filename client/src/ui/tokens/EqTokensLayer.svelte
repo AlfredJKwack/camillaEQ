@@ -11,6 +11,7 @@
 
   // Props
   export let bands: EqBand[];
+  export let bandOrderNumbers: number[] = []; // Pipeline-relative position (1-based) for each band
   export let selectedBandIndex: number | null;
   export let plotWidth: number;
   export let plotHeight: number;
@@ -176,7 +177,7 @@
         class="token-index"
         pointer-events="none"
       >
-        {i + 1}
+        {bandOrderNumbers[i] ?? (i + 1)}
       </text>
       
       <!-- Labels group with smooth boundary-aware positioning (hidden in focus mode for unselected) -->

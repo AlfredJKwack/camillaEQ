@@ -1,23 +1,20 @@
 # Active Context
 
 ## Current Focus
-**MVP-10 in progress** - Tooltip & labels on band editor. Fader tooltip with collision-aware positioning complete.
+**MVP-15 completed** - Icons & CamillaDSP v3 Compatibility. Next milestone: MVP-16 (Averaged Spectrum + Peak Hold).
 
-## Current Milestone
-**MVP-10: Tooltip & Labels on Band Editor** - Visual enhancements for band editor
+## Recently Completed
+**MVP-15: Icons & CamillaDSP v3 Compatibility** (2026-01-29/30)
 
-### Completed in MVP-10:
-- ✅ FaderTooltip component with band-themed SVG callout
-- ✅ Collision-aware left/right positioning (flips if would clip)
-- ✅ Formatted gain value display (±X.X dB)
-- ✅ 1.5s fade-out animation after release
-- ✅ Single global tooltip instance (position: fixed, escapes scroll container)
-- ✅ Band color integration via strokeColor prop
-- ✅ Horizontal mirroring (scaleX) when flipped to right
-- ✅ Fader track tickmarks at 6 dB increments
-- ✅ Master-band zero-line coupling (preamp gain control)
-- ✅ Fader-thumb appearance update (14×28px rounded rect with colored accent)
-- ✅ Selected band brightening (increase --band-ink opacity/lightness)
+### Delivered in MVP-15:
+- ✅ BandOrderIcon component with 20 unique position icons
+- ✅ Direct SVG attribute rewriting (avoids CSS collision from duplicate IDs)
+- ✅ Spectrum mode image buttons (100×65px, replacing text labels)
+- ✅ CamillaDSP v3 compatibility: removed Reload call (SetConfigJson applies directly)
+- ✅ Fixed config persistence issue (Reload was reverting browser edits)
+- ✅ Improved restore-latest heuristic (checks for actual filter names in pipeline)
+- ✅ SVG namespace cleanup (ns0:svg → svg)
+- ✅ All 140 tests passing
 
 ## Recent Work
 

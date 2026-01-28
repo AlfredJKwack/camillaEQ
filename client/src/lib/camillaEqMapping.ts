@@ -11,6 +11,7 @@ export interface ExtractedEqData {
   filterNames: string[];
   channels: number[];
   preampGain: number; // Master-band gain (±24 dB), moves zero-line on EQ plot
+  orderNumbers: number[]; // Pipeline-relative position (1-based) for each band
 }
 
 /**
@@ -71,6 +72,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   const bands: EqBand[] = [];
   const filterNames: string[] = [];
   const channels: number[] = [];
+  const orderNumbers: number[] = [];
 
   // Extract preamp gain from mixers (if present)
   let preampGain = 0;
@@ -87,27 +89,48 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   const filterSteps = config.pipeline.filter((step) => step.type === 'Filter');
 
   if (filterSteps.length === 0) {
-    return { bands: [], filterNames: [], channels: [], preampGain };
+    return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
   // Use channel 0 as the reference for filter order
-  const channel0Step = filterSteps.find((step) => (step as any).channel === 0);
+  // Support both v2 (channel: number) and v3 (channels: number[]) formats
+  const channel0Step = filterSteps.find((step) => {
+    const stepAny = step as any;
+    // v3: channels array includes 0
+    if (Array.isArray(stepAny.channels)) {
+      return stepAny.channels.includes(0);
+    }
+    // v2: channel equals 0
+    return stepAny.channel === 0;
+  });
+  
   if (!channel0Step) {
-    return { bands: [], filterNames: [], channels: [], preampGain };
+    return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
   const refNames = (channel0Step as any).names || [];
   
-  // Track which channels we're editing
+  // Track which channels we're editing (support both v2 and v3)
   for (const step of filterSteps) {
-    const channelNum = (step as any).channel;
-    if (channelNum !== undefined && !channels.includes(channelNum)) {
-      channels.push(channelNum);
+    const stepAny = step as any;
+    
+    // v3: channels is an array
+    if (Array.isArray(stepAny.channels)) {
+      for (const ch of stepAny.channels) {
+        if (!channels.includes(ch)) {
+          channels.push(ch);
+        }
+      }
+    }
+    // v2: channel is a number
+    else if (stepAny.channel !== undefined && !channels.includes(stepAny.channel)) {
+      channels.push(stepAny.channel);
     }
   }
 
-  // Extract bands from filters
-  for (const filterName of refNames) {
+  // Extract bands from filters (tracking pipeline position)
+  for (let refIndex = 0; refIndex < refNames.length; refIndex++) {
+    const filterName = refNames[refIndex];
     const filterDef = config.filters[filterName];
     
     if (!filterDef) {
@@ -149,9 +172,10 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     });
 
     filterNames.push(filterName);
+    orderNumbers.push(refIndex + 1); // 1-based pipeline position
   }
 
-  return { bands, filterNames, channels, preampGain };
+  return { bands, filterNames, channels, preampGain, orderNumbers };
 }
 
 /**

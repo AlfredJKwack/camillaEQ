@@ -29,6 +29,7 @@ export interface UploadStatus {
 
 // Stores
 export const bands = writable<EqBand[]>([]);
+export const bandOrderNumbers = writable<number[]>([]); // Pipeline-relative position (1-based) for each band
 export const selectedBandIndex = writable<number | null>(null);
 export const uploadStatus = writable<UploadStatus>({ state: 'idle' });
 export const preampGain = writable<number>(0); // Master-band gain (±24 dB)
@@ -120,6 +121,7 @@ export function initializeFromConfig(config: CamillaDSPConfig): boolean {
 
     // Update stores
     bands.set(extracted.bands);
+    bandOrderNumbers.set(extracted.orderNumbers);
     preampGain.set(extracted.preampGain);
 
     console.log(`Loaded ${extracted.bands.length} EQ bands, preamp ${extracted.preampGain.toFixed(1)} dB from config`);

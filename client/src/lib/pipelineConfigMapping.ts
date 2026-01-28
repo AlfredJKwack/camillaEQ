@@ -89,17 +89,17 @@ export function pipelineConfigToCamillaDSP(
     }
   }
 
-  // Build pipeline: one Filter step per channel with all filter names
+  // Build pipeline: one Filter step per channel with all filter names (v3-compatible)
   // This matches what extractEqBandsFromConfig() expects
   const pipelineSteps: any[] = [
     {
       type: 'Filter',
-      channel: 0,
+      channels: [0],
       names: filterNames,
     },
     {
       type: 'Filter',
-      channel: 1,
+      channels: [1],
       names: filterNames,
     },
   ];

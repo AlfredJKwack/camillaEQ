@@ -251,11 +251,26 @@ async function maybeRestoreLatestState(): Promise<void> {
 
   const config = dspInstance.config;
   const filterCount = Object.keys(config.filters || {}).length;
-  const pipelineCount = config.pipeline?.length || 0;
   
-  // Check if config has any filters or pipeline
-  if (filterCount > 0 || pipelineCount > 0) {
-    console.log(`CamillaDSP has ${filterCount} filters, ${pipelineCount} pipeline steps - using downloaded config`);
+  // Count Filter steps that have actual filter names
+  const filterSteps = config.pipeline?.filter((step) => step.type === 'Filter') || [];
+  const hasFilterNames = filterSteps.some((step) => {
+    const names = (step as any).names || [];
+    return names.length > 0;
+  });
+  
+  // Check if config has filters (more reliable than pipeline count)
+  if (filterCount > 0 && hasFilterNames) {
+    console.log(`CamillaDSP has ${filterCount} filters in use - using downloaded config`);
+    
+    // Initialize EQ store immediately
+    try {
+      const { initializeFromConfig } = await import('./eqStore');
+      initializeFromConfig(config);
+    } catch (error) {
+      console.error('Error initializing EQ from downloaded config:', error);
+    }
+    
     return;
   }
 

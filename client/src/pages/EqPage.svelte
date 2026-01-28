@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import FilterIcon from '../components/icons/FilterIcons.svelte';
+  import BandOrderIcon from '../components/icons/BandOrderIcon.svelte';
   import KnobDial from '../components/KnobDial.svelte';
   import FaderTooltip from '../components/FaderTooltip.svelte';
   import FilterTypePicker from '../components/FilterTypePicker.svelte';
   import type { EqBand } from '../dsp/filterResponse';
   import {
     bands,
+    bandOrderNumbers,
     selectedBandIndex,
     sumCurvePath,
     perBandCurvePaths,
@@ -921,6 +923,7 @@
           <!-- Tokens Layer Component -->
           <EqTokensLayer
             bands={$bands}
+            bandOrderNumbers={$bandOrderNumbers}
             selectedBandIndex={$selectedBandIndex}
             {plotWidth}
             {plotHeight}
@@ -975,16 +978,33 @@
       <div class="viz-options-area">
       <div class="viz-options">
         <div class="option-group">
-          <label>Spectrum:</label>
-          <button class:active={spectrumMode === 'off'} on:click={() => (spectrumMode = 'off')}>
-            Off
-          </button>
-          <button class:active={spectrumMode === 'pre'} on:click={() => (spectrumMode = 'pre')}>
-            Pre-EQ
-          </button>
-          <button class:active={spectrumMode === 'post'} on:click={() => (spectrumMode = 'post')}>
-            Post-EQ
-          </button>
+          <!-- <label>Spectrum:</label> -->
+          <div class="spectrum-selector">
+            <button 
+              class="spectrum-button" 
+              class:active={spectrumMode === 'off'} 
+              on:click={() => (spectrumMode = 'off')}
+              title="Spectrum Off"
+            >
+              <img src="/src/assets/vis-opt-spectrum-none.webp" alt="Spectrum Off" />
+            </button>
+            <button 
+              class="spectrum-button" 
+              class:active={spectrumMode === 'pre'} 
+              on:click={() => (spectrumMode = 'pre')}
+              title="Pre-EQ Spectrum"
+            >
+              <img src="/src/assets/vis-opt-spectrum-preeq.webp" alt="Pre-EQ Spectrum" />
+            </button>
+            <button 
+              class="spectrum-button" 
+              class:active={spectrumMode === 'post'} 
+              on:click={() => (spectrumMode = 'post')}
+              title="Post-EQ Spectrum"
+            >
+              <img src="/src/assets/vis-opt-spectrum-posteq.webp" alt="Post-EQ Spectrum" />
+            </button>
+          </div>
         </div>
         <div class="option-group">
           <label>
@@ -1082,7 +1102,7 @@
               </div>
 
               <div class="slope-icon">
-                <div class="icon-placeholder">24dB</div>
+                <BandOrderIcon position={$bandOrderNumbers[i] ?? (i + 1)} />
               </div>
             </div>
 
@@ -1426,6 +1446,45 @@
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
     color: var(--ui-text);
+  }
+
+  /* MVP-15: Spectrum selector - vertical stacked image buttons */
+  .spectrum-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .spectrum-button {
+    padding: 0;
+    width: 80px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spectrum-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .spectrum-button:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+  }
+
+  .spectrum-button.active {
+    border-color: rgba(255, 255, 255, 0.45);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
   }
 
   /* Band Columns: use subgrid to participate in parent's 3 rows */

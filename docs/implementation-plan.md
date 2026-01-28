@@ -1111,20 +1111,196 @@ Notch
 
 ⸻
 
-## MVP-15 - Implement pipeline editor
+## MVP-15 - Icons & CamillaDSP3
 
-### Goal: Implement an easy to use, multi-channel pipeline editor.
+### Goal: improve UI legibility for power users.
+
+### Status
+✅ **COMPLETED** (2026-01-29/30)
+
+### As Built
+
+1. **Band order icons** (`client/src/components/icons/BandOrderIcon.svelte`):
+   - Created component that displays one of 20 unique band position icons
+   - SVG source: `client/src/assets/band-order-icons.svg` (cleaned namespace issues: `<svg>` instead of `<ns0:svg>`)
+   - Each position (01-20) is a `<g id="posNN" display="none">` group
+   - **Display mechanism:** Direct attribute rewriting (not CSS injection)
+     - Regex pattern: `(<g id="posNN"[^>]*display=")none(")` → `$1inline$2`
+     - Avoids global CSS cascade conflicts from duplicate IDs across 20 band instances
+     - Each component instance independently modifies its own SVG string
+   - Props: `position` (1-20, clamped)
+   - Renders correctly in EqPage slope icon area
+
+2. **Spectrum mode buttons** (`client/src/pages/EqPage.svelte`):
+   - Text labels removed, replaced with image buttons
+   - Assets: `vis-opt-spectrum-none.webp`, `vis-opt-spectrum-preeq.webp`, `vis-opt-spectrum-posteq.webp`
+   - Button sizing: 100px × 65px
+   - Vertically stacked with 4px gap
+   - Title attributes: "Off", "Pre-EQ", "Post-EQ" for hover tooltips
+   - Styling: existing outline + background, with selected state highlighting
+
+3. **CamillaDSP v3 compatibility**:
+   - **Fixed config persistence issue:** Removed `Reload` call from `uploadConfig()` in `client/src/lib/camillaDSP.ts`
+   - CamillaDSP v3 behavior: `SetConfigJson` applies directly (no separate `Reload` needed)
+   - Old behavior: `SetConfigJson` + `Reload` caused CamillaDSP to reload config from disk, reverting browser edits
+   - New behavior: `SetConfigJson` → `downloadConfig()` to confirm what CamillaDSP accepted
+   - Improved restore-latest heuristic in `client/src/state/dspStore.ts`:
+     - Checks if filters have actual names in pipeline (not just empty structure)
+     - Immediately initializes EQ store when config has filters
+
+4. **Tools introduced**
+    - An independed tool to generate a camillaDSP config for the spectrum with 250 bins (see `tools/spectrum-config-generator.js`)
+
+### Test Results
+- ✅ All 140 tests passing (client + server)
+- ✅ Build successful
+- ✅ Band order icons display correctly for each band
+- ✅ Spectrum mode buttons render with proper images and selection states
+- ✅ Filters persist across browser reload (config stays in CamillaDSP memory)
+
+### Implementation Notes
+- **BandOrderIcon collision avoidance:** Initially tried CSS injection (`<style>` tag with ID selectors), but this caused global cascade conflicts when multiple instances had duplicate `#posNN` IDs. Solution: directly rewrite `display` attribute in SVG string.
+- **Namespace cleanup:** SVG asset updated from `<ns0:svg>` to `<svg>` so `{@html}` renders as proper SVG elements (not unknown HTML elements).
+- **CamillaDSP v3 clarification:** `SetConfigJson` in v3 is fire-and-forget; calling `Reload` afterward fetches from disk (usually empty/baseline), effectively reverting the upload.
+
+### Risk Reduced
+- ✅ Validated SVG manipulation approach doesn't impact performance
+- ✅ Confirmed CamillaDSP v3 upload semantics work correctly
+- ✅ Proved attribute-rewriting approach avoids CSS collision pitfalls
+
+### Deferred Complexity
+- Advanced band icon customization (user-selectable icon sets)
+- Animated spectrum mode transitions
+- CamillaDSP v3 volume limits integration (deferred to MVP-17)
+
+## MVP-16 - Averaged Spectrum + Peak Hold 
+### Goals:
+	•	Support broad tone shaping / room EQ decisions (stable, readable, low distraction).
+	•	Work well with max 100 ms polling from CamillaDSP.
+	•	Preserve legibility behind EQ curves and selected-band focus behavior.
 
 ### Status
 To Do.
 
 ### Deliverables:
 
-1. **todo**
+1) Data acquisition
+	•	Poll interval: dt = 100 ms (max). Use actual timestamp deltas if jitter occurs.
+	•	Input: magnitude spectrum in dB (preferred) or linear magnitudes converted to dB.
+	•	Frequency axis: log-scaled, identical mapping to EQ plot.
 
 ⸻
 
-## MVP-16 - Update to latest CamillaDSP
+2) Rendered layers
+
+Render up to 4 analyzer layers (user-toggleable as noted):
+	1.	Live spectrum (current frame)
+	2.	Short-term average (always available; default ON)
+	3.	Long-term average (toggle; default OFF)
+	4.	Peak hold (toggle; default OFF)
+
+Suggested draw order (behind EQ curves):
+	•	Spectrum layers → EQ fills/tints → total curve → selected curve → tokens/labels
+
+⸻
+
+3) Averaging model
+
+3.1 Short-term average (STA)
+	•	Purpose: stabilize display without hiding meaningful movement.
+	•	Method: per-bin exponential moving average (EMA) in dB.
+	•	Time constant: τ_short = 0.8 s (recommended range 0.5–1.5 s)
+	•	EMA coefficient: α_short = exp(-dt / τ_short)
+	•	Update per bin:
+STA = α_short * STA + (1 - α_short) * Live
+
+Default: ON
+
+3.2 Long-term average (LTA)
+	•	Purpose: show “typical” spectral balance over time (room EQ / tonal trend).
+	•	Method: per-bin EMA in dB.
+	•	Time constant: τ_long = 8 s (recommended range 5–15 s)
+	•	EMA coefficient: α_long = exp(-dt / τ_long)
+	•	Update per bin:
+LTA = α_long * LTA + (1 - α_long) * Live
+
+Default: OFF (toggle)
+
+3.3 Initialization & reset
+	•	On analyzer enable: initialize STA and LTA to first valid Live.
+	•	Provide UI action: “Reset averages” (resets STA/LTA to current Live).
+
+⸻
+
+4) Peak hold
+
+4.1 Behavior
+	•	Peak hold stores the maximum observed value per bin over a hold window.
+	•	Per bin:
+	•	Peak = max(Peak, Live)
+	•	Optional decay after hold time.
+
+4.2 Parameters
+	•	Hold time: T_hold = 2.0 s (recommended range 1–5 s)
+	•	Decay: after hold time expires, decay toward Live at R_decay = 12 dB/s (recommended 6–24 dB/s)
+	•	Implementation detail (simple):
+	•	Track t_since_peak_update per bin (or a shared timer if you accept slight inaccuracy)
+	•	If t_since_peak_update > T_hold, then
+Peak = max(Live, Peak - R_decay * dt)
+
+Default: OFF (toggle)
+
+4.3 Display
+	•	Peak hold should be visually distinct from averages (e.g., thinner line or dotted). No need for labels on-plot.
+
+⸻
+
+5) Smoothing (frequency-domain)
+
+To reduce jitter and make room trends readable:
+	•	Apply optional fractional-octave smoothing on rendered spectrum (not on DSP):
+	•	Default: 1/6 octave smoothing (recommended range 1/12–1/3)
+	•	Smoothing applies consistently to Live/STA/LTA/Peak for coherent comparison.
+
+Expose as: Smoothing: Off | 1/12 | 1/6 | 1/3 (default 1/6)
+
+⸻
+
+6) Toggles & controls (viz-options)
+
+Required toggles
+	•	Spectrum: Off | Pre-EQ | Post-EQ (existing mode selector)
+	•	Show Short-term Avg (default ON)
+	•	Show Long-term Avg (default OFF)
+	•	Show Peak Hold (default OFF)
+
+Required controls
+	•	Smoothing (Off / 1/12 / 1/6 / 1/3, default 1/6)
+	•	Analyzer Opacity (0–100%, default tuned to keep EQ curves dominant)
+	•	Reset averages (button)
+
+Optional (nice to have)
+	•	Peak Hold Time (1–5 s, default 2 s)
+	•	Peak Decay Rate (6–24 dB/s, default 12 dB/s)
+
+⸻
+
+7) Interaction with EQ editing (integration)
+	•	When a band is selected: optionally reduce analyzer contrast slightly.
+	•	When a band is actively edited (drag/Q/slope/type):
+	•	Apply stronger ducking to analyzer (opacity/contrast reduction), so selected band curve + fill remain the primary focus.
+	•	Ducking affects all analyzer layers equally.
+
+⸻
+
+8) Performance & robustness
+	•	All computations are per-bin O(N). Cache arrays for STA/LTA/Peak.
+	•	Handle dropped/late frames by computing dt from timestamps; clamp dt to a sane max (e.g., 250 ms) for stability.
+	•	If analyzer is Off: stop updates (or keep running in background only if needed for instant-on; your call).
+
+
+
+## MVP-17 - Update to latest CamillaDSP
 
 ### Goal: Update the ws definition and app to CamillaDSP v3
 
@@ -1133,12 +1309,17 @@ To Do.
 
 ### Deliverables:
 
-1. **Update the WebService layer**
-2. **Update the internal data representation**
-3. **Update usage of volume controls to incorporate limits**
-4. **Leverage websocket command for reading all faders in a single call**
+1. **Update the internal data representation**
+2. **Update usage of volume controls to incorporate limits**
+3. **Leverage websocket command for reading all faders in a single call**
+4. **DSP failure messages are shown on connection page**
+  - When a failure message is received from the DSP, it is shown on the connection page with a timestamp.
+  - The message is shown in a scrollable area at the bottom of the page.
+  - The message contains what was sent by the DSP, and the timestamp of when it was received.
+  - The mesasge contains what was sent to the DSP and led to a failure (if available)
+  - Nothing is shown if no failures are active (i.e. the DSP is working or has accepted something since the failure occurred)
 
-## MVP-17 - Review and refine state management
+## MVP-18 - Review and refine state management
 
 ### Goal: Ensure that the state management is robust and efficient.
 
@@ -1155,13 +1336,6 @@ To Do.
 1. **double click sets to zero**
 	- double-clicking fader-thumb resets is to zero value (and updates data accordingly)
 	- double click on knobs resets is to zero value (and updates data accordingly)
-2. **Update visualization options**
-  - create icons for spectrum [pre|post|off] selections
-  - create a heatmap spectrum visualization with appropriate colors. The heatmap should be a gradient from blue to red. Consider its interactions with regular spectrum and band selection.
-  - create toggle buttons with icons for:
-    - per band curves (including tooltip)
-    - smooth spectrum
-    - spectrum heatmap.
 3. **More informative connection page**
   - Indicate the version of Camilla your're connected to
 4. **Implement a system information page**
@@ -1173,12 +1347,12 @@ To Do.
   - show the camilladsp yml file in a read-only pane
 5. Wherever it says console.log in the code, put that behind a switch. Maybe make that switch available to the system information page (eg debug log)
 6. **Aria roles**
-7. **Connection page shows last _n_ messages from camillaDSP**
-  - Ensure failures are shown in a sensible way, for instance when uploads fail validation etc.
-8. Band re-ordering with drag
+
+8. **Band re-ordering with drag**
   - Allow user to select the order (number) where the band sits in the pipeline by click-dragging icon-placeholder.
   - Hover will change the cursor to scroll
   - The visual feedback is a box with dots. One dot is position 1, ten dots is positoin 10. Beyond ten we change the type of dot, for instance a circle. 
+9. **Implement pipeline editor**
 
 ## Explicitly Deferred Complexity
 

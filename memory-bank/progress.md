@@ -274,16 +274,36 @@
     - Controls all area-of-effect visualizations
   - All 137 tests passing (15 eqFocusViz tests, 9 bandwidthMarkers tests)
 
+- [x] **MVP-15: Icons & CamillaDSP v3 Compatibility** (2026-01-29/30)
+  - **Band order icons** (`client/src/components/icons/BandOrderIcon.svelte`):
+    - Component displays one of 20 unique position icons from SVG asset
+    - Direct attribute rewriting (not CSS injection) to avoid cascade conflicts
+    - Regex pattern: `(<g id="posNN"[^>]*display=")none(")` → `$1inline$2`
+  - **Spectrum mode buttons:**
+    - Text labels removed, replaced with 100×65px image buttons
+    - Assets: `vis-opt-spectrum-none.webp`, `vis-opt-spectrum-preeq.webp`, `vis-opt-spectrum-posteq.webp`
+    - Vertically stacked with 4px gap, title attributes for tooltips
+  - **CamillaDSP v3 compatibility fixes:**
+    - Removed `Reload` call from `uploadConfig()` (v3: `SetConfigJson` applies directly)
+    - Fixed config persistence issue (Reload was reverting uploads by reloading from disk)
+    - Improved restore-latest heuristic (checks for filters with actual pipeline names)
+    - Immediate EQ store initialization when config has filters
+  - **Tools introduced**
+    - An independed tool to generate a camillaDSP config for the spectrum with 250 bins (see `tools/spectrum-config-generator.js`)
+  - SVG asset namespace cleanup (`<svg>` instead of `<ns0:svg>`)
+  - All 140 tests passing
+
 ## Current Status
-**Phase:** MVP-14 Completed - Focus Mode with Area-of-Effect Visualization
+**Phase:** MVP-15 Completed - Icons & CamillaDSP v3 Compatibility
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-## MVP-15 - Implement pipeline editor
-## MVP-16 - Update to latest CamillaDSP
-## MVP-17 - Review and refine state management
+## MVP-15 - Icons & CamillaDSP3
+## MVP-16 - Averaged Spectrum + Peak Hold 
+## MVP-17 - Update to latest CamillaDSP
+
 
 
 ## Known Issues

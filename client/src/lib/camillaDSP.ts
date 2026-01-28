@@ -40,7 +40,7 @@ export interface MixerDefinition {
 
 export type PipelineStep =
   | { type: 'Mixer'; name: string; description?: string; bypassed?: boolean }
-  | { type: 'Filter'; channel: number; names: string[]; description?: string; bypassed?: boolean }
+  | { type: 'Filter'; channels: number[]; names: string[]; description?: string; bypassed?: boolean }
   | { type: string; [k: string]: any };
 
 interface DSPResponse {
@@ -88,7 +88,7 @@ export class CamillaDSP {
     },
   };
 
-  // Default pipeline configuration
+  // Default pipeline configuration (v3-compatible)
   private readonly defaultPipeline: PipelineStep[] = [
     {
       type: 'Mixer',
@@ -98,14 +98,14 @@ export class CamillaDSP {
     },
     {
       type: 'Filter',
-      channel: 0,
+      channels: [0],
       names: [],
       description: 'Channel 0 Filters',
       bypassed: false,
     },
     {
       type: 'Filter',
-      channel: 1,
+      channels: [1],
       names: [],
       description: 'Channel 1 Filters',
       bypassed: false,
@@ -224,6 +224,7 @@ export class CamillaDSP {
 
   /**
    * Handle incoming DSP message
+   * Improved: extracts error details from various response formats
    */
   private static handleDSPMessage(data: string): [boolean, any] {
     const res = JSON.parse(data);
@@ -236,7 +237,24 @@ export class CamillaDSP {
       return [true, JSON.parse(value)];
     }
 
-    return [result === 'Ok', value];
+    // On error, try to extract meaningful error message
+    if (result !== 'Ok') {
+      let errorMsg = value;
+      
+      // If value is falsy, try other fields
+      if (!errorMsg) {
+        errorMsg = (response as any).error || (response as any).message;
+      }
+      
+      // If still no error, stringify the whole response
+      if (!errorMsg) {
+        errorMsg = JSON.stringify(response);
+      }
+      
+      return [false, errorMsg];
+    }
+
+    return [true, value];
   }
 
   /**
@@ -326,6 +344,7 @@ export class CamillaDSP {
 
   /**
    * Upload config to DSP
+   * In v3, SetConfigJson applies directly - no Reload needed
    */
   async uploadConfig(): Promise<boolean> {
     if (!this.config) {
@@ -339,13 +358,13 @@ export class CamillaDSP {
     }
 
     try {
-      // Upload config
+      // Upload config (v3: SetConfigJson applies directly)
       await this.sendDSPMessage({
         SetConfigJson: JSON.stringify(this.config),
       });
       
-      // Reload to apply changes (per MVP-8 spec)
-      await this.reload();
+      // Re-download to confirm what CamillaDSP accepted
+      await this.downloadConfig();
       
       return true;
     } catch (error) {
