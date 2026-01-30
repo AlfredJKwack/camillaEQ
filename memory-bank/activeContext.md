@@ -1,40 +1,54 @@
 # Active Context
 
 ## Current Focus
-**MVP-15 completed** - Icons & CamillaDSP v3 Compatibility. Next milestone: MVP-16 (Averaged Spectrum + Peak Hold).
+**MVP-16 completed** - Spectrum analyzer with STA/LTA/Peak + fractional-octave smoothing. Next milestone: MVP-17 (Update to latest CamillaDSP).
 
 ## Recently Completed
-**MVP-15: Icons & CamillaDSP v3 Compatibility** (2026-01-29/30)
+**MVP-16: Averaged Spectrum + Peak Hold** (2026-01-30)
 
-### Delivered in MVP-15:
-- ✅ BandOrderIcon component with 20 unique position icons
-- ✅ Direct SVG attribute rewriting (avoids CSS collision from duplicate IDs)
-- ✅ Spectrum mode image buttons (100×65px, replacing text labels)
-- ✅ CamillaDSP v3 compatibility: removed Reload call (SetConfigJson applies directly)
-- ✅ Fixed config persistence issue (Reload was reverting browser edits)
-- ✅ Improved restore-latest heuristic (checks for actual filter names in pipeline)
-- ✅ SVG namespace cleanup (ns0:svg → svg)
+### Delivered in MVP-16:
+- ✅ Temporal averaging engine with STA (τ=0.8s), LTA (τ=8s), Peak hold (2s hold, 12 dB/s decay)
+- ✅ Fractional-octave smoothing (Off / 1/12 / 1/6 / 1/3 octave)
+- ✅ Multi-series canvas rendering layer (SpectrumAnalyzerLayer)
+- ✅ Coherent overlay enablement model (overlay ON when any of STA/LTA/PEAK enabled)
+- ✅ UI controls: 2×2 analyzer grid + smoothing dropdown + reset button
+- ✅ Reactive polling (starts/stops based on overlayEnabled state)
 - ✅ All 140 tests passing
 
 ## Recent Work
 
-### Latest State Persistence (2026-01-25)
-**Problem:** Page reload showed empty EQ (0 bands) because CamillaDSP returned empty config on reconnect.
+### MVP-16 Implementation Details (2026-01-30)
 
-**Solution:** Server-side persistence of latest applied DSP state
-- Added `GET /api/state/latest` and `PUT /api/state/latest` endpoints
-- Storage location: `server/data/latest_dsp_state.json`
-- Write-through on every successful EQ upload (non-fatal if server unavailable)
-- Startup restore: if CamillaDSP returns empty config, fetch and upload `/api/state/latest`
-- Removed old preset auto-restore behavior (presets now only load on explicit user action)
+**Temporal Averaging (dB domain):**
+- STA: Short-term average with 0.8s time constant, default ON
+- LTA: Long-term average with 8s time constant, default OFF  
+- Peak: Maximum per-bin with 2s hold + 12 dB/s decay
+- Uses actual dt between frames (clamped to 150ms max)
+
+**Fractional-Octave Smoothing:**
+- Applied to raw dB bins before analyzer state update
+- Options: Off / 1/12 / 1/6 (default) / 1/3 octave
+- Proper log-frequency spacing for filterbank smoothing
+
+**Overlay Enablement Model:**
+- Overlay enabled = any of STA/LTA/PEAK toggled ON
+- Pre/Post selector chooses source (dims when overlay disabled)
+- Polling automatically starts/stops based on state
+- Canvas clears when overlay disabled
+
+**UI Controls:**
+- 2×2 analyzer grid: STA / LTA / PEAK / Reset (uniform 32px height)
+- Smoothing dropdown in viz options
+- Reset button (↺) resets STA/LTA to current live values
+
+**Files Created:**
+- `client/src/dsp/spectrumAnalyzer.ts` - Temporal averaging engine
+- `client/src/dsp/fractionalOctaveSmoothing.ts` - Spatial smoothing
+- `client/src/ui/rendering/canvasLayers/SpectrumAnalyzerLayer.ts` - Multi-series renderer
 
 **Files Modified:**
-- `server/src/index.ts` - Added latest state endpoints using ConfigStore
-- `client/src/state/eqStore.ts` - Write-through to `/api/state/latest` after successful uploads
-- `client/src/state/dspStore.ts` - `maybeRestoreLatestState()` replaces `maybeRestoreLastPreset()`
-- `client/src/pages/PresetsPage.svelte` - Removed localStorage preset tracking
-
-**Result:** Page reload now shows the most recent edited state, not last loaded preset.
+- `client/src/pages/EqPage.svelte` - UI controls + reactive polling logic
+- `client/src/ui/rendering/SpectrumCanvasRenderer.ts` - Layer orchestration
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)
@@ -43,36 +57,34 @@
 - ✅ **Layout pattern:** 4-zone grid with shared right-side column (44px) for axis labels
 - ✅ **Curve rendering:** RBJ biquad formulas, 256 sample points, reactive SVG paths
 - ✅ **EQ graph semantics:** Filter bank response only (excludes preamp/output gain)
-- ✅ **Spectrum rendering:** Canvas layer with pluggable architecture, filled curve + outline (not bars)
-- ✅ **Spectrum smoothing:** Catmull-Rom spline + moving-average filter, toggle in UI, strength parameter ready
-- ✅ **Canvas resolution:** Use DPR scaling for retina displays (decided during MVP-7)
-- ✅ **Layer architecture:** `CanvasVisualizationLayer` interface for extendable background visualizations
+- ✅ **Spectrum rendering:** Canvas layer with pluggable architecture, multi-series analyzer
+- ✅ **Temporal averaging:** EMA in dB domain with actual dt timing (ADR-007)
+- ✅ **Fractional-octave smoothing:** Log-frequency spacing, applied before averaging (ADR-007)
+- ✅ **Overlay enablement:** Driven by analyzer series toggles, not Pre/Post selector (ADR-007)
+- ✅ **Canvas resolution:** Use DPR scaling for retina displays
+- ✅ **Layer architecture:** `CanvasVisualizationLayer` interface for extendable visualizations
 
 ## Open Questions
-- **Upload debounce timing:** 150ms vs 300ms - balance responsiveness vs. CamillaDSP load
-- **Error recovery:** Retry failed uploads automatically or require user action?
-- **Connection persistence:** Auto-reconnect on disconnect, or require manual reconnect?
+- **Upload debounce timing:** 200ms current - validated as good balance
+- **CamillaDSP spectrum Q:** Current default Q=18 - recommend Q=12-16 for smoother display (documented in current-architecture.md)
 
 ## Current Risks
-- **CamillaDSP overload** - Rapid parameter changes could overwhelm WebSocket with config uploads
-- **Network latency** - Upload lag could create confusing UX (out-of-sync state)
+- **CamillaDSP overload** - Mitigated with 200ms upload debounce
+- **Network latency** - Optimistic UI updates, write-through persistence
 
 ## Risk Mitigation Strategy (per implementation plan)
-- **MVP-7 (current):** Validate Canvas performance in isolation before adding complexity
-- **MVP-8:** Add upload debouncing to avoid overwhelming CamillaDSP with rapid updates
-- **MVP-9:** Prove full persistence roundtrip before considering production-ready
+- ✅ **MVP-16 validated:** Temporal averaging performance confirmed (no frame drops at 10Hz)
+- ✅ **Fractional-octave smoothing:** Improves readability without lag
+- ✅ **Overlay model:** Coherent and predictable state management
 
-## Next Milestones (after MVP-10)
-1. **MVP-11:** EQ page Layout refinement
-2. **MVP-12:** Informative EQ Plot tokens
-3. **MVP-13:** Usability improvements
-4. **Future:** Multi-channel pipeline editor, Update to latest CamillaDSP
+## Next Milestones
+1. **MVP-17:** Update to latest CamillaDSP (v3 protocol changes, volume limits, failure messages)
+2. **Future:** Multi-channel pipeline editor, advanced features
 
 ## Context References
-- **`docs/implementation-plan.md`** - Sequential MVP roadmap (NEW - authoritative)
+- **`docs/implementation-plan.md`** - Sequential MVP roadmap (authoritative)
+- **`docs/current-architecture.md`** - As-built architecture + CamillaDSP spectrum interdependencies
 - `docs/design-spec.md` - Implementation specification
 - `docs/api-contract-camillaDSP.md` - CamillaDSP protocol contract
-- `docs/reference/camillaDSP.js` - Reference implementation
-- `docs/reference/filter.js` - Reference implementation
-- `memory-bank/decisions.md` - ADR-001 through ADR-006
+- `memory-bank/decisions.md` - ADR-001 through ADR-007
 - `memory-bank/` - All context documents

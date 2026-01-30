@@ -1,7 +1,7 @@
 # Current Architecture (as-built)
 
-**Last updated:** 2026-01-26  
-**Status:** MVP-13 Complete
+**Last updated:** 2026-01-30  
+**Status:** MVP-16 Complete
 
 This document describes the actual implementation as it exists in the codebase.
 
@@ -89,13 +89,27 @@ This document describes the actual implementation as it exists in the codebase.
 4. SVG curves regenerate immediately (reactive)
 5. No UI revert on upload failure (optimistic persistence)
 
-### During Spectrum Rendering
-1. `EqPage.svelte` starts polling interval (100ms = 10Hz)
+### During Spectrum Rendering (MVP-16: Analyzer Pipeline)
+1. `EqPage.svelte` reactive polling logic:
+   - Polls only when `overlayEnabled` is true (derived from `showSTA || showLTA || showPeak`)
+   - Interval: 100ms (10Hz)
+   - Stops polling and clears canvas when overlay disabled
 2. Each tick calls `dsp.getSpectrumData()` → sends `GetPlaybackSignalPeak` on spectrum socket
-3. Response arrives with 256-bin array
-4. `SpectrumCanvasRenderer` renders via `SpectrumAreaLayer`
-5. Filled area curve + outline stroke
-6. Optional smoothing: Catmull-Rom spline + moving average filter
+3. Response arrives with 256-bin dB array
+4. **Fractional-octave smoothing** applied via `smoothDbBins()`:
+   - Options: Off / 1/12 / 1/6 (default) / 1/3 octave
+   - Operates on log-frequency spacing
+5. **Analyzer state update** via `SpectrumAnalyzer`:
+   - STA (Short-Term Average): EMA with τ=0.8s
+   - LTA (Long-Term Average): EMA with τ=8s
+   - Peak Hold: tracks maximum per-bin, decays at 12 dB/s after 2s hold
+   - All averaging in dB domain, uses actual dt between frames
+6. **Normalize to [0..1]** via `dbArrayToNormalized()`:
+   - Maps -120 to 0 dBFS → 0 to 1 (rendering range)
+7. **Canvas rendering** via `SpectrumCanvasRenderer` + `SpectrumAnalyzerLayer`:
+   - Renders up to 3 series: STA (default ON), LTA (OFF), Peak (OFF)
+   - Distinct colors per series, layered rendering
+   - Spectrum ducking when band selected (70%) or actively editing (40%)
 
 ### Preset Load/Save
 **Load:**
@@ -246,6 +260,63 @@ npm run dev  # Starts both server (port 3000) + client (port 5173)
 - Build: `npm run build` → `client/dist/` + `server/dist/`
 - Serve: Fastify serves static assets from `client/dist/` (not yet implemented)
 - Process management: systemd services (not yet configured)
+
+---
+
+## CamillaDSP Spectrum Generation Dependencies
+
+### Overview
+The spectrum analyzer in CamillaEQ displays data from CamillaDSP's filterbank-based spectrum generator (not a true FFT analyzer). The Q parameter of CamillaDSP's bandpass filters directly impacts the readability and character of the displayed spectrum.
+
+### The Filterbank Architecture
+- **Method:** CamillaDSP generates spectrum using a bank of bandpass filters (typically 256 bins)
+- **Each bin:** One Biquad bandpass filter at a specific center frequency
+- **Q parameter:** Controls the bandwidth of each filter
+- **Output:** Peak level per filter over the most recent chunk (2048 samples @ 48 kHz ≈ 42.7 ms)
+
+### Q Value Trade-offs
+
+**Narrower Q (e.g., Q=18 - current tool default):**
+- ✅ **Pros:** Shows narrow resonances more clearly, better frequency resolution
+- ❌ **Cons:** 
+  - Looks "comb-y" with many small peaks/valleys
+  - More jittery, especially with peak hold meters
+  - Requires more UI smoothing (fractional-octave + STA) to look sane
+  - Can distract from broad tonal balance decisions
+
+**Wider Q (e.g., Q=12 or Q=16):**
+- ✅ **Pros:**
+  - Smoother, more "tonal balance" oriented display
+  - Easier to read behind EQ curves
+  - Less visual noise, more stable
+  - Better for room EQ and broad tone shaping decisions
+- ❌ **Cons:** 
+  - Less ability to spot razor-thin resonances
+  - Lower frequency resolution
+
+### Practical Recommendations
+
+**For the stated goal** ("broad tone shaping / room EQ decisions, stable, low distraction"):
+
+**Recommended Q values:**
+1. **Q = 12** - Best for 256 bins if readability is priority
+2. **Q = 16** - Good compromise between detail and smoothness
+3. **Q = 18** - Acceptable if using 1/6 octave smoothing + STA ON (MVP-16 defaults), but on the "busy" side
+
+### Current Implementation Status
+- **Tool:** `tools/build-camillaDSP-spectrum-yml.js` generates CamillaDSP spectrum config
+- **Current Q:** 18 (can be adjusted in tool)
+- **UI smoothing:** Fractional-octave (default 1/6) + STA (default ON) compensates for narrow Q
+- **User control:** Smoothing selector in viz options (Off / 1/12 / 1/6 / 1/3 octave)
+
+### Tuning Guidance
+Users deploying CamillaEQ should:
+1. Generate CamillaDSP spectrum config using the provided tool
+2. Consider lowering Q to 12-16 if spectrum appears too jittery
+3. Adjust CamillaEQ's fractional-octave smoothing setting to taste
+4. Use STA (default ON) for stable display suitable for EQ adjustment decisions
+
+**Note:** This is a **display-only** consideration. The Q parameter in CamillaDSP's spectrum generation does not affect audio processing.
 
 ---
 

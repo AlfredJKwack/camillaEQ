@@ -293,16 +293,38 @@
   - SVG asset namespace cleanup (`<svg>` instead of `<ns0:svg>`)
   - All 140 tests passing
 
+- [x] **MVP-16: Averaged Spectrum + Peak Hold** (2026-01-30)
+  - **Temporal averaging engine** (`client/src/dsp/spectrumAnalyzer.ts`):
+    - STA (Short-Term Average): EMA with τ=0.8s, default ON
+    - LTA (Long-Term Average): EMA with τ=8s, default OFF
+    - Peak Hold: tracks maximum per-bin, 2s hold time, 12 dB/s decay rate
+    - All averaging in dB domain, uses actual dt between frames
+  - **Fractional-octave smoothing** (`client/src/dsp/fractionalOctaveSmoothing.ts`):
+    - Options: Off / 1/12 / 1/6 (default) / 1/3 octave
+    - Applied to raw dB bins before analyzer state update
+    - Proper log-frequency spacing for filterbank smoothing
+  - **Multi-series rendering** (`client/src/ui/rendering/canvasLayers/SpectrumAnalyzerLayer.ts`):
+    - Up to 3 series rendered: STA / LTA / Peak
+    - Distinct colors per series, proper layering
+    - Spectrum ducking preserved (70% on selection, 40% while editing)
+  - **Overlay enablement model:**
+    - Overlay enabled when any of STA/LTA/PEAK toggled ON
+    - Pre/Post selector chooses spectrum source (buttons dim when overlay disabled)
+    - Polling starts/stops automatically based on overlayEnabled state
+  - **UI controls** (EqPage viz options):
+    - 2×2 analyzer grid: STA / LTA / PEAK / Reset buttons (uniform 32px height)
+    - Smoothing dropdown: Off / 1/12 Oct / 1/6 Oct / 1/3 Oct
+    - Reset button (↺): resets STA/LTA to current live values
+  - All 140 tests passing
+
 ## Current Status
-**Phase:** MVP-15 Completed - Icons & CamillaDSP v3 Compatibility
+**Phase:** MVP-16 Completed - Spectrum Analyzer with STA/LTA/Peak + Fractional-Octave Smoothing
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-## MVP-15 - Icons & CamillaDSP3
-## MVP-16 - Averaged Spectrum + Peak Hold 
-## MVP-17 - Update to latest CamillaDSP
+## MVP-17 - Update to latest CamillaDSP (incorporate v3 protocol changes, volume limits, failure messages)
 
 
 

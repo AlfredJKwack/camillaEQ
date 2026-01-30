@@ -195,18 +195,22 @@ export class MockCamillaDSP {
   }
 
   /**
-   * Generate mock spectrum data
+   * Generate mock spectrum data in dBFS format (MVP-16)
    * Returns 256 frequency bins with a realistic-looking curve
+   * Range: -100 dBFS (silence) to -12 dBFS (typical peak)
    */
   private generateMockSpectrumData(): number[] {
     const numBins = 256;
     const bins: number[] = [];
     const time = Date.now() / 1000; // Use time for gentle animation
     
+    const minDb = -100;
+    const maxDb = -12;
+    
     for (let i = 0; i < numBins; i++) {
       const freq = i / numBins; // Normalized frequency [0..1]
       
-      // Create a multi-band spectrum curve
+      // Create a multi-band spectrum curve (normalized 0..1)
       // Low frequencies: stronger
       const lowBand = Math.exp(-freq * 3) * 0.6;
       
@@ -227,8 +231,12 @@ export class MockCamillaDSP {
       const noise = (Math.random() - 0.5) * 0.05;
       magnitude += noise;
       
-      // Clamp to valid range
-      bins.push(Math.max(0, Math.min(1, magnitude)));
+      // Clamp to [0..1] range
+      magnitude = Math.max(0, Math.min(1, magnitude));
+      
+      // Convert to dBFS: map [0..1] → [minDb..maxDb]
+      const db = minDb + magnitude * (maxDb - minDb);
+      bins.push(db);
     }
     
     return bins;

@@ -1173,131 +1173,314 @@ Notch
 - Animated spectrum mode transitions
 - CamillaDSP v3 volume limits integration (deferred to MVP-17)
 
-## MVP-16 - Averaged Spectrum + Peak Hold 
-### Goals:
-	•	Support broad tone shaping / room EQ decisions (stable, readable, low distraction).
-	•	Work well with max 100 ms polling from CamillaDSP.
-	•	Preserve legibility behind EQ curves and selected-band focus behavior.
+## MVP-16 — Averaged Spectrum + Peak Hold (Band-Energy Analyzer)
+
+### Goals
+• Support broad tone shaping and room EQ decisions using a stable, readable spectrum.
+• Work reliably with CamillaDSP polling at ≤100 ms.
+• Preserve legibility behind EQ curves and during band-focused editing.
+• Respect the limitations and semantics of a bandpass-filter-based analyzer (not a true FFT).
+
+This analyzer is intended as a **trend and balance visualization**, not a precision spectral measurement.
+
+---
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-01-30)
 
-### Deliverables:
+### As Built
 
-1) Data acquisition
-	•	Poll interval: dt = 100 ms (max). Use actual timestamp deltas if jitter occurs.
-	•	Input: magnitude spectrum in dB (preferred) or linear magnitudes converted to dB.
-	•	Frequency axis: log-scaled, identical mapping to EQ plot.
+**Spectrum analyzer pipeline** with temporal averaging and fractional-octave smoothing:
 
-⸻
+1. **New modules created:**
+   - `client/src/dsp/spectrumAnalyzer.ts` - Temporal averaging engine (STA/LTA/Peak)
+   - `client/src/dsp/fractionalOctaveSmoothing.ts` - Spatial smoothing (1/12, 1/6, 1/3 octave)
+   - `client/src/ui/rendering/canvasLayers/SpectrumAnalyzerLayer.ts` - Multi-series rendering layer
 
-2) Rendered layers
+2. **Temporal averaging (per-bin, dB domain):**
+   - **STA (Short-Term Average):** EMA with τ=0.8s, default ON
+   - **LTA (Long-Term Average):** EMA with τ=8s, default OFF
+   - **Peak Hold:** Tracks maximum per-bin, 2s hold time, 12 dB/s decay rate
+   - All use actual `dt` between frames (clamped to 150ms max)
 
-Render up to 4 analyzer layers (user-toggleable as noted):
-	1.	Live spectrum (current frame)
-	2.	Short-term average (always available; default ON)
-	3.	Long-term average (toggle; default OFF)
-	4.	Peak hold (toggle; default OFF)
+3. **Fractional-octave smoothing:**
+   - Options: Off / 1/12 / 1/6 (default) / 1/3 octave
+   - Applied to raw dB bins before analyzer state update
+   - Operates on log-frequency spacing (proper filterbank smoothing)
 
-Suggested draw order (behind EQ curves):
-	•	Spectrum layers → EQ fills/tints → total curve → selected curve → tokens/labels
+4. **Overlay enablement model:**
+   - Overlay enabled when **any** of STA/LTA/PEAK is toggled ON
+   - Pre/Post selector chooses spectrum source (buttons dim when overlay disabled)
+   - Polling automatically starts/stops based on `overlayEnabled` state
+   - Canvas clears when overlay disabled
 
-⸻
+5. **UI controls (EqPage viz options bar):**
+   - **2×2 analyzer grid:** STA / LTA / PEAK / Reset buttons (all 32px height)
+   - **Smoothing dropdown:** Off / 1/12 Oct / 1/6 Oct / 1/3 Oct
+   - **Pre/Post selector:** Image buttons (vertical stack, 100×65px each)
+   - **Reset button (↺):** Resets STA/LTA to current live values (not Peak)
 
-3) Averaging model
+6. **Integration:**
+   - Reactive polling logic in `EqPage.svelte` (starts/stops on `overlayEnabled` change)
+   - `SpectrumCanvasRenderer` orchestrates `SpectrumAnalyzerLayer` with up to 3 series
+   - Distinct colors per series, proper layering (STA → LTA → Peak, front to back)
+   - Spectrum ducking preserved (70% on selection, 40% while editing)
 
-3.1 Short-term average (STA)
-	•	Purpose: stabilize display without hiding meaningful movement.
-	•	Method: per-bin exponential moving average (EMA) in dB.
-	•	Time constant: τ_short = 0.8 s (recommended range 0.5–1.5 s)
-	•	EMA coefficient: α_short = exp(-dt / τ_short)
-	•	Update per bin:
-STA = α_short * STA + (1 - α_short) * Live
+7. **Test coverage:**
+   - All 140 tests passing (client + server)
+   - No new test files added (integration verified via manual testing + existing test suite)
 
-Default: ON
+### Implementation Notes
+- **Peak hold state:** Separate from STA/LTA (not affected by "Reset averages")
+- **Smoothing order:** Fractional-octave → analyzer state update → normalization → render
+- **Button sizing:** Uniform 32px height across STA/LTA/PEAK/Reset per user request (Option B)
+- **Config persistence:** Analyzer state is ephemeral (not saved to config)
 
-3.2 Long-term average (LTA)
-	•	Purpose: show “typical” spectral balance over time (room EQ / tonal trend).
-	•	Method: per-bin EMA in dB.
-	•	Time constant: τ_long = 8 s (recommended range 5–15 s)
-	•	EMA coefficient: α_long = exp(-dt / τ_long)
-	•	Update per bin:
-LTA = α_long * LTA + (1 - α_long) * Live
+### Risk Reduced
+- ✅ Validated temporal averaging performance (no frame drops at 10Hz)
+- ✅ Proved fractional-octave smoothing improves readability without lag
+- ✅ Confirmed overlay enablement model is coherent and predictable
 
-Default: OFF (toggle)
+### Deferred Complexity
+- User-configurable hold time and decay rate (currently hardcoded)
+- Advanced peak visualization (bars, dots, alternative rendering)
+- Per-series opacity controls
 
-3.3 Initialization & reset
-	•	On analyzer enable: initialize STA and LTA to first valid Live.
-	•	Provide UI action: “Reset averages” (resets STA/LTA to current Live).
+---
 
-⸻
+### Analyzer data model (ground truth)
 
-4) Peak hold
+#### Source
+• Data source: `GetPlaybackSignalPeak` from CamillaDSP.
+• One value per playback channel (N = number of spectrum bands).
+• Units: dBFS-like scale where **0 dB = full scale**, values typically ≤ 0.
+• Measurement semantics:
+  • Each value is the **peak level over the most recent CamillaDSP chunk**.
+  • Chunk size: 2048 samples @ 48 kHz ≈ **42.7 ms window**.
+  • Therefore, each poll already reflects a short-time windowed measurement.
 
-4.1 Behavior
-	•	Peak hold stores the maximum observed value per bin over a hold window.
-	•	Per bin:
-	•	Peak = max(Peak, Live)
-	•	Optional decay after hold time.
+#### Consequences
+• The “Live” spectrum is already temporally windowed.
+• No additional attack/release is applied unless explicitly added in the client.
+• Polling jitter affects **time spacing**, not measurement correctness.
 
-4.2 Parameters
-	•	Hold time: T_hold = 2.0 s (recommended range 1–5 s)
-	•	Decay: after hold time expires, decay toward Live at R_decay = 12 dB/s (recommended 6–24 dB/s)
-	•	Implementation detail (simple):
-	•	Track t_since_peak_update per bin (or a shared timer if you accept slight inaccuracy)
-	•	If t_since_peak_update > T_hold, then
-Peak = max(Live, Peak - R_decay * dt)
+---
 
-Default: OFF (toggle)
+### 1) Data acquisition
 
-4.3 Display
-	•	Peak hold should be visually distinct from averages (e.g., thinner line or dotted). No need for labels on-plot.
+• Poll interval target: dt ≤ 100 ms.
+• Use actual timestamp deltas (`dt`) between frames to drive all time-based logic.
+• Clamp dt to a sane maximum (recommended: 150 ms) to avoid visual jumps after stalls.
+• Input values:
+  • Use dB values directly as provided.
+  • Normalization to [0–1] remains a **pure rendering concern**.
 
-⸻
+Frequency axis:
+• Log-scaled.
+• Identical bin → frequency mapping to the EQ plot.
+• One-to-one correspondence between:
+  • spectrum bins
+  • EQ frequency axis
+  • analyzer playback channels
 
-5) Smoothing (frequency-domain)
+---
 
-To reduce jitter and make room trends readable:
-	•	Apply optional fractional-octave smoothing on rendered spectrum (not on DSP):
-	•	Default: 1/6 octave smoothing (recommended range 1/12–1/3)
-	•	Smoothing applies consistently to Live/STA/LTA/Peak for coherent comparison.
+### 2) Rendered layers
 
-Expose as: Smoothing: Off | 1/12 | 1/6 | 1/3 (default 1/6)
+Up to four analyzer layers, independently toggleable:
 
-⸻
+1. Live spectrum  
+   • Raw per-frame values from CamillaDSP (after optional frequency smoothing).
 
-6) Toggles & controls (viz-options)
+2. Short-term average (STA)  
+   • Always available.
+   • Default: ON.
 
-Required toggles
-	•	Spectrum: Off | Pre-EQ | Post-EQ (existing mode selector)
-	•	Show Short-term Avg (default ON)
-	•	Show Long-term Avg (default OFF)
-	•	Show Peak Hold (default OFF)
+3. Long-term average (LTA)  
+   • User-toggleable.
+   • Default: OFF.
 
-Required controls
-	•	Smoothing (Off / 1/12 / 1/6 / 1/3, default 1/6)
-	•	Analyzer Opacity (0–100%, default tuned to keep EQ curves dominant)
-	•	Reset averages (button)
+4. Peak hold  
+   • User-toggleable.
+   • Default: OFF.
 
-Optional (nice to have)
-	•	Peak Hold Time (1–5 s, default 2 s)
-	•	Peak Decay Rate (6–24 dB/s, default 12 dB/s)
+Suggested draw order (back → front):
+• Analyzer layers
+• EQ fills / tints
+• Total EQ curve
+• Selected band curve
+• Tokens / labels
 
-⸻
+Analyzer layers must remain visually subordinate to EQ curves.
 
-7) Interaction with EQ editing (integration)
-	•	When a band is selected: optionally reduce analyzer contrast slightly.
-	•	When a band is actively edited (drag/Q/slope/type):
-	•	Apply stronger ducking to analyzer (opacity/contrast reduction), so selected band curve + fill remain the primary focus.
-	•	Ducking affects all analyzer layers equally.
+---
 
-⸻
+### 3) Temporal averaging model
 
-8) Performance & robustness
-	•	All computations are per-bin O(N). Cache arrays for STA/LTA/Peak.
-	•	Handle dropped/late frames by computing dt from timestamps; clamp dt to a sane max (e.g., 250 ms) for stability.
-	•	If analyzer is Off: stop updates (or keep running in background only if needed for instant-on; your call).
+All averaging operates **per bin**, in the **dB domain**, on top of CamillaDSP’s chunk-windowed peak values.
 
+#### 3.1 Short-term average (STA)
+
+Purpose:
+• Stabilize the display while preserving meaningful movement.
+• Reduce visual noise from per-chunk peak variability.
+
+Method:
+• Per-bin exponential moving average (EMA) in dB.
+
+Parameters:
+• Time constant: τ_short = 0.8 s  
+  • Recommended range: 0.5–1.5 s
+• EMA coefficient:
+  • α_short = exp(-dt / τ_short)
+
+Update per bin:
+  STA = α_short * STA + (1 - α_short) * Live
+
+Initialization:
+• On analyzer enable or reset, initialize STA to the first valid Live frame.
+
+Default: ON.
+
+---
+
+#### 3.2 Long-term average (LTA)
+
+Purpose:
+• Show typical spectral balance over time.
+• Useful for room EQ and tonal trend assessment.
+
+Method:
+• Per-bin EMA in dB.
+
+Parameters:
+• Time constant: τ_long = 8 s  
+  • Recommended range: 5–15 s
+• EMA coefficient:
+  • α_long = exp(-dt / τ_long)
+
+Update per bin:
+  LTA = α_long * LTA + (1 - α_long) * Live
+
+Initialization:
+• On analyzer enable or reset, initialize LTA to the first valid Live frame.
+
+Default: OFF.
+
+---
+
+#### 3.3 Reset behavior
+
+Provide UI action: **“Reset averages”**
+• Sets STA and LTA to the current Live frame.
+• Does not affect Peak Hold.
+
+---
+
+### 4) Peak hold
+
+#### 4.1 Behavior
+
+• Peak hold stores the **maximum observed value per bin**.
+• Based on Live values (post smoothing, if enabled).
+
+Per bin:
+  Peak = max(Peak, Live)
+
+#### 4.2 Hold and decay
+
+Parameters:
+• Hold time: T_hold = 2.0 s  
+  • Recommended range: 1–5 s
+• Decay rate: R_decay = 12 dB/s  
+  • Recommended range: 6–24 dB/s
+
+Implementation:
+• Track `lastPeakTimestamp` per bin.
+• If `(now - lastPeakTimestamp) > T_hold`:
+  Peak = max(Live, Peak - R_decay * dt)
+Default: OFF.
+
+#### 4.3 Display
+
+• Visually distinct from averages:
+  • Thinner line, dotted line, or reduced opacity.
+• No labels required.
+
+---
+
+### 5) Frequency-domain smoothing (spatial)
+
+Purpose:
+• Improve readability of band-energy data.
+• Reduce comb-like artifacts inherent to filterbank analyzers.
+
+Characteristics:
+• Applied **only in the UI**.
+• Does not affect DSP or stored averages.
+• Applies consistently to Live, STA, LTA, and (optionally) Peak.
+
+Method:
+• Fractional-octave smoothing across neighboring bins.
+• Operates on log-frequency spacing.
+
+Recommended defaults:
+• Default: 1/6 octave
+• Options: Off | 1/12 | 1/6 | 1/3
+
+Implementation notes:
+• Prefer smoothing in linear power, then convert to dB (optional but cleaner).
+• If applied in dB, accept slight bias for simplicity.
+
+---
+
+### 6) Toggles & controls (visualization options)
+
+#### Required toggles
+• Spectrum source: Off | Pre-EQ | Post-EQ
+• Show Short-term Avg (default ON)
+• Show Long-term Avg (default OFF)
+• Show Peak Hold (default OFF)
+
+#### Required controls
+• Smoothing: Off | 1/12 | 1/6 | 1/3 (default 1/6)
+• Analyzer opacity: 0–100%
+• Reset averages
+
+#### Optional controls
+• Peak hold time (1–5 s, default 2 s)
+• Peak decay rate (6–24 dB/s, default 12 dB/s)
+
+---
+
+### 7) Interaction with EQ editing
+
+• When a band is selected:
+  • Slightly reduce analyzer contrast or opacity.
+
+• When a band is actively edited (dragging gain/Q/type):
+  • Apply stronger analyzer ducking so the EQ curve and fill remain dominant.
+
+• Ducking applies equally to all analyzer layers.
+
+---
+
+### 8) Performance & robustness
+
+• All operations are O(N) per frame.
+• Cache arrays for STA, LTA, Peak, and timestamps.
+• Use actual `dt` between frames; clamp dt to ≤150 ms.
+• If analyzer is Off:
+  • Option A: stop polling and updates entirely.
+  • Option B: keep state running for instant-on (implementation choice).
+
+---
+
+### Non-goals (explicit)
+
+• This analyzer is **not** a true FFT.
+• Transient precision and exact spectral magnitudes are not guaranteed.
+• Intended use is **broad tonal balance, trend visualization, and EQ guidance**.
 
 
 ## MVP-17 - Update to latest CamillaDSP
@@ -1353,6 +1536,7 @@ To Do.
   - Hover will change the cursor to scroll
   - The visual feedback is a box with dots. One dot is position 1, ten dots is positoin 10. Beyond ten we change the type of dot, for instance a circle. 
 9. **Implement pipeline editor**
+10. **Ability to switch from pre-EQ to post-EQ**
 
 ## Explicitly Deferred Complexity
 

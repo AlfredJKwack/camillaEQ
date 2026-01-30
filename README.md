@@ -73,9 +73,9 @@ Run all tests:
 npm test
 ```
 
-## Visualizing MVP-7 (Spectrum Analyzer)
+## Spectrum Analyzer (MVP-16)
 
-To see the real-time spectrum overlay without a real CamillaDSP device, use the included **MockCamillaDSP** WebSocket server:
+To see the real-time spectrum analyzer overlay without a real CamillaDSP device, use the included **MockCamillaDSP** WebSocket server:
 
 ### 1. Start the Mock CamillaDSP Server
 
@@ -107,15 +107,33 @@ npm run dev
 3. (Optional) Enable **Auto-reconnect on page load** checkbox
 4. Click **Connect**
 
-### 4. Enable Spectrum Overlay
+### 4. Enable Spectrum Analyzer Overlay
 
-On the EQ page, under **Spectrum** options, click:
-- **Pre-EQ** (blue filled curve) or
-- **Post-EQ** (green filled curve)
+On the EQ page, under **Visualization Options**:
 
-You should see an animated spectrum curve with area fill rendering behind the EQ curve at ~10Hz.
+1. **Select spectrum source:**
+   - Click **Pre** (blue) or **Post** (green) to choose the spectrum source
+   - Note: Buttons dim when overlay is disabled (no analyzer series enabled)
 
-**Optional:** Enable the **Smooth spectrum** checkbox for visually smoother curves (applies data smoothing + Catmull-Rom spline interpolation).
+2. **Enable analyzer series** (toggle any to activate overlay):
+   - **STA** (Short-Term Average) - Default: ON, shows stable trend
+   - **LTA** (Long-Term Average) - Default: OFF, shows long-term balance
+   - **PEAK** (Peak Hold) - Default: OFF, shows peak levels with decay
+
+3. **Optional: Adjust smoothing:**
+   - Choose **Smoothing**: Off / 1/12 Oct / 1/6 Oct (default) / 1/3 Oct
+   - Fractional-octave smoothing reduces comb-like artifacts
+
+4. **Reset averages:** Click **↺** to reset STA/LTA/Peak to current live values
+
+You should see analyzer series rendering behind the EQ curve at ~10Hz.
+
+**New in MVP-16:**
+- **Temporal averaging:** STA (0.8s) and LTA (8s) exponential moving averages in dB domain
+- **Peak hold:** Tracks maximum per-bin with configurable hold time (2s) and decay rate (12 dB/s)
+- **Fractional-octave smoothing:** 1/12, 1/6 (default), 1/3 octave options
+- **Coherent overlay state:** Overlay enabled when any of STA/LTA/PEAK is on; Pre/Post selects source
+- **Canvas polling:** Automatically starts/stops based on overlay enabled state
 
 ## Auto-Reconnect Feature
 
@@ -175,7 +193,7 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-14 Complete ✓ — Focus mode with area-of-effect visualization and bandwidth markers
+**Current Milestone:** MVP-16 Complete ✓ — Spectrum analyzer with STA/LTA/Peak + fractional-octave smoothing
 
 ### Completed Milestones
 

@@ -50,18 +50,18 @@ export class SpectrumAreaLayer implements CanvasVisualizationLayer {
     ctx: CanvasRenderingContext2D;
     width: number;
     height: number;
-    bins: number[];
+    binsNormalized: number[];
     mode: 'pre' | 'post';
   }): void {
-    const { ctx, width, height, bins, mode } = args;
+    const { ctx, width, height, binsNormalized, mode } = args;
 
-    if (!bins || bins.length === 0) return;
+    if (!binsNormalized || binsNormalized.length === 0) return;
 
     const colors = this.colors[mode];
-    const numBins = bins.length;
+    const numBins = binsNormalized.length;
 
     // Apply data smoothing if enabled
-    const smoothedBins = this.smooth ? this.applySmoothingFilter(bins) : bins;
+    const smoothedBins = this.smooth ? this.applySmoothingFilter(binsNormalized) : binsNormalized;
 
     // Generate points (x, y) for each bin
     const points: Array<{ x: number; y: number }> = [];

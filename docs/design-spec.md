@@ -7,9 +7,9 @@ Real-time: Spectrum frames ~ every 100ms (10 Hz) via WebSocket to browser
 
 ---
 
-## Current Implementation Status (as of 2026-01-27)
+## Current Implementation Status (as of 2026-01-30)
 
-**Milestone:** MVP-14 Complete ✅
+**Milestone:** MVP-16 Complete ✅
 
 This specification describes both **implemented** and **planned** features. For the current as-built architecture, see [`docs/current-architecture.md`](current-architecture.md).
 
@@ -20,6 +20,8 @@ This specification describes both **implemented** and **planned** features. For 
 - ✅ Interactive EQ editor with 3-row grid layout (MVP-11)
 - ✅ Token visual enhancements (labels, arcs, halos) (MVP-12)
 - ✅ Filter type selection UI with popover + speech-bubble tail (MVP-13)
+- ✅ Focus mode visualization with area-of-effect fills (MVP-14)
+- ✅ Spectrum analyzer with STA/LTA/Peak + fractional-octave smoothing (MVP-16)
 - ✅ Preset library with search/keyboard nav (MVP-9)
 - ✅ Write-through state persistence for recovery
 - ⏳ Static asset serving from Fastify (planned for production)

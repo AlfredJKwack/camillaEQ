@@ -164,6 +164,57 @@ Per design-spec: each EQ band needs consistent visual identity across graph toke
 
 ---
 
+## ADR-007: Spectrum Analyzer Pipeline & Overlay Enablement Model
+**Date:** 2026-01-30  
+**Status:** Accepted
+
+### Context
+MVP-16 adds temporal averaging (STA/LTA/Peak) and fractional-octave smoothing to the spectrum analyzer. Need to decide:
+1. **Averaging domain:** Linear power vs dB?
+2. **Timing model:** Fixed intervals vs actual dt?
+3. **Smoothing order:** Before or after averaging?
+4. **Overlay enablement:** What determines if spectrum renders?
+5. **Pre/Post selector:** Independent control or coupled to overlay state?
+
+### Decision
+**Temporal Averaging:**
+- All averaging operates in **dB domain** (not linear power)
+- Uses **actual dt** between frames (not fixed intervals)
+- Exponential Moving Average (EMA) with time constants: STA τ=0.8s, LTA τ=8s
+- Peak hold: per-bin maximum with 2s hold time, 12 dB/s decay rate
+- dt clamped to 150ms max to avoid visual jumps after stalls
+
+**Fractional-Octave Smoothing:**
+- Applied to **raw dB bins before analyzer state update**
+- Log-frequency spacing (proper filterbank smoothing)
+- Options: Off / 1/12 / 1/6 (default) / 1/3 octave
+
+**Overlay Enablement Model:**
+- Overlay enabled = **any of STA/LTA/PEAK toggled ON**
+- Pre/Post selector **chooses spectrum source** (independent concern)
+- Pre/Post buttons **dim when overlay disabled** (visual feedback)
+- Polling starts/stops automatically based on `overlayEnabled` derived state
+- Canvas clears when overlay disabled
+
+**Processing Pipeline:**
+1. Raw spectrum bins (dBFS) from CamillaDSP
+2. Fractional-octave smoothing (if enabled)
+3. Analyzer state update (STA/LTA/Peak)
+4. Normalize to [0..1] rendering range
+5. Canvas rendering with ducking (70% selection, 40% editing)
+
+### Consequences
+- **Positive:** dB domain averaging matches human perception and typical analyzer behavior
+- **Positive:** Actual dt timing adapts to real poll jitter, more accurate than fixed intervals
+- **Positive:** Smoothing before averaging prevents averaging from blurring spatial features
+- **Positive:** Overlay enablement model is coherent (analyzer series control visibility, not source selector)
+- **Positive:** Polling lifecycle matches overlay state (no wasted CPU when disabled)
+- **Negative:** dB domain introduces log/exp overhead (minimal impact at 10Hz)
+- **Negative:** Overlay model differs from initial MVP-7 behavior (Pre/Post were toggle buttons, now source selectors)
+- **Negative:** More complex state management (3 analyzer series + smoothing + enablement logic)
+
+---
+
 ## ADR Template for Future Decisions
 
 ```markdown

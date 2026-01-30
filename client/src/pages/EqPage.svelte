@@ -26,8 +26,10 @@
   } from '../state/eqStore';
   import { connectionState, dspConfig, getDspInstance } from '../state/dspStore';
   import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
-  import { SpectrumAreaLayer } from '../ui/rendering/canvasLayers/SpectrumAreaLayer';
-  import { parseSpectrumData } from '../dsp/spectrumParser';
+  import { SpectrumAnalyzerLayer } from '../ui/rendering/canvasLayers/SpectrumAnalyzerLayer';
+  import { parseSpectrumData, dbArrayToNormalized } from '../dsp/spectrumParser';
+  import { SpectrumAnalyzer } from '../dsp/spectrumAnalyzer';
+  import { smoothDbBins, type SmoothingMode } from '../dsp/fractionalOctaveSmoothing';
   import EqTokensLayer from '../ui/tokens/EqTokensLayer.svelte';
   import { calculateBandwidthMarkers } from '../dsp/bandwidthMarkers';
   import {
@@ -40,8 +42,19 @@
   import { generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
 
   let showPerBandCurves = false;
-  let spectrumMode = 'off'; // 'off' | 'pre' | 'post'
-  let spectrumSmooth = false; // Spectrum curve smoothing
+  let spectrumMode: 'pre' | 'post' = 'pre'; // pre or post (no off mode)
+  
+  // MVP-16: Analyzer controls
+  let smoothingMode: SmoothingMode = '1/6'; // Default: 1/6 octave per spec
+  let showSTA = true; // Default ON per spec
+  let showLTA = false; // Default OFF per spec
+  let showPeak = false; // Default OFF per spec
+  
+  // Derived: overlay is enabled if at least one series is on
+  $: overlayEnabled = showSTA || showLTA || showPeak;
+  let analyzerOpacity = 0.5; // 0-1 range (default 50%)
+  let peakHoldTime = 2.0; // seconds (default 2.0, range 1.0-5.0)
+  let peakDecayRate = 12; // dB/s (default 12, range 6-24)
   
   // MVP-14: Focus mode and visualization controls
   let showBandwidthMarkers = true; // Default: ON per spec
@@ -52,10 +65,11 @@
   // Track initialization state
   let eqInitialized = false;
   
-  // Spectrum rendering
+  // MVP-16: Spectrum analyzer + rendering
   let canvasElement: HTMLCanvasElement;
   let spectrumRenderer: SpectrumCanvasRenderer | null = null;
-  let spectrumAreaLayer: SpectrumAreaLayer | null = null;
+  let analyzerLayer: SpectrumAnalyzerLayer | null = null;
+  let analyzer: SpectrumAnalyzer | null = null;
   let spectrumPollingInterval: number | null = null;
   let lastSpectrumFrame: number = 0;
   const SPECTRUM_POLL_INTERVAL = 100; // 10 Hz
@@ -154,12 +168,22 @@
     observer.observe(plotElement);
   }
   
-  // Lifecycle: Initialize canvas renderer
+  // Lifecycle: Initialize canvas renderer + analyzer
   onMount(() => {
-    // Initialize canvas renderer with spectrum area layer
+    // Initialize analyzer with peak hold config
+    analyzer = new SpectrumAnalyzer({
+      holdTimeMs: peakHoldTime * 1000,
+      decayRateDbPerSec: peakDecayRate,
+    });
+    
+    // Initialize canvas renderer with analyzer layer
     if (canvasElement) {
-      spectrumAreaLayer = new SpectrumAreaLayer({ smooth: spectrumSmooth });
-      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [spectrumAreaLayer]);
+      analyzerLayer = new SpectrumAnalyzerLayer({
+        showSTA,
+        showLTA,
+        showPeak,
+      });
+      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [analyzerLayer]);
       spectrumRenderer.resize(plotWidth, plotHeight);
     }
     
@@ -203,9 +227,22 @@
     }
   }
   
-  // Reactive: Update layer smoothing when toggle changes
-  $: if (spectrumAreaLayer) {
-    spectrumAreaLayer.setSmooth(spectrumSmooth);
+  // Reactive: Update analyzer config when controls change
+  $: if (analyzer) {
+    analyzer.updateConfig({
+      holdTimeMs: peakHoldTime * 1000,
+      decayRateDbPerSec: peakDecayRate,
+    });
+  }
+  
+  // Reactive: Update analyzer layer visibility
+  $: if (analyzerLayer) {
+    analyzerLayer.setConfig({
+      showLive: false, // Never show raw live (use STA instead)
+      showSTA,
+      showLTA,
+      showPeak,
+    });
   }
   
   onDestroy(() => {
@@ -218,16 +255,16 @@
     // It persists across page navigation
   });
   
-  // Reactive: Start/stop spectrum polling based on mode
+  // Reactive: Start/stop spectrum polling based on overlayEnabled
   $: {
     const dsp = getDspInstance();
     const isConnected = dsp?.connected && dsp?.spectrumConnected;
     
-    if (spectrumMode !== 'off' && isConnected && !spectrumPollingInterval) {
+    if (overlayEnabled && isConnected && !spectrumPollingInterval) {
       // Start polling
       spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
       console.log('Spectrum polling started');
-    } else if (spectrumMode === 'off' && spectrumPollingInterval !== null) {
+    } else if (!overlayEnabled && spectrumPollingInterval !== null) {
       // Stop polling
       clearInterval(spectrumPollingInterval);
       spectrumPollingInterval = null;
@@ -240,19 +277,44 @@
     }
   }
   
-  // Poll spectrum data and render
+  // MVP-16: Poll spectrum data, process through analyzer, and render
   async function pollSpectrum() {
     const dsp = getDspInstance();
-    if (!dsp || !spectrumRenderer) return;
+    if (!dsp || !spectrumRenderer || !analyzer || !analyzerLayer) return;
     
     try {
       const rawData = await dsp.getSpectrumData();
       const spectrumData = parseSpectrumData(rawData);
       
       if (spectrumData) {
-        lastSpectrumFrame = Date.now();
+        const nowMs = Date.now();
+        lastSpectrumFrame = nowMs;
+        
+        // Apply fractional-octave smoothing
+        const smoothedDb = smoothDbBins(spectrumData.binsDb, smoothingMode);
+        
+        // Update analyzer state (STA/LTA/Peak computation)
+        analyzer.update(smoothedDb, nowMs);
+        
+        // Get analyzer state
+        const state = analyzer.getState();
+        
+        // Prepare series for rendering (convert dB to normalized [0..1])
+        const staNorm = state.staDb ? dbArrayToNormalized(state.staDb) : null;
+        const ltaNorm = state.ltaDb ? dbArrayToNormalized(state.ltaDb) : null;
+        const peakNorm = state.peakDb ? dbArrayToNormalized(state.peakDb) : null;
+        
+        // Update analyzer layer with new series data
+        analyzerLayer.setSeries({
+          liveNorm: null, // Not used (we show STA instead of raw)
+          staNorm,
+          ltaNorm,
+          peakNorm,
+        });
+        
+        // Render (pass STA as the primary bins for the layer interface)
         spectrumRenderer.resetOpacity();
-        spectrumRenderer.render(spectrumData.bins, {
+        spectrumRenderer.render(staNorm || [], {
           mode: spectrumMode as 'pre' | 'post',
         });
       }
@@ -264,6 +326,13 @@
     const timeSinceLastFrame = Date.now() - lastSpectrumFrame;
     if (timeSinceLastFrame > SPECTRUM_STALE_THRESHOLD && spectrumRenderer) {
       spectrumRenderer.fadeOut(0.3);
+    }
+  }
+  
+  // MVP-16: Reset analyzer averages
+  function resetAverages() {
+    if (analyzer) {
+      analyzer.resetAverages();
     }
   }
 
@@ -974,23 +1043,15 @@
         <div class="eq-zone-spacer"></div>
       </div>
 
-      <!-- Visualization Options Bar -->
+      <!-- MVP-16: Visualization Options Bar -->
       <div class="viz-options-area">
       <div class="viz-options">
         <div class="option-group">
-          <!-- <label>Spectrum:</label> -->
-          <div class="spectrum-selector">
-            <button 
-              class="spectrum-button" 
-              class:active={spectrumMode === 'off'} 
-              on:click={() => (spectrumMode = 'off')}
-              title="Spectrum Off"
-            >
-              <img src="/src/assets/vis-opt-spectrum-none.webp" alt="Spectrum Off" />
-            </button>
+          <div class="spectrum-selector" class:disabled={!overlayEnabled}>
             <button 
               class="spectrum-button" 
               class:active={spectrumMode === 'pre'} 
+              class:dimmed={!overlayEnabled}
               on:click={() => (spectrumMode = 'pre')}
               title="Pre-EQ Spectrum"
             >
@@ -999,6 +1060,7 @@
             <button 
               class="spectrum-button" 
               class:active={spectrumMode === 'post'} 
+              class:dimmed={!overlayEnabled}
               on:click={() => (spectrumMode = 'post')}
               title="Post-EQ Spectrum"
             >
@@ -1006,26 +1068,72 @@
             </button>
           </div>
         </div>
+        
+        <div class="option-group">
+          <label>Smoothing:</label>
+          <select bind:value={smoothingMode}>
+            <option value="off">Off</option>
+            <option value="1/12">1/12 Oct</option>
+            <option value="1/6">1/6 Oct</option>
+            <option value="1/3">1/3 Oct</option>
+          </select>
+        </div>
+        
+        <div class="option-group">
+          <div class="analyzer-grid">
+            <button
+              class="analyzer-btn"
+              class:active={showSTA}
+              aria-pressed={showSTA}
+              on:click={() => (showSTA = !showSTA)}
+              title="Short-Term Average (STA)"
+            >
+              STA
+            </button>
+            <button
+              class="analyzer-btn"
+              class:active={showLTA}
+              aria-pressed={showLTA}
+              on:click={() => (showLTA = !showLTA)}
+              title="Long-Term Average (LTA)"
+            >
+              LTA
+            </button>
+            <button
+              class="analyzer-btn"
+              class:active={showPeak}
+              aria-pressed={showPeak}
+              on:click={() => (showPeak = !showPeak)}
+              title="Peak Hold"
+            >
+              PEAK
+            </button>
+            <button
+              class="analyzer-btn reset-btn"
+              on:click={resetAverages}
+              title="Reset averages and peak hold"
+            >
+              ↺
+            </button>
+          </div>
+        </div>
+        
         <div class="option-group">
           <label>
             <input type="checkbox" bind:checked={showPerBandCurves} />
-            Show per-band curves
+            Per-band curves
           </label>
         </div>
-        <div class="option-group">
-          <label>
-            <input type="checkbox" bind:checked={spectrumSmooth} />
-            Smooth spectrum
-          </label>
-        </div>
+        
         <div class="option-group">
           <label>
             <input type="checkbox" bind:checked={showBandwidthMarkers} />
-            Show bandwidth markers
+            BW markers
           </label>
         </div>
+        
         <div class="option-group">
-          <label>Band fill opacity:</label>
+          <label>Band fill:</label>
           <span style="--knob-arc: var(--sum-curve);">
             <KnobDial 
               value={bandFillOpacity}
@@ -1447,6 +1555,23 @@
     border-color: rgba(255, 255, 255, 0.25);
     color: var(--ui-text);
   }
+  
+  
+  /* MVP-16: Analyzer controls */
+  .option-group select {
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+  }
+  
+  .option-group select:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
 
   /* MVP-15: Spectrum selector - vertical stacked image buttons */
   .spectrum-selector {
@@ -1485,6 +1610,41 @@
   .spectrum-button.active {
     border-color: rgba(255, 255, 255, 0.45);
     box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+  }
+  
+  .spectrum-button.dimmed {
+    opacity: 0.4;
+  }
+  
+  /* MVP-16: Analyzer grid (2x2 layout) */
+  .analyzer-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 4px;
+  }
+  
+  .analyzer-btn {
+    width: 100%;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  
+  .analyzer-btn.active {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--ui-text);
+  }
+  
+  .analyzer-btn.reset-btn {
+    font-size: 1.25rem;
   }
 
   /* Band Columns: use subgrid to participate in parent's 3 rows */

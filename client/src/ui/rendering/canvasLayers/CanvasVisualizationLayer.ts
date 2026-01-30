@@ -1,6 +1,7 @@
 /**
- * Canvas Visualization Layer Interface
+ * Canvas Visualization Layer Interface - MVP-16
  * Allows multiple background visualizations to be rendered into the same canvas
+ * Updated to support analyzer series (Live, STA, LTA, Peak)
  */
 
 export interface CanvasVisualizationLayer {
@@ -9,7 +10,7 @@ export interface CanvasVisualizationLayer {
     ctx: CanvasRenderingContext2D;
     width: number;
     height: number;
-    bins: number[];
+    binsNormalized: number[]; // Normalized [0..1] for rendering
     mode: 'pre' | 'post';
   }): void;
 }

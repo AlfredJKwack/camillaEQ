@@ -68,11 +68,11 @@ export class SpectrumCanvasRenderer {
 
   /**
    * Render spectrum using all active layers
-   * @param bins - Normalized magnitude values [0..1] for each frequency bin
+   * @param binsNormalized - Normalized magnitude values [0..1] for each frequency bin
    * @param options - Rendering options
    */
-  render(bins: number[], options: SpectrumRenderOptions): void {
-    if (!bins || bins.length === 0) {
+  render(binsNormalized: number[], options: SpectrumRenderOptions): void {
+    if (!binsNormalized || binsNormalized.length === 0) {
       this.clear();
       return;
     }
@@ -88,7 +88,7 @@ export class SpectrumCanvasRenderer {
         ctx: this.ctx,
         width: this.widthCss,
         height: this.heightCss,
-        bins,
+        binsNormalized,
         mode,
       });
     }

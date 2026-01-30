@@ -162,10 +162,15 @@ describe('CamillaDSP Integration Tests', () => {
         const message = data.toString().replace(/"/g, '');
 
         if (message === 'GetPlaybackSignalPeak') {
-          // Return 256 bins (mock spectrum data)
+          // Return 256 bins (mock spectrum data in dBFS)
+          const minDb = -100;
+          const maxDb = -12;
+          
           const bins = Array.from({ length: 256 }, (_, i) => {
             const freq = i / 256;
-            return 0.3 + Math.sin(freq * Math.PI * 4) * 0.2;
+            const magnitude = 0.3 + Math.sin(freq * Math.PI * 4) * 0.2;
+            // Convert [0..1] to dBFS
+            return minDb + magnitude * (maxDb - minDb);
           });
           
           ws.send(
