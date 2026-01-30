@@ -79,6 +79,20 @@ export class CamillaDSP {
   public spectrumConnected: boolean = false;
   public config: CamillaDSPConfig | null = null;
 
+  /**
+   * Check if control socket is open and ready
+   */
+  public isControlSocketOpen(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  /**
+   * Check if spectrum socket is open and ready
+   */
+  public isSpectrumSocketOpen(): boolean {
+    return this.wsSpectrum !== null && this.wsSpectrum.readyState === WebSocket.OPEN;
+  }
+
   // Event callbacks for failure tracking
   public onDspSuccess?: (info: DspEventInfo) => void;
   public onDspFailure?: (info: DspEventInfo) => void;
@@ -169,12 +183,14 @@ export class CamillaDSP {
       // Connect to control socket
       this.ws = await this.connectToDSP(this.server, this.port);
       this.connected = true;
+      this.attachSocketLifecycleListeners(this.ws, false);
       console.log('Connected to DSP control socket');
 
       // Connect to spectrum socket
       try {
         this.wsSpectrum = await this.connectToDSP(this.server, this.spectrumPort);
         this.spectrumConnected = true;
+        this.attachSocketLifecycleListeners(this.wsSpectrum, true);
         console.log('Connected to DSP spectrum socket');
       } catch (error) {
         console.error('Failed to connect to spectrum socket:', error);
@@ -255,6 +271,32 @@ export class CamillaDSP {
       ws.addEventListener('open', onOpen);
       ws.addEventListener('error', onError);
     });
+  }
+
+  /**
+   * Attach lifecycle listeners to keep connection flags synchronized
+   */
+  private attachSocketLifecycleListeners(ws: WebSocket, isSpectrum: boolean): void {
+    const handleClose = () => {
+      if (isSpectrum) {
+        this.spectrumConnected = false;
+        console.log('Spectrum socket closed');
+      } else {
+        this.connected = false;
+        console.log('Control socket closed');
+      }
+    };
+
+    const handleError = () => {
+      if (isSpectrum) {
+        this.spectrumConnected = false;
+      } else {
+        this.connected = false;
+      }
+    };
+
+    ws.addEventListener('close', handleClose);
+    ws.addEventListener('error', handleError);
   }
 
   /**
@@ -577,8 +619,14 @@ export class CamillaDSP {
 
   /**
    * Get spectrum data
+   * Returns null silently if spectrum socket not ready (expected during connection/reconnection)
    */
   async getSpectrumData(): Promise<any> {
+    // Early return if spectrum socket not open (avoid noisy errors during transient states)
+    if (!this.isSpectrumSocketOpen()) {
+      return null;
+    }
+
     try {
       return await this.sendSpectrumMessage('GetPlaybackSignalPeak');
     } catch (error) {

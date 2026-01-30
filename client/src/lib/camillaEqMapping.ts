@@ -5,6 +5,7 @@
 
 import type { EqBand } from '../dsp/filterResponse';
 import type { CamillaDSPConfig, FilterDefinition } from './camillaDSP';
+import { normalizePipelineStep, isGainCapable, type PipelineStepNormalized } from './camillaTypes';
 
 export interface ExtractedEqData {
   bands: EqBand[];
@@ -85,31 +86,32 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     }
   }
 
-  // Find all Filter pipeline steps
-  const filterSteps = config.pipeline.filter((step) => step.type === 'Filter');
+  // Find all Filter pipeline steps and normalize them
+  const filterSteps: PipelineStepNormalized[] = config.pipeline
+    .map(normalizePipelineStep)
+    .filter((step): step is PipelineStepNormalized => 
+      step !== null && step.type === 'Filter'
+    );
 
   if (filterSteps.length === 0) {
     return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
-  // Use channel 0 as the reference for filter order (v3 format only)
-  const channel0Step = filterSteps.find((step) => {
-    const stepAny = step as any;
-    return Array.isArray(stepAny.channels) && stepAny.channels.includes(0);
-  });
+  // Use channel 0 as the reference for filter order
+  const channel0Step = filterSteps.find((step) => 
+    step.channels && step.channels.includes(0)
+  );
   
   if (!channel0Step) {
     return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
-  const refNames = (channel0Step as any).names || [];
+  const refNames = channel0Step.names || [];
   
-  // Track which channels we're editing (v3 format: channels is an array)
+  // Track which channels we're editing
   for (const step of filterSteps) {
-    const stepAny = step as any;
-    
-    if (Array.isArray(stepAny.channels)) {
-      for (const ch of stepAny.channels) {
+    if (step.channels) {
+      for (const ch of step.channels) {
         if (!channels.includes(ch)) {
           channels.push(ch);
         }
@@ -144,7 +146,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     // Determine if filter is enabled (not bypassed)
     // Check both filter-level and pipeline-level bypass
     const filterBypassed = params.bypassed === true;
-    const pipelineBypassed = (channel0Step as any).bypassed === true;
+    const pipelineBypassed = channel0Step.bypassed === true;
     const enabled = !filterBypassed && !pipelineBypassed;
 
     // Extract parameters with fallbacks
@@ -207,8 +209,9 @@ export function applyEqBandsToConfig(
     };
     
     // Ensure preamp is in pipeline at start
-    const hasPreampStep = updatedConfig.pipeline.some(
-      (step) => step.type === 'Mixer' && (step as any).name === 'preamp'
+    const normalizedPipeline = updatedConfig.pipeline.map(normalizePipelineStep);
+    const hasPreampStep = normalizedPipeline.some(
+      (step) => step && step.type === 'Mixer' && step.name === 'preamp'
     );
     
     if (!hasPreampStep) {
@@ -256,7 +259,10 @@ export function applyEqBandsToConfig(
     params.q = band.q;
     
     // Update gain (for filter types that use it)
-    if (band.type === 'Peaking' || band.type === 'LowShelf' || band.type === 'HighShelf') {
+    const camillaType = mapEqBandTypeToCamilla(band.type);
+    const biquadType = camillaType.charAt(0).toUpperCase() + camillaType.slice(1);
+    
+    if (isGainCapable(biquadType as any)) {
       params.gain = band.gain;
     } else {
       // For filters that don't use gain, remove it to avoid validation errors
@@ -286,8 +292,12 @@ export function validateConfigForEq(config: CamillaDSPConfig): { valid: boolean;
   }
 
   // Check that all filter names referenced exist
-  for (const step of filterSteps) {
-    const names = (step as any).names || [];
+  const normalizedSteps = filterSteps
+    .map(normalizePipelineStep)
+    .filter((step): step is PipelineStepNormalized => step !== null);
+    
+  for (const step of normalizedSteps) {
+    const names = step.names || [];
     for (const filterName of names) {
       if (!config.filters[filterName]) {
         return { valid: false, error: `Filter "${filterName}" referenced but not found` };

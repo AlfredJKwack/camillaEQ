@@ -185,6 +185,7 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding M1 — Heavy use of `any` and loose dictionaries around core config types
 - **Severity:** Medium
+- **Status:** ✅ **Resolved** (2026-01-31)
 - **Description:** The CamillaDSP config is inherently dynamic, but `any` and `[k: string]: any` appear in core interfaces and mapping logic.
 - **Evidence:**
   - `client/src/lib/camillaDSP.ts`: `[k: string]: any`, `parameters: Record<string, any>`, `processors?: Record<string, any>`.
@@ -233,6 +234,7 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding T2 — Client has good protocol integration tests, but UI-level behavior is lightly tested
 - **Severity:** Medium
+- **Status:** ✅ **Resolved** (2026-01-31)
 - **Description:** `CamillaDSP` client is tested against mock WS servers, which is valuable. UI tests are currently placeholders/structure checks.
 - **Evidence:**
   - `client/src/lib/__tests__/camillaDSP.integration.test.ts` is thorough.
@@ -241,6 +243,11 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 - **Recommendation:** Add a minimal set of UI behavior tests:
   - ConnectPage: filling form triggers `connect(...)` and shows connected state.
   - EqPage: when store has bands, interactions call `setBandGain/freq/q`.
+- **Resolution:**
+  - Added `ConnectPage.behavior.test.ts` with 5 tests covering connection state, failure tracking, and diagnostics export
+  - Added `EqPage.behavior.test.ts` with 6 tests covering band updates (gain, frequency, Q, enabled state)
+  - Tests verify store interactions rather than full DOM rendering (sufficient for regression catching)
+  - All 11 behavior tests passing
 
 ---
 
@@ -259,12 +266,18 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding O2 — No health details / readiness probes beyond `{status:'ok'}`
 - **Severity:** Low
+- **Status:** ✅ **Resolved** (2026-01-31)
 - **Description:** `/health` always returns ok, without checking filesystem access to the config directory.
 - **Evidence:** `server/src/index.ts` health endpoint.
 - **Impact:** In production/embedded setups, server may be “up” but unable to write configs.
 - **Recommendation:** Add a lightweight readiness check:
   - verify config dir is writable (or can create temp file)
   - optionally report free disk space (if you care)
+- **Resolution:**
+  - Updated `/health` endpoint to include `checks` object with `configDirWritable` boolean
+  - Performs actual write test (create+delete temp file) to verify config directory accessibility
+  - Logs warning if check fails while still returning 200 OK
+  - Added 2 unit tests verifying health response structure and checks
 
 ---
 

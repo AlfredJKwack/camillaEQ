@@ -264,19 +264,19 @@
     // It persists across page navigation
   });
   
-  // Reactive: Start/stop spectrum polling based on overlayEnabled and connection state
+  // Reactive: Start/stop spectrum polling based on overlayEnabled and spectrum socket readiness
   $: {
     // Add reactive dependency on connectionState so this block re-runs after auto-connect
     const state = $connectionState;
     const dsp = getDspInstance();
-    const isConnected = state === 'connected' && dsp?.connected && dsp?.spectrumConnected;
+    const isReady = state === 'connected' && dsp?.isSpectrumSocketOpen();
     
-    if (overlayEnabled && isConnected && !spectrumPollingInterval) {
+    if (overlayEnabled && isReady && !spectrumPollingInterval) {
       // Start polling
       spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
       console.log('Spectrum polling started');
-    } else if ((!overlayEnabled || !isConnected) && spectrumPollingInterval !== null) {
-      // Stop polling when overlay disabled OR connection lost
+    } else if ((!overlayEnabled || !isReady) && spectrumPollingInterval !== null) {
+      // Stop polling when overlay disabled OR spectrum socket not ready
       clearInterval(spectrumPollingInterval);
       spectrumPollingInterval = null;
       
@@ -284,14 +284,14 @@
       if (spectrumRenderer) {
         spectrumRenderer.clear();
       }
-      console.log('Spectrum polling stopped', { overlayEnabled, isConnected });
+      console.log('Spectrum polling stopped', { overlayEnabled, isReady });
     }
   }
   
   // MVP-16: Poll spectrum data, process through analyzer, and render
   async function pollSpectrum() {
     const dsp = getDspInstance();
-    if (!dsp || !spectrumRenderer || !analyzer || !analyzerLayer) return;
+    if (!dsp || !dsp.isSpectrumSocketOpen() || !spectrumRenderer || !analyzer || !analyzerLayer) return;
     
     try {
       const rawData = await dsp.getSpectrumData();
