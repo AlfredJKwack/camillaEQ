@@ -2,6 +2,7 @@
   import { router, type Route } from '../lib/router';
   import { connectionState } from '../state/dspStore';
   import { uploadStatus } from '../state/eqStore';
+  import { appVersion } from '../state/appVersionStore';
 
   const navItems: { route: Route; label: string; icon: string }[] = [
     { route: '/connect', label: 'Connection', icon: '🔌' },
@@ -64,6 +65,14 @@
       <span class="nav-icon">{item.icon}</span>
     </button>
   {/each}
+  
+  <div class="nav-spacer"></div>
+  
+  {#if $appVersion}
+    <div class="nav-footer" title="CamillaEQ v{$appVersion.version} ({$appVersion.buildHash || 'dev'})">
+      v{$appVersion.version}
+    </div>
+  {/if}
 </nav>
 
 <style>
@@ -75,6 +84,23 @@
     background: var(--ui-panel, #10141a);
     border-right: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
     min-width: 60px;
+    height: 100vh;
+  }
+
+  .nav-spacer {
+    flex: 1;
+  }
+
+  .nav-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0;
+    font-size: 0.6875rem;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.38));
+    text-align: center;
+    line-height: 1.2;
+    user-select: none;
   }
 
   .nav-button {

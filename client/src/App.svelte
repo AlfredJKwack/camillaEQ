@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { router } from './lib/router';
   import { autoConnectFromLocalStorage } from './state/dspStore';
+  import { loadAppVersion } from './state/appVersionStore';
   import Nav from './components/Nav.svelte';
   import ConnectPage from './pages/ConnectPage.svelte';
   import EqPage from './pages/EqPage.svelte';
@@ -15,6 +16,7 @@
   // Auto-connect on startup if enabled
   onMount(() => {
     autoConnectFromLocalStorage();
+    loadAppVersion();
   });
 </script>
 

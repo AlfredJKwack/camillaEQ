@@ -41,6 +41,7 @@ let reconnectTimer: number | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const RECONNECT_DELAYS = [1000, 2000, 5000, 10000, 30000]; // ms: 1s, 2s, 5s, 10s, 30s
+const MAX_RETAINED_FAILURES = 50; // Keep last N failures for diagnostics
 
 // Volume control (debounced)
 const VOLUME_DEBOUNCE_MS = 200;
@@ -446,17 +447,15 @@ export async function refreshDspInfo(): Promise<void> {
 }
 
 /**
- * Handle DSP success (clears failures)
+ * Handle DSP success (does not clear failures - retained for diagnostics)
  */
 function handleDspSuccess(info: DspEventInfo): void {
-  dspState.update((s) => ({
-    ...s,
-    failures: [], // Clear all failures on any successful response
-  }));
+  // Success event - no action needed
+  // Failures are retained for diagnostics export
 }
 
 /**
- * Handle DSP failure (appends to failures list)
+ * Handle DSP failure (appends to failures list with bounded retention)
  */
 function handleDspFailure(info: DspEventInfo): void {
   const failure: FailureEntry = {
@@ -467,8 +466,69 @@ function handleDspFailure(info: DspEventInfo): void {
     response: info.response,
   };
 
-  dspState.update((s) => ({
-    ...s,
-    failures: [...s.failures, failure],
-  }));
+  dspState.update((s) => {
+    const updatedFailures = [...s.failures, failure];
+    
+    // Keep only last N failures
+    if (updatedFailures.length > MAX_RETAINED_FAILURES) {
+      updatedFailures.shift(); // Remove oldest
+    }
+    
+    return {
+      ...s,
+      failures: updatedFailures,
+    };
+  });
+}
+
+/**
+ * Export diagnostics data for troubleshooting
+ */
+export interface DiagnosticsExport {
+  timestamp: string;
+  connectionState: ConnectionState;
+  server?: string;
+  controlPort?: number;
+  spectrumPort?: number;
+  version?: string;
+  lastError?: string;
+  failureCount: number;
+  failures: FailureEntry[];
+  configSummary?: {
+    filterCount: number;
+    mixerCount: number;
+    pipelineStepCount: number;
+  };
+}
+
+export function exportDiagnostics(): DiagnosticsExport {
+  const state = get(dspState);
+  
+  // Get connection params from localStorage
+  const server = localStorage.getItem('camillaDSP.server') || undefined;
+  const controlPortStr = localStorage.getItem('camillaDSP.controlPort');
+  const spectrumPortStr = localStorage.getItem('camillaDSP.spectrumPort');
+  
+  const diagnostics: DiagnosticsExport = {
+    timestamp: new Date().toISOString(),
+    connectionState: state.connectionState,
+    server,
+    controlPort: controlPortStr ? Number(controlPortStr) : undefined,
+    spectrumPort: spectrumPortStr ? Number(spectrumPortStr) : undefined,
+    version: state.version,
+    lastError: state.lastError,
+    failureCount: state.failures.length,
+    failures: state.failures,
+  };
+  
+  // Add config summary if available
+  if (state.config) {
+    diagnostics.configSummary = {
+      filterCount: Object.keys(state.config.filters || {}).length,
+      mixerCount: Object.keys(state.config.mixers || {}).length,
+      pipelineStepCount: state.config.pipeline?.length || 0,
+    };
+  }
+  
+  return diagnostics;
 }

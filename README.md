@@ -191,6 +191,26 @@ Clicking **Disconnect** will:
 2. Hot Module Replacement (HMR) is enabled for instant client updates
 3. Server auto-restarts on code changes via tsx watch mode
 
+### Client Logging
+
+The client uses a lightweight logging utility (`client/src/lib/log.ts`) with debug message gating:
+
+```typescript
+import { log } from './lib/log';
+
+log.debug('Only visible in dev mode or when debug=true in localStorage');
+log.info('Important info message');
+log.warn('Warning message');
+log.error('Error message', errorObject);
+```
+
+**Debug modes:**
+- **Development**: All debug messages visible automatically
+- **Production**: Debug messages hidden by default
+- **Production with debug**: Set `localStorage.setItem('debug', 'true')` to enable debug logs
+
+All log messages include timestamp and level prefix for easy filtering.
+
 ## Project Status
 
 **Current Milestone:** MVP-17 Complete ✓ — DSP info display on Connection page

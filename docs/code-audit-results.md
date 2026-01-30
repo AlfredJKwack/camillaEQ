@@ -17,13 +17,19 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding A1 — Mixed concerns in `server/src/index.ts` (routing, logging, lifecycle)
 - **Severity:** Medium
-- **Description:** `server/src/index.ts` contains framework config, request/response logging hooks, error handling, route definitions, and service wiring. This is fine at MVP scale, but growth will cause “index.ts as god file”.
+- **Status:** ✅ **Resolved** (2026-01-30)
+- **Description:** `server/src/index.ts` contains framework config, request/response logging hooks, error handling, route definitions, and service wiring. This is fine at MVP scale, but growth will cause "index.ts as god file".
 - **Evidence:** `server/src/index.ts` contains Fastify instantiation, hooks, error handler, and all API routes.
 - **Impact:** Harder to evolve (e.g., adding auth, additional routers, middleware). Raises risk of accidental changes affecting unrelated endpoints.
 - **Recommendation:** Split into modules:
   - `server/src/app.ts` (Fastify instance + hooks + error handling)
   - `server/src/routes/*.ts` (route registration)
   - `server/src/index.ts` (boot only)
+- **Resolution:**
+  - Created `server/src/app.ts` containing Fastify instance, hooks (onRequest, onResponse), and error handler
+  - Extracted routes to separate modules: `server/src/routes/health.ts`, `version.ts`, `config.ts`, `state.ts`, `configs.ts`
+  - Reduced `server/src/index.ts` to boot-only: import app, call listen, handle startup/shutdown
+  - All tests updated and passing (54 server tests)
 
 ---
 
@@ -193,6 +199,7 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding M2 — Client logging is mostly `console.*`
 - **Severity:** Low
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** There are many `console.log/warn/error` calls, including debug-only messages.
 - **Evidence:** Search results show ~55 matches in `client/src` TS files.
 - **Impact:** Harder to debug systematically (no levels, no structured data, no “report” export).
@@ -263,6 +270,7 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding O3 — Client lacks a user-visible diagnostics “export”
 - **Severity:** Low
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** You do track failures in `dspStore.failures` and display them on ConnectPage, which is great. But there’s no export/copy or retention policy besides “clear on any success”.
 - **Evidence:**
   - `client/src/state/dspStore.ts`: clears failures on any success.

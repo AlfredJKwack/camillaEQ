@@ -40,8 +40,8 @@ describe('camillaEqMapping', () => {
     },
     pipeline: [
       { type: 'Mixer', name: 'preamp' },
-      { type: 'Filter', channel: 0, names: ['Filter01', 'Filter02'] },
-      { type: 'Filter', channel: 1, names: ['Filter01', 'Filter02'] },
+      { type: 'Filter', channels: [0], names: ['Filter01', 'Filter02'] },
+      { type: 'Filter', channels: [1], names: ['Filter01', 'Filter02'] },
     ],
   };
 
@@ -57,8 +57,8 @@ describe('camillaEqMapping', () => {
         ...mockConfig,
         mixers: {},
         pipeline: [
-          { type: 'Filter', channel: 0, names: ['Filter01', 'Filter02'] },
-          { type: 'Filter', channel: 1, names: ['Filter01', 'Filter02'] },
+          { type: 'Filter', channels: [0], names: ['Filter01', 'Filter02'] },
+          { type: 'Filter', channels: [1], names: ['Filter01', 'Filter02'] },
         ],
       };
 
@@ -116,6 +116,11 @@ describe('camillaEqMapping', () => {
             parameters: { type: 'Peaking', freq: 100, q: 1.0, gain: 6.0 },
           },
         },
+        pipeline: [
+          { type: 'Mixer', name: 'preamp' },
+          { type: 'Filter', channels: [0], names: ['Filter01'] },
+          { type: 'Filter', channels: [1], names: ['Filter01'] },
+        ],
       };
 
       // Extract bands
@@ -144,6 +149,11 @@ describe('camillaEqMapping', () => {
             parameters: { type: 'Peaking', freq: 5000, q: 0.7, gain: -3.0 },
           },
         },
+        pipeline: [
+          { type: 'Mixer', name: 'preamp' },
+          { type: 'Filter', channels: [0], names: ['Filter01'] },
+          { type: 'Filter', channels: [1], names: ['Filter01'] },
+        ],
       };
 
       const extracted = extractEqBandsFromConfig(configWithGain);
@@ -164,6 +174,11 @@ describe('camillaEqMapping', () => {
             parameters: { type: 'Highpass', freq: 100, q: 1.0 },
           },
         },
+        pipeline: [
+          { type: 'Mixer', name: 'preamp' },
+          { type: 'Filter', channels: [0], names: ['Filter01'] },
+          { type: 'Filter', channels: [1], names: ['Filter01'] },
+        ],
       };
 
       const extracted = extractEqBandsFromConfig(configWithPeaking);
@@ -191,8 +206,8 @@ describe('camillaEqMapping', () => {
       const configWithoutPreampInPipeline: CamillaDSPConfig = {
         ...mockConfig,
         pipeline: [
-          { type: 'Filter', channel: 0, names: ['Filter01'] },
-          { type: 'Filter', channel: 1, names: ['Filter01'] },
+          { type: 'Filter', channels: [0], names: ['Filter01'] },
+          { type: 'Filter', channels: [1], names: ['Filter01'] },
         ],
       };
 

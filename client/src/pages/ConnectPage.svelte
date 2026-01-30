@@ -9,7 +9,8 @@
     dspDevices, 
     dspConfigs, 
     dspFailures,
-    dspConfig 
+    dspConfig,
+    exportDiagnostics 
   } from '../state/dspStore';
 
   let server = localStorage.getItem('camillaDSP.server') || 'localhost';
@@ -17,6 +18,28 @@
   let spectrumPort = localStorage.getItem('camillaDSP.spectrumPort') || '1235';
   let autoReconnect = localStorage.getItem('camillaDSP.autoReconnect') === 'true';
   let isConnecting = false;
+  let copyFeedback = '';
+
+  // Copy diagnostics to clipboard
+  async function handleCopyDiagnostics() {
+    try {
+      const diagnostics = exportDiagnostics();
+      const jsonString = JSON.stringify(diagnostics, null, 2);
+      
+      await navigator.clipboard.writeText(jsonString);
+      
+      copyFeedback = 'Copied to clipboard!';
+      setTimeout(() => {
+        copyFeedback = '';
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy diagnostics:', error);
+      copyFeedback = 'Failed to copy';
+      setTimeout(() => {
+        copyFeedback = '';
+      }, 2000);
+    }
+  }
 
   // Helper to format timestamp
   function formatTimestamp(ms: number): string {
@@ -273,8 +296,15 @@
   <!-- DSP Failures -->
   {#if $dspFailures.length > 0}
     <div class="info-section failures-section">
-      <h2>DSP Failure Messages</h2>
-      <p class="info-subtitle">These will clear automatically on the next successful DSP response</p>
+      <div class="failures-header">
+        <div>
+          <h2>DSP Failure Messages</h2>
+          <p class="info-subtitle">Last {$dspFailures.length} failures retained for diagnostics (max 50)</p>
+        </div>
+        <button class="btn-copy-diagnostics" on:click={handleCopyDiagnostics}>
+          {copyFeedback || 'Copy Diagnostics'}
+        </button>
+      </div>
       
       <div class="failures-container">
         {#each $dspFailures as failure}
@@ -640,6 +670,32 @@
   .failures-section {
     border-color: rgba(255, 120, 120, 0.3);
     background: rgba(255, 120, 120, 0.05);
+  }
+
+  .failures-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+  }
+
+  .btn-copy-diagnostics {
+    padding: 0.5rem 1rem;
+    background: rgba(120, 160, 255, 0.15);
+    border: 1px solid rgba(120, 160, 255, 0.3);
+    border-radius: 4px;
+    color: rgb(120, 160, 255);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .btn-copy-diagnostics:hover {
+    background: rgba(120, 160, 255, 0.25);
+    border-color: rgba(120, 160, 255, 0.4);
   }
 
   .failures-container {
