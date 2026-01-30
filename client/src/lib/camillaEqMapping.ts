@@ -92,16 +92,10 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
-  // Use channel 0 as the reference for filter order
-  // Support both v2 (channel: number) and v3 (channels: number[]) formats
+  // Use channel 0 as the reference for filter order (v3 format only)
   const channel0Step = filterSteps.find((step) => {
     const stepAny = step as any;
-    // v3: channels array includes 0
-    if (Array.isArray(stepAny.channels)) {
-      return stepAny.channels.includes(0);
-    }
-    // v2: channel equals 0
-    return stepAny.channel === 0;
+    return Array.isArray(stepAny.channels) && stepAny.channels.includes(0);
   });
   
   if (!channel0Step) {
@@ -110,21 +104,16 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
 
   const refNames = (channel0Step as any).names || [];
   
-  // Track which channels we're editing (support both v2 and v3)
+  // Track which channels we're editing (v3 format: channels is an array)
   for (const step of filterSteps) {
     const stepAny = step as any;
     
-    // v3: channels is an array
     if (Array.isArray(stepAny.channels)) {
       for (const ch of stepAny.channels) {
         if (!channels.includes(ch)) {
           channels.push(ch);
         }
       }
-    }
-    // v2: channel is a number
-    else if (stepAny.channel !== undefined && !channels.includes(stepAny.channel)) {
-      channels.push(stepAny.channel);
     }
   }
 

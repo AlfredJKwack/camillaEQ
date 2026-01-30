@@ -151,22 +151,7 @@
   let plotWidth = 1000;
   let plotHeight = 400;
   let plotElement: HTMLDivElement;
-
-  // Track plot size for token compensation and canvas resize
-  $: if (plotElement) {
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        plotWidth = entry.contentRect.width;
-        plotHeight = entry.contentRect.height;
-        
-        // Resize spectrum canvas
-        if (spectrumRenderer) {
-          spectrumRenderer.resize(plotWidth, plotHeight);
-        }
-      }
-    });
-    observer.observe(plotElement);
-  }
+  let resizeObserver: ResizeObserver | null = null;
   
   // Lifecycle: Initialize canvas renderer + analyzer
   onMount(() => {
@@ -185,6 +170,22 @@
       });
       spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [analyzerLayer]);
       spectrumRenderer.resize(plotWidth, plotHeight);
+    }
+    
+    // Setup ResizeObserver for plot element
+    if (plotElement) {
+      resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          plotWidth = entry.contentRect.width;
+          plotHeight = entry.contentRect.height;
+          
+          // Resize spectrum canvas
+          if (spectrumRenderer) {
+            spectrumRenderer.resize(plotWidth, plotHeight);
+          }
+        }
+      });
+      resizeObserver.observe(plotElement);
     }
     
     // Track shift key for cursor feedback and Escape to deselect
@@ -251,6 +252,12 @@
     // Clean up polling interval
     if (spectrumPollingInterval !== null) {
       clearInterval(spectrumPollingInterval);
+    }
+    
+    // Clean up ResizeObserver
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
     }
     
     // Note: We don't disconnect the global DSP instance here

@@ -97,12 +97,17 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding R3 — Potential ResizeObserver leak in EQ page
 - **Severity:** Medium
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** `EqPage.svelte` creates a `ResizeObserver` in a reactive `$:` block, but does not disconnect/unobserve. Reactive blocks can re-run, potentially registering multiple observers.
 - **Evidence:** `client/src/pages/EqPage.svelte`:
   - `$: if (plotElement) { const observer = new ResizeObserver(...); observer.observe(plotElement); }`
   - no `observer.disconnect()` in `onDestroy` and no guard to create it only once.
 - **Impact:** Memory leak + redundant callbacks leading to jank over long sessions.
 - **Recommendation:** Create the observer once in `onMount` and `disconnect()` in `onDestroy`, or use a guard variable.
+- **Resolution:**
+  - Moved `ResizeObserver` creation from reactive block to `onMount`
+  - Added proper cleanup with `resizeObserver.disconnect()` in `onDestroy`
+  - Observer now created once and properly disposed
 
 ---
 
@@ -122,18 +127,25 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding R5 — Server endpoints accept unvalidated JSON bodies
 - **Severity:** Medium
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** `server.put('/api/config')`, `/api/state/latest`, and `/api/configs/:id` accept `request.body` and persist it without schema validation.
 - **Evidence:** `server/src/index.ts`:
   - `await configStore.writeConfig(request.body)`
   - `await configsLibrary.saveConfig(id, request.body as PipelineConfig)`
 - **Impact:** Bad payloads can poison stored state, causing later failures in the UI or restore flows.
 - **Recommendation:** Use Fastify JSON schema validation for these routes.
-  - Minimal version: validate “shape exists” + size limit (already enforced in storage) + required keys.
+  - Minimal version: validate "shape exists" + size limit (already enforced in storage) + required keys.
+- **Resolution:**
+  - Added Fastify schema validation to `PUT /api/config`, `PUT /api/state/latest`, and `PUT /api/configs/:id`
+  - Config endpoints require: `devices`, `filters`, `mixers`, `pipeline` (array)
+  - Library endpoint requires: `configName` (string), `filterArray` (array)
+  - Invalid payloads now rejected with 400 validation error
 
 ---
 
 ### Finding R6 — Inconsistent CamillaDSP pipeline schema handling (v2 vs v3) is partially handled
 - **Severity:** Medium
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** You support both `channel: number` (v2 style) and `channels: number[]` (v3 style) in some places, but not consistently.
 - **Evidence:**
   - `client/src/lib/camillaEqMapping.ts` handles both for reference channel detection and channel tracking.
@@ -143,6 +155,11 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 - **Recommendation:** Normalize config on download:
   - convert any v2 `channel` into v3 `channels: [channel]` in one place (client).
   - align mock + integration tests with that normalization.
+- **Resolution:**
+  - Removed all v2 (`channel: number`) support - v3-only (`channels: number[]`)
+  - Updated `camillaEqMapping.ts` to expect only v3 format
+  - Updated mock to emit v3 format in both YAML and JSON
+  - All tests pass with v3-only schema
 
 ---
 

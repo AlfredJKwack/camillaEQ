@@ -328,11 +328,11 @@ pipeline:
     name: recombine
     description: "Mock Default Mixer"
   - type: Filter
-    channel: 0
+    channels: [0]
     names: []
     description: "Channel 0 Filters"
   - type: Filter
-    channel: 1
+    channels: [1]
     names: []
     description: "Channel 1 Filters"
 `;
@@ -441,14 +441,14 @@ pipeline: []
         },
         {
           type: 'Filter',
-          channel: 0,
+          channels: [0],
           names: [],
           description: 'Channel 0 Filters',
           bypassed: false,
         },
         {
           type: 'Filter',
-          channel: 1,
+          channels: [1],
           names: [],
           description: 'Channel 1 Filters',
           bypassed: false,

@@ -132,7 +132,21 @@ server.get('/api/config', async (request, reply) => {
 });
 
 // Put config endpoint
-server.put('/api/config', async (request, reply) => {
+server.put('/api/config', {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['devices', 'filters', 'mixers', 'pipeline'],
+      properties: {
+        devices: { type: 'object' },
+        filters: { type: 'object' },
+        mixers: { type: 'object' },
+        pipeline: { type: 'array' },
+        processors: { type: 'object' },
+      },
+    },
+  },
+}, async (request, reply) => {
   await configStore.writeConfig(request.body);
   return { success: true };
 });
@@ -150,7 +164,21 @@ server.get('/api/state/latest', async (request, reply) => {
 });
 
 // Put latest DSP state
-server.put('/api/state/latest', async (request, reply) => {
+server.put('/api/state/latest', {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['devices', 'filters', 'mixers', 'pipeline'],
+      properties: {
+        devices: { type: 'object' },
+        filters: { type: 'object' },
+        mixers: { type: 'object' },
+        pipeline: { type: 'array' },
+        processors: { type: 'object' },
+      },
+    },
+  },
+}, async (request, reply) => {
   await latestStateStore.writeConfig(request.body);
   return { success: true };
 });
@@ -173,7 +201,19 @@ server.get('/api/configs/:id', async (request, reply) => {
 });
 
 // Save config by ID
-server.put('/api/configs/:id', async (request, reply) => {
+server.put('/api/configs/:id', {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['configName', 'filterArray'],
+      properties: {
+        configName: { type: 'string' },
+        filterArray: { type: 'array' },
+        accessKey: { type: 'string' },
+      },
+    },
+  },
+}, async (request, reply) => {
   const { id } = request.params as { id: string };
   await configsLibrary.saveConfig(id, request.body as PipelineConfig);
   return { success: true };
