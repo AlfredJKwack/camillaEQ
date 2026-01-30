@@ -257,17 +257,19 @@
     // It persists across page navigation
   });
   
-  // Reactive: Start/stop spectrum polling based on overlayEnabled
+  // Reactive: Start/stop spectrum polling based on overlayEnabled and connection state
   $: {
+    // Add reactive dependency on connectionState so this block re-runs after auto-connect
+    const state = $connectionState;
     const dsp = getDspInstance();
-    const isConnected = dsp?.connected && dsp?.spectrumConnected;
+    const isConnected = state === 'connected' && dsp?.connected && dsp?.spectrumConnected;
     
     if (overlayEnabled && isConnected && !spectrumPollingInterval) {
       // Start polling
       spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
       console.log('Spectrum polling started');
-    } else if (!overlayEnabled && spectrumPollingInterval !== null) {
-      // Stop polling
+    } else if ((!overlayEnabled || !isConnected) && spectrumPollingInterval !== null) {
+      // Stop polling when overlay disabled OR connection lost
       clearInterval(spectrumPollingInterval);
       spectrumPollingInterval = null;
       
@@ -275,7 +277,7 @@
       if (spectrumRenderer) {
         spectrumRenderer.clear();
       }
-      console.log('Spectrum polling stopped');
+      console.log('Spectrum polling stopped', { overlayEnabled, isConnected });
     }
   }
   

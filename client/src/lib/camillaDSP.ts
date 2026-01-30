@@ -4,6 +4,13 @@
  * Based on docs/api-contract-camillaDSP.md specification
  */
 
+import { SocketRequestQueue } from './requestQueue';
+
+export interface CamillaDSPOptions {
+  controlTimeoutMs?: number;
+  spectrumTimeoutMs?: number;
+}
+
 export interface CamillaDSPConfig {
   devices: {
     capture: { channels: number; [k: string]: any };
@@ -75,6 +82,20 @@ export class CamillaDSP {
   // Event callbacks for failure tracking
   public onDspSuccess?: (info: DspEventInfo) => void;
   public onDspFailure?: (info: DspEventInfo) => void;
+
+  // Request queues for serialization
+  private controlQueue: SocketRequestQueue = new SocketRequestQueue();
+  private spectrumQueue: SocketRequestQueue = new SocketRequestQueue();
+
+  // Timeout configuration
+  private options: CamillaDSPOptions;
+
+  constructor(options: CamillaDSPOptions = {}) {
+    this.options = {
+      controlTimeoutMs: options.controlTimeoutMs ?? 5000,
+      spectrumTimeoutMs: options.spectrumTimeoutMs ?? 2000,
+    };
+  }
 
   // Default mixer configuration
   private readonly defaultMixer = {
@@ -297,86 +318,115 @@ export class CamillaDSP {
   }
 
   /**
-   * Send message to DSP control socket
-   * Fixed: properly removes event listener to avoid leaks
+   * Send message to control socket with queueing and timeout
+   * @private
    */
   private sendDSPMessage(message: string | Record<string, any>): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        reject(new Error('WebSocket not connected'));
-        return;
-      }
-
-      const commandName = typeof message === 'string' ? message : Object.keys(message)[0];
-      const requestStr = JSON.stringify(message);
-
-      const onMessage = (event: MessageEvent) => {
-        const res = JSON.parse(event.data);
-        const responseCommand = Object.keys(res)[0];
-
-        // Only handle responses for our command
-        if (responseCommand !== commandName) {
-          return;
-        }
-
-        // Remove listener after handling (FIX: prevent memory leak)
-        this.ws!.removeEventListener('message', onMessage);
-
-        const [success, value] = CamillaDSP.handleDSPMessage(event.data);
-        
-        // Fire callbacks for tracking
-        this.fireEventCallback(success, 'control', commandName, requestStr, value);
-
-        if (success) {
-          resolve(value);
-        } else {
-          reject(new Error(`DSP command failed: ${commandName} - ${value || '<no error message>'}`));
-        }
-      };
-
-      this.ws.addEventListener('message', onMessage);
-      this.ws.send(requestStr);
+    return this.controlQueue.enqueue(async (signal) => {
+      return this.sendOnce(this.ws!, 'control', message, this.options.controlTimeoutMs!, signal);
     });
   }
 
   /**
-   * Send message to spectrum socket
+   * Send message to spectrum socket with queueing and timeout
+   * @private
    */
   private sendSpectrumMessage(message: string | Record<string, any>): Promise<any> {
+    return this.spectrumQueue.enqueue(async (signal) => {
+      return this.sendOnce(this.wsSpectrum!, 'spectrum', message, this.options.spectrumTimeoutMs!, signal);
+    });
+  }
+
+  /**
+   * Send a single message and wait for response with timeout and cancellation support
+   * @private
+   */
+  private sendOnce(
+    ws: WebSocket,
+    socketLabel: 'control' | 'spectrum',
+    message: string | Record<string, any>,
+    timeoutMs: number,
+    signal: AbortSignal
+  ): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (!this.wsSpectrum || this.wsSpectrum.readyState !== WebSocket.OPEN) {
-        reject(new Error('Spectrum WebSocket not connected'));
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        reject(new Error(`${socketLabel} WebSocket not connected`));
         return;
       }
 
       const commandName = typeof message === 'string' ? message : Object.keys(message)[0];
       const requestStr = JSON.stringify(message);
 
-      const onMessage = (event: MessageEvent) => {
-        const res = JSON.parse(event.data);
-        const responseCommand = Object.keys(res)[0];
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let resolved = false;
 
-        if (responseCommand !== commandName) {
-          return;
+      const cleanup = () => {
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
         }
+        ws.removeEventListener('message', handleMessage);
+        signal.removeEventListener('abort', handleAbort);
+      };
 
-        // Remove listener after handling
-        this.wsSpectrum!.removeEventListener('message', onMessage);
+      const handleMessage = (event: MessageEvent) => {
+        if (resolved) return;
 
-        const [success, value] = CamillaDSP.handleDSPMessage(event.data);
-        
-        // Fire callbacks for tracking
-        this.fireEventCallback(success, 'spectrum', commandName, requestStr, value);
+        try {
+          const res = JSON.parse(event.data);
+          const responseCommand = Object.keys(res)[0];
 
-        if (success) {
-          resolve(value);
-        } else {
-          reject(new Error(`Spectrum command failed: ${commandName} - ${value}`));
+          // Only handle responses for our command
+          if (responseCommand !== commandName) {
+            return;
+          }
+
+          resolved = true;
+          cleanup();
+
+          const [success, value] = CamillaDSP.handleDSPMessage(event.data);
+
+          // Fire callbacks for tracking
+          this.fireEventCallback(success, socketLabel, commandName, requestStr, value);
+
+          if (success) {
+            resolve(value);
+          } else {
+            reject(new Error(`DSP command failed: ${commandName} - ${value || '<no error message>'}`));
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket response:', error);
         }
       };
 
-      this.wsSpectrum.addEventListener('message', onMessage);
-      this.wsSpectrum.send(requestStr);
+      const handleAbort = () => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          reject(signal.reason || new Error('Request cancelled'));
+        }
+      };
+
+      // Set up abort handler
+      signal.addEventListener('abort', handleAbort);
+
+      // Check if already aborted
+      if (signal.aborted) {
+        handleAbort();
+        return;
+      }
+
+      // Set up timeout
+      timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          reject(new Error(`DSP command timed out after ${timeoutMs}ms: ${commandName}`));
+        }
+      }, timeoutMs);
+
+      ws.addEventListener('message', handleMessage);
+      ws.send(requestStr);
     });
   }
 
@@ -622,6 +672,10 @@ export class CamillaDSP {
    * Disconnect from DSP
    */
   disconnect(): void {
+    // Cancel all pending and in-flight requests
+    this.controlQueue.cancelAll(new Error('Disconnected'));
+    this.spectrumQueue.cancelAll(new Error('Disconnected'));
+
     if (this.ws) {
       this.ws.close();
       this.ws = null;

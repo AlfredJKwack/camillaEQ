@@ -20,4 +20,9 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  test: {
+    globals: false,
+    testTimeout: 10_000,
+    hookTimeout: 10_000,
+  },
 });

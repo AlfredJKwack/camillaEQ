@@ -62,6 +62,9 @@ This document describes the actual implementation as it exists in the codebase.
 - Opens two separate connections to CamillaDSP:
   1. Control socket (config upload, state queries)
   2. Spectrum socket (spectrum data polling at 10Hz)
+- **Request serialization:** All commands are queued and processed serially per socket (one in-flight at a time)
+- **Timeout protection:** Configurable timeouts per socket (default: 5s control, 2s spectrum)
+- **Cancellation safety:** Disconnect or socket closure immediately cancels all pending/in-flight requests
 
 ---
 
@@ -92,8 +95,9 @@ This document describes the actual implementation as it exists in the codebase.
 ### During Spectrum Rendering (MVP-16: Analyzer Pipeline)
 1. `EqPage.svelte` reactive polling logic:
    - Polls only when `overlayEnabled` is true (derived from `showSTA || showLTA || showPeak`)
+   - **Stops when connection lost** (even if overlay enabled)
    - Interval: 100ms (10Hz)
-   - Stops polling and clears canvas when overlay disabled
+   - Stops polling and clears canvas when overlay disabled or connection lost
 2. Each tick calls `dsp.getSpectrumData()` → sends `GetPlaybackSignalPeak` on spectrum socket
 3. Response arrives with 256-bin dB array
 4. **Fractional-octave smoothing** applied via `smoothDbBins()`:
