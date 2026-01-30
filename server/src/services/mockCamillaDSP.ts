@@ -103,13 +103,39 @@ export class MockCamillaDSP {
 
       switch (command) {
         case 'GetVersion':
-          this.sendResponse(ws, 'GetVersion', { result: 'Ok', value: '2.0.0' });
+          this.sendResponse(ws, 'GetVersion', { result: 'Ok', value: '3.0.0' });
           break;
 
         case 'GetConfigJson':
           this.sendResponse(ws, 'GetConfigJson', {
             result: 'Ok',
             value: JSON.stringify(this.getDefaultConfig()),
+          });
+          break;
+
+        case 'GetConfig':
+          this.sendResponse(ws, 'GetConfig', { result: 'Ok', value: this.getDefaultConfigYaml() });
+          break;
+
+        case 'GetConfigTitle':
+          this.sendResponse(ws, 'GetConfigTitle', { result: 'Ok', value: 'Mock CamillaDSP Configuration' });
+          break;
+
+        case 'GetConfigDescription':
+          this.sendResponse(ws, 'GetConfigDescription', { result: 'Ok', value: 'Test configuration for development' });
+          break;
+
+        case 'GetAvailableCaptureDevices':
+          this.sendResponse(ws, 'GetAvailableCaptureDevices', {
+            result: 'Ok',
+            value: this.getMockCaptureDevices(),
+          });
+          break;
+
+        case 'GetAvailablePlaybackDevices':
+          this.sendResponse(ws, 'GetAvailablePlaybackDevices', {
+            result: 'Ok',
+            value: this.getMockPlaybackDevices(),
           });
           break;
 
@@ -171,6 +197,18 @@ export class MockCamillaDSP {
             result: 'Ok',
             value: this.generateMockSpectrumData(),
           });
+          break;
+
+        case 'GetConfig':
+          this.sendResponse(ws, 'GetConfig', { result: 'Ok', value: this.getSpectrumConfigYaml() });
+          break;
+
+        case 'GetConfigTitle':
+          this.sendResponse(ws, 'GetConfigTitle', { result: 'Ok', value: 'Mock Spectrum Configuration' });
+          break;
+
+        case 'GetConfigDescription':
+          this.sendResponse(ws, 'GetConfigDescription', { result: 'Ok', value: '256-bin spectrum analyzer' });
           break;
 
         case 'SetUpdateInterval':
@@ -243,7 +281,113 @@ export class MockCamillaDSP {
   }
 
   /**
-   * Get default config
+   * Get default config YAML
+   */
+  private getDefaultConfigYaml(): string {
+    return `---
+devices:
+  samplerate: 48000
+  chunksize: 1024
+  capture:
+    type: Alsa
+    channels: 2
+    device: "hw:0"
+    format: S32LE
+  playback:
+    type: Alsa
+    channels: 2
+    device: "hw:0"
+    format: S32LE
+
+filters: {}
+
+mixers:
+  recombine:
+    description: "Mock Default Mixer"
+    channels:
+      in: 2
+      out: 2
+    mapping:
+      - dest: 0
+        sources:
+          - channel: 0
+            gain: 0
+            inverted: false
+            mute: false
+        mute: false
+      - dest: 1
+        sources:
+          - channel: 1
+            gain: 0
+            inverted: false
+            mute: false
+        mute: false
+
+pipeline:
+  - type: Mixer
+    name: recombine
+    description: "Mock Default Mixer"
+  - type: Filter
+    channel: 0
+    names: []
+    description: "Channel 0 Filters"
+  - type: Filter
+    channel: 1
+    names: []
+    description: "Channel 1 Filters"
+`;
+  }
+
+  /**
+   * Get spectrum config YAML
+   */
+  private getSpectrumConfigYaml(): string {
+    return `---
+devices:
+  samplerate: 48000
+  chunksize: 1024
+  capture:
+    type: Alsa
+    channels: 2
+    device: "hw:Loopback,1,0"
+    format: S32LE
+  playback:
+    type: File
+    channels: 2
+    filename: "/dev/null"
+    format: S32LE
+
+filters: {}
+
+pipeline: []
+`;
+  }
+
+  /**
+   * Get mock capture devices
+   */
+  private getMockCaptureDevices(): [string, string | null][] {
+    return [
+      ['hw:0,0', 'Built-in Audio Analog Stereo'],
+      ['hw:Loopback,0,0', 'Loopback, Loopback PCM, subdevice #0'],
+      ['hw:Loopback,1,0', 'Loopback, Loopback PCM, subdevice #1'],
+      ['default', null],
+    ];
+  }
+
+  /**
+   * Get mock playback devices
+   */
+  private getMockPlaybackDevices(): [string, string | null][] {
+    return [
+      ['hw:0,0', 'Built-in Audio Analog Stereo'],
+      ['hw:1,0', 'USB Audio Device'],
+      ['default', null],
+    ];
+  }
+
+  /**
+   * Get default config (JSON)
    */
   private getDefaultConfig(): any {
     if (this.config) {

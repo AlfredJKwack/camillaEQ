@@ -1,12 +1,35 @@
 <script lang="ts">
   import { router } from '../lib/router';
-  import { connectionState, lastError, connect, disconnect } from '../state/dspStore';
+  import { 
+    connectionState, 
+    lastError, 
+    connect, 
+    disconnect, 
+    dspVersion, 
+    dspDevices, 
+    dspConfigs, 
+    dspFailures,
+    dspConfig 
+  } from '../state/dspStore';
 
   let server = localStorage.getItem('camillaDSP.server') || 'localhost';
   let controlPort = localStorage.getItem('camillaDSP.controlPort') || '1234';
   let spectrumPort = localStorage.getItem('camillaDSP.spectrumPort') || '1235';
   let autoReconnect = localStorage.getItem('camillaDSP.autoReconnect') === 'true';
   let isConnecting = false;
+
+  // Helper to format timestamp
+  function formatTimestamp(ms: number): string {
+    const date = new Date(ms);
+    return date.toLocaleTimeString();
+  }
+
+  // Helper to check if device is in use
+  function isDeviceInUse(deviceId: string, type: 'capture' | 'playback'): boolean {
+    if (!$dspConfig) return false;
+    const device = $dspConfig.devices[type]?.device;
+    return device === deviceId;
+  }
 
   // Save auto-reconnect preference when toggled
   $: {
@@ -69,6 +92,11 @@
         <div class="status-subtext">
           ws://{server}:{controlPort} (control) + :{spectrumPort} (spectrum)
         </div>
+        {#if $dspVersion}
+          <div class="status-subtext">
+            CamillaDSP v{$dspVersion}
+          </div>
+        {/if}
       {/if}
       {#if $connectionState === 'error' && $lastError}
         <div class="error-message">
@@ -140,11 +168,140 @@
       {/if}
     </div>
   </form>
+
+  <!-- Available Audio Devices -->
+  {#if $connectionState === 'connected' && $dspDevices}
+    <div class="info-section">
+      <h2>Available Audio Devices</h2>
+      <p class="info-subtitle">Backend: {$dspDevices.backend}</p>
+
+      <div class="device-lists">
+        <div class="device-list">
+          <h3>Capture Devices</h3>
+          {#if $dspDevices.capture.length === 0}
+            <p class="empty-message">No capture devices found</p>
+          {:else}
+            <ul class="device-entries">
+              {#each $dspDevices.capture as [deviceId, deviceName]}
+                <li class:in-use={isDeviceInUse(deviceId, 'capture')}>
+                  <div class="device-id">{deviceId}</div>
+                  {#if deviceName}
+                    <div class="device-name">{deviceName}</div>
+                  {/if}
+                  {#if isDeviceInUse(deviceId, 'capture')}
+                    <span class="in-use-badge">In Use</span>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+
+        <div class="device-list">
+          <h3>Playback Devices</h3>
+          {#if $dspDevices.playback.length === 0}
+            <p class="empty-message">No playback devices found</p>
+          {:else}
+            <ul class="device-entries">
+              {#each $dspDevices.playback as [deviceId, deviceName]}
+                <li class:in-use={isDeviceInUse(deviceId, 'playback')}>
+                  <div class="device-id">{deviceId}</div>
+                  {#if deviceName}
+                    <div class="device-name">{deviceName}</div>
+                  {/if}
+                  {#if isDeviceInUse(deviceId, 'playback')}
+                    <span class="in-use-badge">In Use</span>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Current Configuration -->
+  {#if $connectionState === 'connected' && $dspConfigs}
+    <div class="info-section">
+      <h2>Current Configuration</h2>
+
+      <div class="config-panels">
+        <!-- Control Port Config -->
+        <div class="config-panel">
+          <h3>Control Port</h3>
+          {#if $dspConfigs.control.title}
+            <div class="config-meta">
+              <strong>Title:</strong> {$dspConfigs.control.title}
+            </div>
+          {/if}
+          {#if $dspConfigs.control.description}
+            <div class="config-meta">
+              <strong>Description:</strong> {$dspConfigs.control.description}
+            </div>
+          {/if}
+          {#if $dspConfigs.control.yaml}
+            <pre class="config-yaml">{$dspConfigs.control.yaml}</pre>
+          {:else}
+            <p class="empty-message">No configuration available</p>
+          {/if}
+        </div>
+
+        <!-- Spectrum Port Config -->
+        <div class="config-panel">
+          <h3>Spectrum Port</h3>
+          {#if $dspConfigs.spectrum.title}
+            <div class="config-meta">
+              <strong>Title:</strong> {$dspConfigs.spectrum.title}
+            </div>
+          {/if}
+          {#if $dspConfigs.spectrum.description}
+            <div class="config-meta">
+              <strong>Description:</strong> {$dspConfigs.spectrum.description}
+            </div>
+          {/if}
+          {#if $dspConfigs.spectrum.yaml}
+            <pre class="config-yaml">{$dspConfigs.spectrum.yaml}</pre>
+          {:else}
+            <p class="empty-message">No configuration available</p>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- DSP Failures -->
+  {#if $dspFailures.length > 0}
+    <div class="info-section failures-section">
+      <h2>DSP Failure Messages</h2>
+      <p class="info-subtitle">These will clear automatically on the next successful DSP response</p>
+      
+      <div class="failures-container">
+        {#each $dspFailures as failure}
+          <div class="failure-entry">
+            <div class="failure-header">
+              <span class="failure-timestamp">{formatTimestamp(failure.timestampMs)}</span>
+              <span class="failure-socket">{failure.socket}</span>
+              <span class="failure-command">{failure.command}</span>
+            </div>
+            <div class="failure-detail">
+              <strong>Request:</strong>
+              <pre class="failure-payload">{failure.request}</pre>
+            </div>
+            <div class="failure-detail">
+              <strong>Response:</strong>
+              <pre class="failure-payload">{JSON.stringify(failure.response, null, 2)}</pre>
+            </div>
+          </div>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
   .connect-page {
-    max-width: 500px;
+    max-width: 600px;
     margin: 2rem auto;
     padding: 2rem;
   }
@@ -374,5 +531,212 @@
     font-size: 0.8125rem;
     line-height: 1.5;
     color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+  }
+
+  /* Info Sections */
+  .info-section {
+    margin-top: 3rem;
+    padding: 1.5rem;
+    background: var(--ui-panel, #10141a);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+    border-radius: 8px;
+  }
+
+  .info-section h2 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--ui-text, rgba(255, 255, 255, 0.88));
+  }
+
+  .info-subtitle {
+    font-size: 0.875rem;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.62));
+    margin-bottom: 1rem;
+  }
+
+  /* Device Lists */
+  .device-lists {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .device-list h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: var(--ui-text, rgba(255, 255, 255, 0.88));
+  }
+
+  .device-entries {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .device-entries li {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+    border-radius: 4px;
+    position: relative;
+  }
+
+  .device-entries li.in-use {
+    border-color: rgba(120, 255, 190, 0.3);
+    background: rgba(120, 255, 190, 0.05);
+  }
+
+  .device-id {
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+    color: var(--ui-text, rgba(255, 255, 255, 0.88));
+    margin-bottom: 0.25rem;
+  }
+
+  .device-name {
+    font-size: 0.8rem;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.62));
+  }
+
+  .in-use-badge {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    background: rgba(120, 255, 190, 0.2);
+    border: 1px solid rgba(120, 255, 190, 0.4);
+    border-radius: 3px;
+    color: rgb(120, 255, 190);
+    font-weight: 600;
+  }
+
+  .empty-message {
+    font-size: 0.875rem;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+    font-style: italic;
+  }
+
+  /* Config Panels */
+  .config-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .config-panel h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: var(--ui-text, rgba(255, 255, 255, 0.88));
+  }
+
+  .config-meta {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.72));
+  }
+
+  .config-meta strong {
+    color: var(--ui-text, rgba(255, 255, 255, 0.88));
+  }
+
+  .config-yaml {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: 'Courier New', monospace;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.72));
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.4;
+    margin-top: 0.75rem;
+  }
+
+  /* Failures Section */
+  .failures-section {
+    border-color: rgba(255, 120, 120, 0.3);
+    background: rgba(255, 120, 120, 0.05);
+  }
+
+  .failures-container {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .failure-entry {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: rgba(255, 120, 120, 0.1);
+    border: 1px solid rgba(255, 120, 120, 0.3);
+    border-radius: 4px;
+  }
+
+  .failure-header {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .failure-timestamp {
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.62));
+  }
+
+  .failure-socket {
+    padding: 0.125rem 0.5rem;
+    background: rgba(120, 160, 255, 0.2);
+    border: 1px solid rgba(120, 160, 255, 0.4);
+    border-radius: 3px;
+    color: rgb(120, 160, 255);
+    font-weight: 600;
+    font-size: 0.75rem;
+  }
+
+  .failure-command {
+    padding: 0.125rem 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+  }
+
+  .failure-detail {
+    margin-top: 0.75rem;
+  }
+
+  .failure-detail strong {
+    font-size: 0.8rem;
+    color: var(--ui-text, rgba(255, 255, 255, 0.88));
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+
+  .failure-payload {
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 120, 120, 0.2);
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.72));
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.4;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  @media (max-width: 900px) {
+    .device-lists,
+    .config-panels {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

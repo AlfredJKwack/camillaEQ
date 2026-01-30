@@ -1483,27 +1483,103 @@ Implementation notes:
 • Intended use is **broad tonal balance, trend visualization, and EQ guidance**.
 
 
-## MVP-17 - Update to latest CamillaDSP
+## MVP-17 - DSP info display
 
-### Goal: Update the ws definition and app to CamillaDSP v3
+### Goal: Provide the user with information about the state of camillaDSP
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-01-30)
 
-### Deliverables:
+### As Built
 
-1. **Update the internal data representation**
-2. **Update usage of volume controls to incorporate limits**
-3. **Leverage websocket command for reading all faders in a single call**
-4. **DSP failure messages are shown on connection page**
-  - When a failure message is received from the DSP, it is shown on the connection page with a timestamp.
-  - The message is shown in a scrollable area at the bottom of the page.
-  - The message contains what was sent by the DSP, and the timestamp of when it was received.
-  - The mesasge contains what was sent to the DSP and led to a failure (if available)
-  - Nothing is shown if no failures are active (i.e. the DSP is working or has accepted something since the failure occurred)
+**Extended CamillaDSP client** (`client/src/lib/camillaDSP.ts`):
+- New protocol methods:
+  - `getVersion()` - Returns CamillaDSP version string
+  - `getAvailableCaptureDevices(backend)` - Lists available capture devices
+  - `getAvailablePlaybackDevices(backend)` - Lists available playback devices
+  - `getConfigYaml(socket)` - Returns config as YAML from control or spectrum socket
+  - `getConfigTitle(socket)` - Returns config title
+  - `getConfigDescription(socket)` - Returns config description
+- Event callbacks for success/failure tracking:
+  - `onDspSuccess(info)` - Called on any successful DSP response
+  - `onDspFailure(info)` - Called on any failed DSP response
+  - Callbacks fire for both control and spectrum sockets
+  - Info includes: timestamp, socket, command, request, response
+
+**DSP state management** (`client/src/state/dspStore.ts`):
+- Extended `DspState` interface with:
+  - `version?: string`
+  - `availableDevices?: { capture, playback, backend }`
+  - `currentConfigs?: { control: {...}, spectrum: {...} }`
+  - `failures: FailureEntry[]`
+- New action: `refreshDspInfo()` - Fetches all DSP metadata after connection
+- Failure tracking:
+  - `handleDspSuccess()` - Clears all failures on any successful response
+  - `handleDspFailure()` - Appends failure entry with full context
+- Device highlighting: Compares `config.devices.*.device` with returned device lists
+
+**ConnectPage UI** (`client/src/pages/ConnectPage.svelte`):
+1. **Version display:**
+   - Shows "CamillaDSP vX.Y.Z" in status card when connected
+   - Hidden when disconnected
+
+2. **Audio devices section:**
+   - Two-column grid: Capture / Playback
+   - Each device shows identifier + optional name
+   - "In Use" badge highlights device matching current config
+   - Backend name displayed (extracted from config or defaults to 'Alsa')
+
+3. **Current configuration section:**
+   - Two-column grid: Control Port / Spectrum Port
+   - Each panel shows: title, description (if present), YAML config
+   - YAML displayed in scrollable `<pre>` with monospace font
+   - Empty state message if config unavailable
+
+4. **DSP failures section:**
+   - Only visible when failures array non-empty
+   - Scrollable container with red-themed styling
+   - Each failure entry shows:
+     - Timestamp (formatted with `toLocaleTimeString()`)
+     - Socket badge (control/spectrum)
+     - Command name
+     - Request payload (JSON string)
+     - Response payload (formatted JSON with 2-space indent)
+   - Auto-clears on next successful DSP response (any command)
+
+**Mock server updates** (`server/src/services/mockCamillaDSP.ts`):
+- Added handlers for new commands on both sockets:
+  - `GetConfig` - Returns YAML config string
+  - `GetConfigTitle` - Returns mock title
+  - `GetConfigDescription` - Returns mock description
+  - `GetAvailableCaptureDevices` - Returns mock device list
+  - `GetAvailablePlaybackDevices` - Returns mock device list
+- Version updated to '3.0.0' to reflect CamillaDSP v3 compatibility
+- Device lists return proper `[identifier, name | null]` tuples per protocol
+
+**Test coverage:**
+- 24 new integration tests in `camillaDSP.integration.test.ts`:
+  - 9 tests for new DSP info methods
+  - 2 tests for success/failure callbacks
+  - All existing tests updated for v3.0.0 version
+- All 145 client tests passing
+
+### Deliverables (files modified):
+- `client/src/lib/camillaDSP.ts` - Extended with 6 new methods + event callbacks
+- `client/src/state/dspStore.ts` - Added DSP info state + refresh action + failure tracking
+- `client/src/pages/ConnectPage.svelte` - Added 3 new info sections + styling
+- `server/src/services/mockCamillaDSP.ts` - Added 5 new command handlers per socket
+- `client/src/lib/__tests__/camillaDSP.integration.test.ts` - Added 24 tests
+
+### Success criteria
+- ✅ When connected, Connect page shows:
+  - CamillaDSP version in status card
+  - Capture/playback device lists with in-use highlighting
+  - YAML configs for control + spectrum with title/description when present
+- ✅ When a DSP command fails, failure entry appears with full context
+- ✅ Failures cleared automatically on next successful DSP response
+- ✅ All 145 client tests + 54 server tests passing
 
 ## MVP-18 - Review and refine state management
-
 ### Goal: Ensure that the state management is robust and efficient.
 
 ### Status

@@ -193,7 +193,13 @@ Clicking **Disconnect** will:
 
 ## Project Status
 
-**Current Milestone:** MVP-16 Complete ✓ — Spectrum analyzer with STA/LTA/Peak + fractional-octave smoothing
+**Current Milestone:** MVP-17 Complete ✓ — DSP info display on Connection page
+
+**New in MVP-17:**
+- **CamillaDSP version display** in status card when connected
+- **Audio devices section:** Capture/playback device lists with "In Use" badges
+- **Current configuration section:** YAML configs for control + spectrum with title/description
+- **DSP failures section:** Timestamped error log with request/response context (auto-clears on success)
 
 ### Completed Milestones
 
@@ -410,7 +416,7 @@ The application now provides a **fully interactive equalizer editor** with:
 
 ### Next Milestone
 
-**MVP-15:** Pipeline editor implementation
+**MVP-18:** Review and refine state management
 
 ## Documentation
 

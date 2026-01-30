@@ -140,7 +140,59 @@ describe('CamillaDSP Integration Tests', () => {
           case 'GetVersion':
             ws.send(
               JSON.stringify({
-                GetVersion: { result: 'Ok', value: '2.0.0' },
+                GetVersion: { result: 'Ok', value: '3.0.0' },
+              })
+            );
+            break;
+
+          case 'GetConfig':
+            ws.send(
+              JSON.stringify({
+                GetConfig: { result: 'Ok', value: 'devices:\n  samplerate: 48000' },
+              })
+            );
+            break;
+
+          case 'GetConfigTitle':
+            ws.send(
+              JSON.stringify({
+                GetConfigTitle: { result: 'Ok', value: 'Test Config Title' },
+              })
+            );
+            break;
+
+          case 'GetConfigDescription':
+            ws.send(
+              JSON.stringify({
+                GetConfigDescription: { result: 'Ok', value: 'Test config description' },
+              })
+            );
+            break;
+
+          case 'GetAvailableCaptureDevices':
+            ws.send(
+              JSON.stringify({
+                GetAvailableCaptureDevices: {
+                  result: 'Ok',
+                  value: [
+                    ['hw:0,0', 'Test Capture Device'],
+                    ['default', null],
+                  ],
+                },
+              })
+            );
+            break;
+
+          case 'GetAvailablePlaybackDevices':
+            ws.send(
+              JSON.stringify({
+                GetAvailablePlaybackDevices: {
+                  result: 'Ok',
+                  value: [
+                    ['hw:0,0', 'Test Playback Device'],
+                    ['default', null],
+                  ],
+                },
               })
             );
             break;
@@ -159,7 +211,8 @@ describe('CamillaDSP Integration Tests', () => {
     spectrumServer = new WebSocketServer({ port: SPECTRUM_PORT });
     spectrumServer.on('connection', (ws) => {
       ws.on('message', (data) => {
-        const message = data.toString().replace(/"/g, '');
+        const request = JSON.parse(data.toString());
+        const message = typeof request === 'string' ? request : Object.keys(request)[0];
 
         if (message === 'GetPlaybackSignalPeak') {
           // Return 256 bins (mock spectrum data in dBFS)
@@ -179,6 +232,24 @@ describe('CamillaDSP Integration Tests', () => {
                 result: 'Ok',
                 value: bins,
               },
+            })
+          );
+        } else if (message === 'GetConfig') {
+          ws.send(
+            JSON.stringify({
+              GetConfig: { result: 'Ok', value: 'devices:\n  samplerate: 48000\n  chunksize: 1024' },
+            })
+          );
+        } else if (message === 'GetConfigTitle') {
+          ws.send(
+            JSON.stringify({
+              GetConfigTitle: { result: 'Ok', value: 'Spectrum Config Title' },
+            })
+          );
+        } else if (message === 'GetConfigDescription') {
+          ws.send(
+            JSON.stringify({
+              GetConfigDescription: { result: 'Ok', value: 'Spectrum config description' },
             })
           );
         }
@@ -336,6 +407,131 @@ describe('CamillaDSP Integration Tests', () => {
 
       expect(dsp.connected).toBe(false);
       expect(dsp.spectrumConnected).toBe(false);
+    });
+  });
+
+  describe('DSP Info Methods (MVP-17)', () => {
+    beforeEach(async () => {
+      await dsp.connect('localhost', CONTROL_PORT, SPECTRUM_PORT);
+    });
+
+    afterEach(() => {
+      dsp.disconnect();
+    });
+
+    it('should get CamillaDSP version', async () => {
+      const version = await dsp.getVersion();
+
+      expect(version).toBe('3.0.0');
+    });
+
+    it('should get available capture devices', async () => {
+      const devices = await dsp.getAvailableCaptureDevices('Alsa');
+
+      expect(devices).toBeDefined();
+      expect(Array.isArray(devices)).toBe(true);
+      expect(devices!.length).toBeGreaterThan(0);
+      expect(devices![0]).toEqual(['hw:0,0', 'Test Capture Device']);
+    });
+
+    it('should get available playback devices', async () => {
+      const devices = await dsp.getAvailablePlaybackDevices('Alsa');
+
+      expect(devices).toBeDefined();
+      expect(Array.isArray(devices)).toBe(true);
+      expect(devices!.length).toBeGreaterThan(0);
+      expect(devices![0]).toEqual(['hw:0,0', 'Test Playback Device']);
+    });
+
+    it('should get config YAML from control socket', async () => {
+      const yaml = await dsp.getConfigYaml('control');
+
+      expect(yaml).toBeDefined();
+      expect(typeof yaml).toBe('string');
+      expect(yaml).toContain('devices');
+      expect(yaml).toContain('samplerate');
+    });
+
+    it('should get config YAML from spectrum socket', async () => {
+      const yaml = await dsp.getConfigYaml('spectrum');
+
+      expect(yaml).toBeDefined();
+      expect(typeof yaml).toBe('string');
+      expect(yaml).toContain('devices');
+    });
+
+    it('should get config title from control socket', async () => {
+      const title = await dsp.getConfigTitle('control');
+
+      expect(title).toBe('Test Config Title');
+    });
+
+    it('should get config title from spectrum socket', async () => {
+      const title = await dsp.getConfigTitle('spectrum');
+
+      expect(title).toBe('Spectrum Config Title');
+    });
+
+    it('should get config description from control socket', async () => {
+      const desc = await dsp.getConfigDescription('control');
+
+      expect(desc).toBe('Test config description');
+    });
+
+    it('should get config description from spectrum socket', async () => {
+      const desc = await dsp.getConfigDescription('spectrum');
+
+      expect(desc).toBe('Spectrum config description');
+    });
+  });
+
+  describe('Success/Failure Callbacks (MVP-17)', () => {
+    beforeEach(async () => {
+      await dsp.connect('localhost', CONTROL_PORT, SPECTRUM_PORT);
+    });
+
+    afterEach(() => {
+      dsp.disconnect();
+    });
+
+    it('should call onDspSuccess callback on successful command', async () => {
+      let successCalled = false;
+      let successInfo: any = null;
+
+      dsp.onDspSuccess = (info) => {
+        successCalled = true;
+        successInfo = info;
+      };
+
+      await dsp.getVersion();
+
+      expect(successCalled).toBe(true);
+      expect(successInfo).toBeDefined();
+      expect(successInfo.socket).toBe('control');
+      expect(successInfo.command).toBe('GetVersion');
+      expect(successInfo.response).toBe('3.0.0');
+    });
+
+    it('should call onDspFailure callback on failed command', async () => {
+      let failureCalled = false;
+      let failureInfo: any = null;
+
+      dsp.onDspFailure = (info) => {
+        failureCalled = true;
+        failureInfo = info;
+      };
+
+      try {
+        // Send an unknown command (will fail)
+        await (dsp as any).sendDSPMessage('UnknownCommand');
+      } catch (error) {
+        // Expected to throw
+      }
+
+      expect(failureCalled).toBe(true);
+      expect(failureInfo).toBeDefined();
+      expect(failureInfo.socket).toBe('control');
+      expect(failureInfo.command).toBe('UnknownCommand');
     });
   });
 });

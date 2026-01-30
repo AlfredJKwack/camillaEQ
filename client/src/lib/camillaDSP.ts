@@ -48,6 +48,16 @@ interface DSPResponse {
   value: any;
 }
 
+export interface DspEventInfo {
+  timestampMs: number;
+  socket: 'control' | 'spectrum';
+  command: string;
+  request: string;
+  response: any;
+}
+
+export type DeviceEntry = [string, string | null];
+
 /**
  * CamillaDSP client class
  */
@@ -61,6 +71,10 @@ export class CamillaDSP {
   public connected: boolean = false;
   public spectrumConnected: boolean = false;
   public config: CamillaDSPConfig | null = null;
+
+  // Event callbacks for failure tracking
+  public onDspSuccess?: (info: DspEventInfo) => void;
+  public onDspFailure?: (info: DspEventInfo) => void;
 
   // Default mixer configuration
   private readonly defaultMixer = {
@@ -258,6 +272,31 @@ export class CamillaDSP {
   }
 
   /**
+   * Fire success/failure callbacks
+   */
+  private fireEventCallback(
+    success: boolean,
+    socket: 'control' | 'spectrum',
+    command: string,
+    request: string,
+    response: any
+  ): void {
+    const info: DspEventInfo = {
+      timestampMs: Date.now(),
+      socket,
+      command,
+      request,
+      response,
+    };
+
+    if (success && this.onDspSuccess) {
+      this.onDspSuccess(info);
+    } else if (!success && this.onDspFailure) {
+      this.onDspFailure(info);
+    }
+  }
+
+  /**
    * Send message to DSP control socket
    * Fixed: properly removes event listener to avoid leaks
    */
@@ -269,6 +308,7 @@ export class CamillaDSP {
       }
 
       const commandName = typeof message === 'string' ? message : Object.keys(message)[0];
+      const requestStr = JSON.stringify(message);
 
       const onMessage = (event: MessageEvent) => {
         const res = JSON.parse(event.data);
@@ -283,6 +323,10 @@ export class CamillaDSP {
         this.ws!.removeEventListener('message', onMessage);
 
         const [success, value] = CamillaDSP.handleDSPMessage(event.data);
+        
+        // Fire callbacks for tracking
+        this.fireEventCallback(success, 'control', commandName, requestStr, value);
+
         if (success) {
           resolve(value);
         } else {
@@ -291,25 +335,28 @@ export class CamillaDSP {
       };
 
       this.ws.addEventListener('message', onMessage);
-      this.ws.send(JSON.stringify(message));
+      this.ws.send(requestStr);
     });
   }
 
   /**
    * Send message to spectrum socket
    */
-  private sendSpectrumMessage(message: string): Promise<any> {
+  private sendSpectrumMessage(message: string | Record<string, any>): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.wsSpectrum || this.wsSpectrum.readyState !== WebSocket.OPEN) {
         reject(new Error('Spectrum WebSocket not connected'));
         return;
       }
 
+      const commandName = typeof message === 'string' ? message : Object.keys(message)[0];
+      const requestStr = JSON.stringify(message);
+
       const onMessage = (event: MessageEvent) => {
         const res = JSON.parse(event.data);
         const responseCommand = Object.keys(res)[0];
 
-        if (responseCommand !== message) {
+        if (responseCommand !== commandName) {
           return;
         }
 
@@ -317,15 +364,19 @@ export class CamillaDSP {
         this.wsSpectrum!.removeEventListener('message', onMessage);
 
         const [success, value] = CamillaDSP.handleDSPMessage(event.data);
+        
+        // Fire callbacks for tracking
+        this.fireEventCallback(success, 'spectrum', commandName, requestStr, value);
+
         if (success) {
           resolve(value);
         } else {
-          reject(new Error(`Spectrum command failed: ${message} - ${value}`));
+          reject(new Error(`Spectrum command failed: ${commandName} - ${value}`));
         }
       };
 
       this.wsSpectrum.addEventListener('message', onMessage);
-      this.wsSpectrum.send(JSON.stringify(message));
+      this.wsSpectrum.send(requestStr);
     });
   }
 
@@ -482,6 +533,87 @@ export class CamillaDSP {
       return await this.sendSpectrumMessage('GetPlaybackSignalPeak');
     } catch (error) {
       console.error('Error getting spectrum data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get CamillaDSP version
+   */
+  async getVersion(): Promise<string | null> {
+    try {
+      return await this.sendDSPMessage('GetVersion');
+    } catch (error) {
+      console.error('Error getting version:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get available capture devices for a given backend
+   */
+  async getAvailableCaptureDevices(backend: string): Promise<DeviceEntry[] | null> {
+    try {
+      return await this.sendDSPMessage({ GetAvailableCaptureDevices: backend });
+    } catch (error) {
+      console.error('Error getting capture devices:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get available playback devices for a given backend
+   */
+  async getAvailablePlaybackDevices(backend: string): Promise<DeviceEntry[] | null> {
+    try {
+      return await this.sendDSPMessage({ GetAvailablePlaybackDevices: backend });
+    } catch (error) {
+      console.error('Error getting playback devices:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get config as YAML from specified socket
+   */
+  async getConfigYaml(socket: 'control' | 'spectrum' = 'control'): Promise<string | null> {
+    try {
+      if (socket === 'spectrum') {
+        return await this.sendSpectrumMessage('GetConfig');
+      }
+      return await this.sendDSPMessage('GetConfig');
+    } catch (error) {
+      console.error(`Error getting config YAML from ${socket}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get config title from specified socket
+   */
+  async getConfigTitle(socket: 'control' | 'spectrum' = 'control'): Promise<string | null> {
+    try {
+      if (socket === 'spectrum') {
+        return await this.sendSpectrumMessage('GetConfigTitle');
+      }
+      return await this.sendDSPMessage('GetConfigTitle');
+    } catch (error) {
+      console.error(`Error getting config title from ${socket}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get config description from specified socket
+   */
+  async getConfigDescription(socket: 'control' | 'spectrum' = 'control'): Promise<string | null> {
+    try {
+      if (socket === 'spectrum') {
+        return await this.sendSpectrumMessage('GetConfigDescription');
+      }
+      return await this.sendDSPMessage('GetConfigDescription');
+    } catch (error) {
+      console.error(`Error getting config description from ${socket}:`, error);
       return null;
     }
   }

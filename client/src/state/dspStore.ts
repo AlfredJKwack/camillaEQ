@@ -4,16 +4,35 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
-import { CamillaDSP, type CamillaDSPConfig } from '../lib/camillaDSP';
+import { CamillaDSP, type CamillaDSPConfig, type DeviceEntry, type DspEventInfo } from '../lib/camillaDSP';
 import { debounce } from '../lib/debounce';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+export interface FailureEntry {
+  timestampMs: number;
+  socket: 'control' | 'spectrum';
+  command: string;
+  request: string;
+  response: any;
+}
 
 export interface DspState {
   connectionState: ConnectionState;
   lastError?: string;
   config?: CamillaDSPConfig;
   volumeDb?: number;
+  version?: string;
+  availableDevices?: {
+    capture: DeviceEntry[];
+    playback: DeviceEntry[];
+    backend: string;
+  };
+  currentConfigs?: {
+    control: { title?: string; description?: string; yaml?: string };
+    spectrum: { title?: string; description?: string; yaml?: string };
+  };
+  failures: FailureEntry[];
 }
 
 // Internal state
@@ -42,6 +61,7 @@ const debouncedSetVolume = debounce(async (volumeDb: number) => {
 // Stores
 export const dspState = writable<DspState>({
   connectionState: 'disconnected',
+  failures: [],
 });
 
 // Derived stores for convenience
@@ -49,6 +69,10 @@ export const connectionState = derived(dspState, ($state) => $state.connectionSt
 export const lastError = derived(dspState, ($state) => $state.lastError);
 export const dspConfig = derived(dspState, ($state) => $state.config);
 export const dspVolume = derived(dspState, ($state) => $state.volumeDb ?? 0);
+export const dspVersion = derived(dspState, ($state) => $state.version);
+export const dspDevices = derived(dspState, ($state) => $state.availableDevices);
+export const dspConfigs = derived(dspState, ($state) => $state.currentConfigs);
+export const dspFailures = derived(dspState, ($state) => $state.failures);
 
 /**
  * Get the singleton DSP instance
@@ -102,8 +126,13 @@ export async function connect(
       // Debug: Log downloaded config shape
       console.log(`Downloaded config: ${Object.keys(dspInstance.config.filters || {}).length} filters`);
       
-      // Fetch initial volume
+      // Hook up success/failure callbacks
+      dspInstance.onDspSuccess = handleDspSuccess;
+      dspInstance.onDspFailure = handleDspFailure;
+      
+      // Fetch initial volume and DSP info
       await refreshVolume();
+      await refreshDspInfo();
       
       return true;
     } else {
@@ -140,6 +169,7 @@ export function disconnect(): void {
 
   dspState.set({
     connectionState: 'disconnected',
+    failures: [],
   });
 
   console.log('Global DSP connection closed');
@@ -351,4 +381,94 @@ export function setVolumeDb(volumeDb: number): void {
   
   // Debounced network call
   debouncedSetVolume(clamped);
+}
+
+/**
+ * Refresh DSP info (version, devices, configs)
+ */
+export async function refreshDspInfo(): Promise<void> {
+  if (!dspInstance || !dspInstance.connected) return;
+
+  try {
+    // Get version
+    const version = await dspInstance.getVersion();
+    
+    // Determine backend from config
+    const backend = dspInstance.config?.devices?.capture?.type || 
+                    dspInstance.config?.devices?.playback?.type || 
+                    'Alsa';
+    
+    // Get device lists
+    const [captureDevices, playbackDevices] = await Promise.all([
+      dspInstance.getAvailableCaptureDevices(backend),
+      dspInstance.getAvailablePlaybackDevices(backend),
+    ]);
+
+    // Get control config info
+    const [controlYaml, controlTitle, controlDesc] = await Promise.all([
+      dspInstance.getConfigYaml('control'),
+      dspInstance.getConfigTitle('control'),
+      dspInstance.getConfigDescription('control'),
+    ]);
+
+    // Get spectrum config info
+    const [spectrumYaml, spectrumTitle, spectrumDesc] = await Promise.all([
+      dspInstance.getConfigYaml('spectrum'),
+      dspInstance.getConfigTitle('spectrum'),
+      dspInstance.getConfigDescription('spectrum'),
+    ]);
+
+    // Update state
+    dspState.update((s) => ({
+      ...s,
+      version: version || undefined,
+      availableDevices: captureDevices && playbackDevices ? {
+        capture: captureDevices,
+        playback: playbackDevices,
+        backend,
+      } : undefined,
+      currentConfigs: {
+        control: {
+          title: controlTitle || undefined,
+          description: controlDesc || undefined,
+          yaml: controlYaml || undefined,
+        },
+        spectrum: {
+          title: spectrumTitle || undefined,
+          description: spectrumDesc || undefined,
+          yaml: spectrumYaml || undefined,
+        },
+      },
+    }));
+  } catch (error) {
+    console.error('Error refreshing DSP info:', error);
+  }
+}
+
+/**
+ * Handle DSP success (clears failures)
+ */
+function handleDspSuccess(info: DspEventInfo): void {
+  dspState.update((s) => ({
+    ...s,
+    failures: [], // Clear all failures on any successful response
+  }));
+}
+
+/**
+ * Handle DSP failure (appends to failures list)
+ */
+function handleDspFailure(info: DspEventInfo): void {
+  const failure: FailureEntry = {
+    timestampMs: info.timestampMs,
+    socket: info.socket,
+    command: info.command,
+    request: info.request,
+    response: info.response,
+  };
+
+  dspState.update((s) => ({
+    ...s,
+    failures: [...s.failures, failure],
+  }));
 }

@@ -317,14 +317,36 @@
     - Reset button (↺): resets STA/LTA to current live values
   - All 140 tests passing
 
+- [x] **MVP-17: DSP Info Display** (2026-01-30)
+  - **Extended CamillaDSP client** (`client/src/lib/camillaDSP.ts`):
+    - New protocol methods: `getVersion()`, `getAvailableCaptureDevices()`, `getAvailablePlaybackDevices()`, `getConfigYaml()`, `getConfigTitle()`, `getConfigDescription()`
+    - Event callbacks: `onDspSuccess()`, `onDspFailure()` for success/failure tracking on both sockets
+  - **DSP state management** (`client/src/state/dspStore.ts`):
+    - Extended state with: version, availableDevices, currentConfigs, failures array
+    - New action: `refreshDspInfo()` - fetches all DSP metadata after connection
+    - Failure tracking: failures accumulate, cleared on any successful response
+  - **ConnectPage UI** (`client/src/pages/ConnectPage.svelte`):
+    - Version display in status card
+    - Audio devices section with "In Use" badges
+    - Current configuration section with YAML display
+    - DSP failures section with timestamped error log
+  - **Mock server updates** (`server/src/services/mockCamillaDSP.ts`):
+    - Added handlers for new commands on both sockets
+    - Version updated to '3.0.0'
+  - All 145 client tests + 54 server tests passing
+
 ## Current Status
-**Phase:** MVP-16 Completed - Spectrum Analyzer with STA/LTA/Peak + Fractional-Octave Smoothing
+**Phase:** MVP-17 Completed - DSP Info Display on Connection Page
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-## MVP-17 - Update to latest CamillaDSP (incorporate v3 protocol changes, volume limits, failure messages)
+### MVP-18: Review and refine state management
+- Ensure state management is robust and efficient
+- Review eqStore, dspStore patterns
+- Validate reactive update performance
+- Document state flow patterns
 
 
 

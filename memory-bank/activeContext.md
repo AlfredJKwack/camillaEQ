@@ -1,10 +1,10 @@
 # Active Context
 
 ## Current Focus
-**MVP-16 completed** - Spectrum analyzer with STA/LTA/Peak + fractional-octave smoothing. Next milestone: MVP-17 (Update to latest CamillaDSP).
+**MVP-17 completed** - DSP info display on Connection page. Next milestone: MVP-18 (Review and refine state management).
 
 ## Recently Completed
-**MVP-16: Averaged Spectrum + Peak Hold** (2026-01-30)
+**MVP-17: DSP Info Display** (2026-01-30)
 
 ### Delivered in MVP-16:
 - ✅ Temporal averaging engine with STA (τ=0.8s), LTA (τ=8s), Peak hold (2s hold, 12 dB/s decay)
@@ -17,38 +17,32 @@
 
 ## Recent Work
 
-### MVP-16 Implementation Details (2026-01-30)
+### MVP-17 Implementation Details (2026-01-30)
 
-**Temporal Averaging (dB domain):**
-- STA: Short-term average with 0.8s time constant, default ON
-- LTA: Long-term average with 8s time constant, default OFF  
-- Peak: Maximum per-bin with 2s hold + 12 dB/s decay
-- Uses actual dt between frames (clamped to 150ms max)
+**Extended CamillaDSP Client:**
+- New protocol methods: `getVersion()`, `getAvailableCaptureDevices()`, `getAvailablePlaybackDevices()`, `getConfigYaml()`, `getConfigTitle()`, `getConfigDescription()`
+- Event callbacks: `onDspSuccess(info)` and `onDspFailure(info)` for tracking all DSP responses
+- Callbacks fire for both control and spectrum sockets
+- Info includes: timestamp, socket, command, request, response
 
-**Fractional-Octave Smoothing:**
-- Applied to raw dB bins before analyzer state update
-- Options: Off / 1/12 / 1/6 (default) / 1/3 octave
-- Proper log-frequency spacing for filterbank smoothing
+**DSP State Management:**
+- Extended `DspState` with: version, availableDevices, currentConfigs, failures array
+- New action: `refreshDspInfo()` - fetches all metadata after connection
+- Failure tracking: accumulates failures, clears on any successful response
+- Device highlighting: compares active config devices with available device lists
 
-**Overlay Enablement Model:**
-- Overlay enabled = any of STA/LTA/PEAK toggled ON
-- Pre/Post selector chooses source (dims when overlay disabled)
-- Polling automatically starts/stops based on state
-- Canvas clears when overlay disabled
-
-**UI Controls:**
-- 2×2 analyzer grid: STA / LTA / PEAK / Reset (uniform 32px height)
-- Smoothing dropdown in viz options
-- Reset button (↺) resets STA/LTA to current live values
-
-**Files Created:**
-- `client/src/dsp/spectrumAnalyzer.ts` - Temporal averaging engine
-- `client/src/dsp/fractionalOctaveSmoothing.ts` - Spatial smoothing
-- `client/src/ui/rendering/canvasLayers/SpectrumAnalyzerLayer.ts` - Multi-series renderer
+**ConnectPage UI Enhancements:**
+- Version display in status card ("CamillaDSP vX.Y.Z")
+- Audio devices section: two-column grid with "In Use" badges
+- Current configuration section: YAML display for control + spectrum with title/description
+- DSP failures section: timestamped error log with full request/response context
 
 **Files Modified:**
-- `client/src/pages/EqPage.svelte` - UI controls + reactive polling logic
-- `client/src/ui/rendering/SpectrumCanvasRenderer.ts` - Layer orchestration
+- `client/src/lib/camillaDSP.ts` - Extended with 6 new methods + event callbacks
+- `client/src/state/dspStore.ts` - Added DSP info state + refresh action + failure tracking
+- `client/src/pages/ConnectPage.svelte` - Added 3 new info sections + styling
+- `server/src/services/mockCamillaDSP.ts` - Added 5 new command handlers per socket
+- `client/src/lib/__tests__/camillaDSP.integration.test.ts` - Added 24 tests (9 DSP info + 2 callbacks)
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)
@@ -63,6 +57,7 @@
 - ✅ **Overlay enablement:** Driven by analyzer series toggles, not Pre/Post selector (ADR-007)
 - ✅ **Canvas resolution:** Use DPR scaling for retina displays
 - ✅ **Layer architecture:** `CanvasVisualizationLayer` interface for extendable visualizations
+- ✅ **Failure tracking:** Accumulate failures, clear on any success (MVP-17)
 
 ## Open Questions
 - **Upload debounce timing:** 200ms current - validated as good balance
@@ -73,12 +68,12 @@
 - **Network latency** - Optimistic UI updates, write-through persistence
 
 ## Risk Mitigation Strategy (per implementation plan)
-- ✅ **MVP-16 validated:** Temporal averaging performance confirmed (no frame drops at 10Hz)
-- ✅ **Fractional-octave smoothing:** Improves readability without lag
-- ✅ **Overlay model:** Coherent and predictable state management
+- ✅ **MVP-17 validated:** DSP info display provides comprehensive diagnostics
+- ✅ **Failure tracking:** Clear visibility into DSP communication issues
+- ✅ **Version display:** Users can verify CamillaDSP compatibility
 
 ## Next Milestones
-1. **MVP-17:** Update to latest CamillaDSP (v3 protocol changes, volume limits, failure messages)
+1. **MVP-18:** Review and refine state management (eqStore, dspStore patterns)
 2. **Future:** Multi-channel pipeline editor, advanced features
 
 ## Context References
