@@ -141,6 +141,8 @@
 
 <div
   class="filter-type-picker"
+  role="dialog"
+  aria-label="Filter type picker"
   bind:this={popoverElement}
   data-side={side}
   style="left: {leftPx}px; top: {topPx}px; --tail-top: {tailTopPx}px;"

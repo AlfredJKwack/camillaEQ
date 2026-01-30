@@ -144,16 +144,6 @@
         pointer-events="none"
       />
       
-      <!-- Token ring (visible 3px ring: 20px outer, 17px inner) -->
-      <circle
-        r={ringCenterRadius}
-        fill="none"
-        stroke="var(--band-color)"
-        stroke-width={ringStrokeWidth}
-        class="band-token-ring"
-        pointer-events="none"
-      />
-      
       <!-- Invisible hit area (full 20px radius for easy grabbing) -->
       <circle
         r={tokenRadius}
@@ -166,6 +156,16 @@
         on:pointermove={handleTokenPointerMove}
         on:pointerup={handleTokenPointerUp}
         on:wheel={(e) => handleTokenWheel(e, i)}
+      />
+      
+      <!-- Token ring (visible 3px ring: 20px outer, 17px inner) -->
+      <circle
+        r={ringCenterRadius}
+        fill="none"
+        stroke="var(--band-color)"
+        stroke-width={ringStrokeWidth}
+        class="band-token-ring"
+        pointer-events="none"
       />
       
       <!-- Center index number (no additional transform needed - already in local coords) -->

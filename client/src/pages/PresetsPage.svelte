@@ -34,8 +34,8 @@
   }
 
   // Load configs list on mount
-  onMount(async () => {
-    await loadConfigsList();
+  onMount(() => {
+    loadConfigsList();
     
     // Global keyboard handler for '/' to focus search
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -266,10 +266,19 @@
         {@const isSelected = selectedConfigId === config.id}
         <div
           class="config-row"
+          role="button"
+          tabindex="0"
           class:highlighted={isHighlighted}
           class:selected={isSelected}
           on:click={() => loadConfig(config.id)}
           on:mouseenter={() => (highlightedIndex = i)}
+          on:focus={() => (highlightedIndex = i)}
+          on:keydown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              loadConfig(config.id);
+            }
+          }}
         >
           <span class="config-name">{@html highlightMatch(config.configName, searchQuery)}</span>
           <button
@@ -286,9 +295,26 @@
 </div>
 
 {#if showSaveDialog}
-  <div class="dialog-backdrop" on:click={closeSaveDialog}>
-    <div class="dialog" on:click|stopPropagation>
-      <h2>Save Current Configuration</h2>
+  <div 
+    class="dialog-backdrop"
+    role="button"
+    tabindex="0"
+    aria-label="Close dialog"
+    on:click={closeSaveDialog}
+    on:keydown={(e) => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        closeSaveDialog();
+      }
+    }}
+  >
+    <div 
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dialog-title"
+    >
+      <h2 id="dialog-title">Save Current Configuration</h2>
       <p class="dialog-help">
         This will save your current CamillaDSP configuration (pipeline + filters) to the library.
       </p>

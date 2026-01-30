@@ -468,27 +468,6 @@
     word-break: break-all;
   }
 
-  .upload-status {
-    margin-top: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--ui-border, rgba(255, 255, 255, 0.08));
-  }
-
-  .upload-status[data-status='green'] {
-    background: rgba(120, 255, 190, 0.1);
-    border-color: rgba(120, 255, 190, 0.3);
-    color: rgb(120, 255, 190);
-  }
-
-  .upload-status[data-status='blue'] {
-    background: rgba(120, 160, 255, 0.1);
-    border-color: rgba(120, 160, 255, 0.3);
-    color: rgb(120, 160, 255);
-  }
-
   .error-message {
     margin-top: 0.5rem;
     padding: 0.5rem 0.75rem;

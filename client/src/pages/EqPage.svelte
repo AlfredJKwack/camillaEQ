@@ -187,10 +187,12 @@
       spectrumRenderer.resize(plotWidth, plotHeight);
     }
     
-    // Track shift key for cursor feedback
+    // Track shift key for cursor feedback and Escape to deselect
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Shift') {
         shiftPressed = true;
+      } else if (e.key === 'Escape' && $selectedBandIndex !== null) {
+        selectBand(null);
       }
     };
     
@@ -1070,8 +1072,8 @@
         </div>
         
         <div class="option-group">
-          <label>Smoothing:</label>
-          <select bind:value={smoothingMode}>
+          <label for="smoothing-mode">Smoothing:</label>
+          <select id="smoothing-mode" bind:value={smoothingMode}>
             <option value="off">Off</option>
             <option value="1/12">1/12 Oct</option>
             <option value="1/6">1/6 Oct</option>
@@ -1133,7 +1135,7 @@
         </div>
         
         <div class="option-group">
-          <label>Band fill:</label>
+          <span class="option-label">Band fill:</span>
           <span style="--knob-arc: var(--sum-curve);">
             <KnobDial 
               value={bandFillOpacity}
@@ -1205,9 +1207,15 @@
             on:pointerdown|capture={() => selectBand(i)}
           >
             <div class="band-top">
-              <div class="filter-type-icon" title="Band {i + 1} — {band.type}" on:click={(e) => handleFilterIconClick(e, i)}>
+              <button
+                type="button"
+                class="filter-type-icon"
+                aria-label="Change filter type for band {i + 1} — {band.type}"
+                title="Band {i + 1} — {band.type}"
+                on:click={(e) => handleFilterIconClick(e, i)}
+              >
                 <FilterIcon type={band.type} />
-              </div>
+              </button>
 
               <div class="slope-icon">
                 <BandOrderIcon position={$bandOrderNumbers[i] ?? (i + 1)} />
@@ -1530,7 +1538,8 @@
     gap: 0.5rem;
   }
 
-  .option-group label {
+  .option-group label,
+  .option-group .option-label {
     color: var(--ui-text-muted);
     font-size: 0.875rem;
   }
@@ -1706,6 +1715,10 @@
     width: 32px;
     height: 32px;
     cursor: pointer;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: inherit;
   }
 
   .slope-icon {
@@ -1715,12 +1728,6 @@
     width: 21px;
     height: 21px;
     cursor: pointer;
-  }
-
-  .icon-placeholder {
-    font-size: 0.625rem;
-    opacity: 0.8;
-    color: var(--band-ink);
   }
 
   .gain-fader {
@@ -1786,12 +1793,6 @@
     background: var(--band-muted);
     opacity: 0.3;
     pointer-events: none;
-  }
-
-  .fader-value {
-    font-size: 0.625rem;
-    color: var(--band-ink);
-    font-weight: 600;
   }
 
   .mute-btn {
