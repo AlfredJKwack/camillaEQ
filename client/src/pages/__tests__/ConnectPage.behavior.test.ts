@@ -32,8 +32,10 @@ describe('ConnectPage behavior', () => {
     
     // Initial state should have connection info
     expect(state).toHaveProperty('connectionState');
+    expect(state).toHaveProperty('controlConnected');
+    expect(state).toHaveProperty('spectrumConnected');
     expect(state).toHaveProperty('failures');
-    expect(['disconnected', 'connecting', 'connected', 'error']).toContain(state.connectionState);
+    expect(['disconnected', 'connecting', 'connected', 'degraded', 'error']).toContain(state.connectionState);
     expect(Array.isArray(state.failures)).toBe(true);
   });
 

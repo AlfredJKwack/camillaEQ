@@ -1,9 +1,55 @@
 # Active Context
 
 ## Current Focus
-**MVP-17 completed** - DSP info display on Connection page. Next milestone: MVP-18 (Review and refine state management).
+**Post-MVP-18 work completed** (2026-01-31) - WebSocket lifecycle monitoring and diagnostics export. All documentation updated to reflect degraded state, lifecycle events, and failure logging architecture.
 
 ## Recently Completed
+**Post-MVP-18: WebSocket Lifecycle Monitoring & Diagnostics** (2026-01-31)
+
+### Overview
+Extended the WebSocket client with event-driven lifecycle monitoring and comprehensive diagnostics export, enabling better visibility into connection health and failure patterns.
+
+### Implemented Features
+1. **Degraded State Support:**
+   - Connection state now includes `degraded` (control OK, spectrum down)
+   - Per-socket tracking: `controlConnected`, `spectrumConnected` booleans
+   - State derivation logic: error (control down) / degraded (spectrum down) / connected (both up)
+
+2. **Lifecycle Event Monitoring:**
+   - `CamillaDSP.onSocketLifecycleEvent(event)` callback for open/close/error on both sockets
+   - Event-driven state transitions based on actual socket events
+   - Transport failures logged even when requests never reach DSP
+
+3. **Failure Logging with Bounded Retention:**
+   - Last 50 failures kept in `dspState.failures[]`
+   - Failures include: timestamp, socket, command, request, response
+   - Failures NOT cleared on success (persistent for diagnostics)
+   - Transport errors logged: "WebSocket not connected", timeouts, aborts
+
+4. **Diagnostics Export:**
+   - `exportDiagnostics()` function in dspStore
+   - Exports: connection state, server/ports, version, failure log, config summary
+   - "Copy Diagnostics" button on Connection page
+   - JSON format for easy bug reporting
+
+5. **UI Improvements:**
+   - Nav icon shows yellow/amber for degraded state
+   - Connection page shows which socket is down
+   - Spectrum canvas clears in degraded mode
+   - EQ editing continues when spectrum unavailable
+
+### Documentation Updates
+- **docs/current-architecture.md**: Added WebSocket lifecycle monitoring section, updated state machine
+- **README.md**: Added "Degraded Connection" and "Copy Diagnostics" sections, updated nav icon colors
+- **docs/api-contract-camillaDSP.md**: Added "As-Built Implementation Notes" covering lifecycle callbacks, queue/timeout, v3 compatibility
+- **memory-bank**: Updated activeContext, progress, systemPatterns with new patterns
+
+### Test Coverage
+- All 202 tests passing (145 client + 54 server + 3 new lifecycle tests)
+- New test files: `camillaDSP.lifecycle.test.ts`, `dspStore.lifecycle.test.ts`
+
+---
+
 **MVP-17: DSP Info Display** (2026-01-30)
 
 ### Delivered in MVP-16:

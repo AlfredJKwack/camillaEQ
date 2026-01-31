@@ -4,12 +4,12 @@
  */
 
 import { writable, derived, get } from 'svelte/store';
-import { CamillaDSP, type CamillaDSPConfig, type DeviceEntry, type DspEventInfo } from '../lib/camillaDSP';
+import { CamillaDSP, type CamillaDSPConfig, type DeviceEntry, type DspEventInfo, type SocketLifecycleEvent } from '../lib/camillaDSP';
 import { debounce } from '../lib/debounce';
 import { getLatestState } from '../lib/api';
 import { parseSpectrumData } from '../dsp/spectrumParser';
 
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'degraded' | 'error';
 
 export interface FailureEntry {
   timestampMs: number;
@@ -21,6 +21,8 @@ export interface FailureEntry {
 
 export interface DspState {
   connectionState: ConnectionState;
+  controlConnected: boolean;
+  spectrumConnected: boolean;
   lastError?: string;
   config?: CamillaDSPConfig;
   volumeDb?: number;
@@ -65,6 +67,8 @@ const debouncedSetVolume = debounce(async (volumeDb: number) => {
 // Stores
 export const dspState = writable<DspState>({
   connectionState: 'disconnected',
+  controlConnected: false,
+  spectrumConnected: false,
   failures: [],
   spectrumSupported: 'unknown',
 });
@@ -122,6 +126,8 @@ export async function connect(
       dspState.update((s) => ({
         ...s,
         connectionState: 'connected',
+        controlConnected: dspInstance!.isControlSocketOpen(),
+        spectrumConnected: dspInstance!.isSpectrumSocketOpen(),
         config: dspInstance!.config!,
         lastError: undefined,
       }));
@@ -134,6 +140,7 @@ export async function connect(
       // Hook up success/failure callbacks
       dspInstance.onDspSuccess = handleDspSuccess;
       dspInstance.onDspFailure = handleDspFailure;
+      dspInstance.onSocketLifecycleEvent = handleSocketLifecycleEvent;
       
       // Fetch initial volume and DSP info
       await refreshVolume();
@@ -177,6 +184,8 @@ export function disconnect(): void {
 
   dspState.set({
     connectionState: 'disconnected',
+    controlConnected: false,
+    spectrumConnected: false,
     failures: [],
     spectrumSupported: 'unknown',
   });
@@ -561,6 +570,75 @@ async function checkSpectrumCapability(): Promise<void> {
       response: failure.response,
     });
   }
+}
+
+/**
+ * Handle socket lifecycle events (open/close/error)
+ * Event-driven health monitoring for degraded state detection
+ */
+function handleSocketLifecycleEvent(event: SocketLifecycleEvent): void {
+  const { socket, type, message } = event;
+  
+  console.log(`[Lifecycle] ${socket} socket: ${type}`, message || '');
+  
+  // Update per-socket state and derive overall connection state
+  dspState.update((s) => {
+    // Update socket-specific connection flags
+    const controlConnected = socket === 'control' 
+      ? (type === 'open')
+      : s.controlConnected;
+    
+    const spectrumConnected = socket === 'spectrum'
+      ? (type === 'open')
+      : s.spectrumConnected;
+    
+    // Derive overall connection state from per-socket states
+    let connectionState: ConnectionState;
+    if (!controlConnected) {
+      connectionState = 'error';
+    } else if (!spectrumConnected) {
+      connectionState = 'degraded';
+    } else {
+      // Both sockets connected → always 'connected'
+      connectionState = 'connected';
+    }
+    
+    return {
+      ...s,
+      controlConnected,
+      spectrumConnected,
+      connectionState,
+    };
+  });
+  
+  // Log close/error events as failure entries for diagnostics
+  if (type === 'close' || type === 'error') {
+    handleDspFailure({
+      timestampMs: event.timestampMs,
+      socket,
+      command: 'Socket Lifecycle',
+      request: type,
+      response: message || `Socket ${type}`,
+    });
+  }
+  
+  // Trigger reconnection on control socket failure
+  if (socket === 'control' && (type === 'close' || type === 'error')) {
+    console.warn('Control socket disconnected, triggering reconnect...');
+    const server = localStorage.getItem('camillaDSP.server');
+    const controlPort = localStorage.getItem('camillaDSP.controlPort');
+    const spectrumPort = localStorage.getItem('camillaDSP.spectrumPort');
+    
+    if (server && controlPort && spectrumPort) {
+      attemptReconnect(server, Number(controlPort), Number(spectrumPort));
+    }
+  }
+  
+  // TODO: Implement spectrum-only reconnect for degraded state recovery
+  // if (socket === 'spectrum' && (type === 'close' || type === 'error')) {
+  //   console.warn('Spectrum socket disconnected, attempting spectrum-only reconnect...');
+  //   // reconnectSpectrum();
+  // }
 }
 
 /**

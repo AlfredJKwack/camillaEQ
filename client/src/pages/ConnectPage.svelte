@@ -87,6 +87,8 @@
     switch ($connectionState) {
       case 'connected':
         return { text: 'Connected', color: 'green', icon: '✓' };
+      case 'degraded':
+        return { text: 'Degraded (Spectrum Unavailable)', color: 'yellow', icon: '⚠' };
       case 'connecting':
         return { text: 'Connecting...', color: 'blue', icon: '◌' };
       case 'error':
@@ -97,7 +99,7 @@
     }
   })();
 
-  $: isConnected = $connectionState === 'connected';
+  $: isConnected = $connectionState === 'connected' || $connectionState === 'degraded';
 </script>
 
 <div class="connect-page">
@@ -435,6 +437,11 @@
     background: rgba(120, 255, 190, 0.03);
   }
 
+  .status-card[data-status='yellow'] {
+    border-color: rgba(255, 200, 80, 0.3);
+    background: rgba(255, 200, 80, 0.03);
+  }
+
   .status-card[data-status='blue'] {
     border-color: rgba(120, 160, 255, 0.3);
     background: rgba(120, 160, 255, 0.03);
@@ -462,6 +469,12 @@
     border-color: rgba(120, 255, 190, 0.5);
     background: rgba(120, 255, 190, 0.1);
     color: rgb(120, 255, 190);
+  }
+
+  .status-indicator[data-status='yellow'] {
+    border-color: rgba(255, 200, 80, 0.5);
+    background: rgba(255, 200, 80, 0.1);
+    color: rgb(255, 200, 80);
   }
 
   .status-indicator[data-status='blue'] {

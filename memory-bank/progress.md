@@ -342,8 +342,37 @@
     - Uses existing debounced upload + persistence logic (no new upload path needed)
     - `event.preventDefault()` prevents text-selection quirks
 
+- [x] **Post-MVP-18 - WebSocket Lifecycle Monitoring & Diagnostics Export** (2026-01-31)
+  - **Degraded state support:**
+    - Added `degraded` connection state (control OK, spectrum down)
+    - Per-socket flags: `controlConnected`, `spectrumConnected`
+    - State derivation: error (control down) / degraded (spectrum only) / connected (both up)
+    - UI: Nav icon shows yellow/amber for degraded; Connection page shows socket status
+  - **Lifecycle event monitoring:**
+    - `CamillaDSP.onSocketLifecycleEvent()` callback for open/close/error on both sockets
+    - Event-driven state transitions based on actual socket events
+    - Events include: socket, type, message, timestamp
+  - **Failure logging with bounded retention:**
+    - Last 50 failures in `dspState.failures[]`
+    - Includes transport failures: "WebSocket not connected", timeouts, aborts
+    - Failures persist across success events (for diagnostics)
+    - `onDspSuccess()` and `onDspFailure()` callbacks track all DSP responses
+  - **Diagnostics export:**
+    - `exportDiagnostics()` function in dspStore
+    - "Copy Diagnostics" button on Connection page
+    - Exports: connection state, server/ports, version, failure log, config summary
+  - **Documentation updates:**
+    - `docs/current-architecture.md`: Added WebSocket lifecycle monitoring section
+    - `README.md`: Added "Degraded Connection" and "Copy Diagnostics" sections
+    - `docs/api-contract-camillaDSP.md`: Added "As-Built Implementation Notes"
+    - `memory-bank/`: Updated activeContext, progress, systemPatterns
+  - **Test coverage:**
+    - New: `camillaDSP.lifecycle.test.ts` (3 tests)
+    - New: `dspStore.lifecycle.test.ts` (3 tests)
+    - All 202 tests passing (148 client + 54 server)
+
 ## Current Status
-**Phase:** MVP-18 Completed - Double-click fader reset to 0 dB
+**Phase:** Post-MVP-18 Completed - WebSocket Lifecycle Monitoring & Diagnostics Export
 
 ## Planned Milestones
 

@@ -63,6 +63,13 @@ export interface DspEventInfo {
   response: any;
 }
 
+export interface SocketLifecycleEvent {
+  socket: 'control' | 'spectrum';
+  type: 'open' | 'close' | 'error';
+  message?: string;
+  timestampMs: number;
+}
+
 export type DeviceEntry = [string, string | null];
 
 /**
@@ -96,6 +103,9 @@ export class CamillaDSP {
   // Event callbacks for failure tracking
   public onDspSuccess?: (info: DspEventInfo) => void;
   public onDspFailure?: (info: DspEventInfo) => void;
+  
+  // Lifecycle event callback
+  public onSocketLifecycleEvent?: (event: SocketLifecycleEvent) => void;
 
   // Request queues for serialization
   private controlQueue: SocketRequestQueue = new SocketRequestQueue();
@@ -185,6 +195,16 @@ export class CamillaDSP {
       this.connected = true;
       this.attachSocketLifecycleListeners(this.ws, false);
       console.log('Connected to DSP control socket');
+      
+      // Emit open event for control socket
+      if (this.onSocketLifecycleEvent) {
+        this.onSocketLifecycleEvent({
+          socket: 'control',
+          type: 'open',
+          message: 'Control socket connected',
+          timestampMs: Date.now(),
+        });
+      }
 
       // Connect to spectrum socket
       try {
@@ -192,6 +212,16 @@ export class CamillaDSP {
         this.spectrumConnected = true;
         this.attachSocketLifecycleListeners(this.wsSpectrum, true);
         console.log('Connected to DSP spectrum socket');
+        
+        // Emit open event for spectrum socket
+        if (this.onSocketLifecycleEvent) {
+          this.onSocketLifecycleEvent({
+            socket: 'spectrum',
+            type: 'open',
+            message: 'Spectrum socket connected',
+            timestampMs: Date.now(),
+          });
+        }
       } catch (error) {
         console.error('Failed to connect to spectrum socket:', error);
         this.spectrumConnected = false;
@@ -275,9 +305,12 @@ export class CamillaDSP {
 
   /**
    * Attach lifecycle listeners to keep connection flags synchronized
+   * and emit lifecycle events
    */
   private attachSocketLifecycleListeners(ws: WebSocket, isSpectrum: boolean): void {
-    const handleClose = () => {
+    const socketLabel: 'control' | 'spectrum' = isSpectrum ? 'spectrum' : 'control';
+    
+    const handleClose = (event: CloseEvent) => {
       if (isSpectrum) {
         this.spectrumConnected = false;
         console.log('Spectrum socket closed');
@@ -285,13 +318,33 @@ export class CamillaDSP {
         this.connected = false;
         console.log('Control socket closed');
       }
+      
+      // Emit lifecycle event
+      if (this.onSocketLifecycleEvent) {
+        this.onSocketLifecycleEvent({
+          socket: socketLabel,
+          type: 'close',
+          message: `WebSocket closed (code: ${event.code}, reason: ${event.reason || 'none'})`,
+          timestampMs: Date.now(),
+        });
+      }
     };
 
-    const handleError = () => {
+    const handleError = (event: Event) => {
       if (isSpectrum) {
         this.spectrumConnected = false;
       } else {
         this.connected = false;
+      }
+      
+      // Emit lifecycle event
+      if (this.onSocketLifecycleEvent) {
+        this.onSocketLifecycleEvent({
+          socket: socketLabel,
+          type: 'error',
+          message: 'WebSocket error',
+          timestampMs: Date.now(),
+        });
       }
     };
 
@@ -391,13 +444,21 @@ export class CamillaDSP {
     signal: AbortSignal
   ): Promise<any> {
     return new Promise((resolve, reject) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        reject(new Error(`${socketLabel} WebSocket not connected`));
-        return;
-      }
-
       const commandName = typeof message === 'string' ? message : Object.keys(message)[0];
       const requestStr = JSON.stringify(message);
+      
+      // Check socket state before attempting
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        const error = new Error(`${socketLabel} WebSocket not connected`);
+        
+        // Log transport-level failure
+        this.fireEventCallback(false, socketLabel, commandName, requestStr, 
+          `Transport error: WebSocket not connected (readyState: ${ws?.readyState ?? 'null'})`
+        );
+        
+        reject(error);
+        return;
+      }
 
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
       let resolved = false;
@@ -445,6 +506,13 @@ export class CamillaDSP {
         if (!resolved) {
           resolved = true;
           cleanup();
+          
+          // Log abort as transport failure
+          const abortReason = signal.reason || 'Request cancelled';
+          this.fireEventCallback(false, socketLabel, commandName, requestStr, 
+            `Transport error: ${abortReason}`
+          );
+          
           reject(signal.reason || new Error('Request cancelled'));
         }
       };
@@ -463,7 +531,15 @@ export class CamillaDSP {
         if (!resolved) {
           resolved = true;
           cleanup();
-          reject(new Error(`DSP command timed out after ${timeoutMs}ms: ${commandName}`));
+          
+          const timeoutError = new Error(`DSP command timed out after ${timeoutMs}ms: ${commandName}`);
+          
+          // Log timeout as transport failure
+          this.fireEventCallback(false, socketLabel, commandName, requestStr, 
+            `Transport error: Timeout after ${timeoutMs}ms`
+          );
+          
+          reject(timeoutError);
         }
       }, timeoutMs);
 
@@ -630,7 +706,8 @@ export class CamillaDSP {
     try {
       return await this.sendSpectrumMessage('GetPlaybackSignalPeak');
     } catch (error) {
-      console.error('Error getting spectrum data:', error);
+      // Use console.warn for spectrum errors (non-fatal, expected during degraded states)
+      console.warn('Spectrum data unavailable:', error instanceof Error ? error.message : error);
       return null;
     }
   }

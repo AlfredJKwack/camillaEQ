@@ -152,9 +152,10 @@ When **Auto-reconnect on page load** is enabled on the Connection page:
    - Retry 5+: after 30 seconds
    - Maximum: 10 attempts total
 3. **Visual Feedback**: The connection icon in the navigation rail changes color based on state:
-   - **Green glow**: Connected
+   - **Green glow**: Connected (both control + spectrum sockets)
+   - **Yellow/Amber glow**: Degraded (control socket OK, spectrum socket down)
    - **Blue glow**: Connecting/Reconnecting
-   - **Red glow**: Connection error
+   - **Red glow**: Connection error (control socket down)
    - **Default**: Disconnected
 
 ### Enable/Disable
@@ -167,6 +168,62 @@ Clicking **Disconnect** will:
 - Close the current connection
 - Cancel any pending retry attempts
 - The app will not attempt to reconnect until you manually click **Connect** again or reload the page (if auto-reconnect is enabled)
+
+## Degraded Connection
+
+The app tracks the health of **two separate WebSocket connections** to CamillaDSP:
+1. **Control socket** - Used for EQ config uploads, state queries, volume control
+2. **Spectrum socket** - Used for real-time spectrum data (~10Hz polling)
+
+### What is Degraded State?
+
+When the **control socket is connected but the spectrum socket is down**, the app enters "degraded" mode:
+
+**What still works:**
+- ✅ EQ editing (drag tokens, adjust faders, change filter types)
+- ✅ Config uploads to CamillaDSP
+- ✅ Preset load/save
+- ✅ Volume control
+
+**What's unavailable:**
+- ❌ Spectrum analyzer overlay (canvas clears)
+- ❌ Real-time spectrum data display
+
+**Visual indicators:**
+- Nav icon shows **yellow/amber glow** (instead of green)
+- Connection page shows which socket is down
+- Spectrum canvas clears or shows "unavailable" message
+
+**Recovery:**
+- Control socket failure → App attempts full reconnect (both sockets)
+- Spectrum-only failure → App stays in degraded mode (EQ editing continues)
+- Manual reconnect: Click "Disconnect" then "Connect" to retry both sockets
+
+## Copy Diagnostics
+
+The Connection page includes a **"Copy Diagnostics"** button that exports comprehensive troubleshooting data to your clipboard.
+
+### What's Included
+
+The diagnostics JSON export contains:
+- **Connection state**: Current state (connected/degraded/error/disconnected)
+- **Server info**: Server address, control port, spectrum port
+- **CamillaDSP version**: If connected
+- **Failure log**: Last 50 failures with timestamps
+  - Command that failed
+  - Request/response details
+  - Socket identifier (control/spectrum)
+- **Config summary**: Filter count, mixer count, pipeline step count
+
+### When to Use
+
+Use "Copy Diagnostics" when:
+- Reporting connection issues
+- Troubleshooting WebSocket failures
+- Verifying which commands are failing
+- Sharing debug info with developers
+
+The JSON can be pasted into bug reports or analyzed to understand connection behavior patterns.
 
 ## API Endpoints
 

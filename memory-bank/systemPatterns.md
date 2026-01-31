@@ -187,31 +187,141 @@ The system consists of three cooperating processes:
 
 ## Failure and Recovery Patterns
 
-**WebSocket Disconnection:**
-- Automatic reconnect with exponential backoff + jitter
-- UI displays "stream disconnected" state clearly
-- Spectrum freezes gracefully (fade out or hold last frame with indicator)
-- Config operations queued or rejected during disconnect
+### WebSocket Connection Management
+
+**Dual Socket Architecture:**
+- **Control socket** (port 1234 default): Config uploads, state queries, volume control
+- **Spectrum socket** (port 1235 default): Real-time spectrum data polling
+- Both sockets managed independently with per-socket request queues
+
+**Connection States:**
+- `disconnected`: Both sockets closed
+- `connecting`: Connection attempt in progress
+- `connected`: Both control + spectrum sockets open
+- `degraded`: Control socket open, spectrum socket closed
+- `error`: Control socket closed (critical failure)
+
+**State Transitions:**
+- Event-driven via `onSocketLifecycleEvent(event)` callback
+- Events: `{socket, type, message, timestampMs}` where type = 'open' | 'close' | 'error'
+- Control socket failure → `error` state → full reconnect attempt
+- Spectrum socket failure → `degraded` state → app continues with limited functionality
+
+**Automatic Reconnection:**
+- Exponential backoff with jitter (1s → 2s → 5s → 10s → 30s max)
+- Maximum 10 attempts per connection session
+- Control socket failure triggers reconnect of both sockets
+- Spectrum-only failure keeps app in degraded mode (TODO: implement spectrum-only reconnect)
+
+**Degraded Mode Behavior:**
+- ✅ EQ editing continues (control socket OK)
+- ✅ Config uploads work
+- ✅ Preset load/save operations work
+- ✅ Volume control works
+- ❌ Spectrum overlay unavailable
+- ❌ Real-time spectrum data display
+
+**UI Feedback:**
+- Nav icon colors:
+  - Green: connected (both sockets)
+  - Yellow/amber: degraded (control only)
+  - Blue: connecting/pending
+  - Red: error (control down)
+- Connection page shows per-socket status
+- Spectrum canvas clears or shows "unavailable" in degraded mode
+- User can manually reconnect via "Disconnect" → "Connect"
+
+### Request Queue & Timeout Management
+
+**Per-Socket Request Queues:**
+- All commands queued and processed serially (one in-flight at a time per socket)
+- Prevents request/response correlation issues
+- Implementation: `SocketRequestQueue` class
+
+**Timeout Protection:**
+- Configurable per socket (default: 5s control, 2s spectrum)
+- Requests automatically abort on timeout
+- Timeout errors logged to failures array
+
+**Abort Handling:**
+- Socket closure immediately aborts all pending/in-flight requests
+- Disconnect cancels entire request queue
+- Prevents dangling promises and memory leaks
+
+### Failure Logging & Diagnostics
+
+**Comprehensive Failure Tracking:**
+- All DSP command responses tracked via `onDspSuccess()` and `onDspFailure()` callbacks
+- Callbacks fire for both control and spectrum sockets
+- Event info includes: `{timestampMs, socket, command, request, response}`
+
+**Transport Failure Logging:**
+- Logs failures even when requests never reach DSP:
+  - `"spectrum WebSocket not connected"` when calling `getSpectrumData()` on closed socket
+  - Request timeout errors (5s/2s defaults)
+  - Request aborts due to socket closure
+- Distinguishes transport failures from protocol/DSP failures
+
+**Bounded Retention:**
+- Last 50 failures kept in `dspState.failures[]` array
+- Failures persist across successful operations (for diagnostics)
+- Old failures automatically dropped (FIFO queue)
+
+**Diagnostics Export:**
+- `exportDiagnostics()` function in dspStore
+- Exports comprehensive JSON with:
+  - Connection state (connected/degraded/error/disconnected)
+  - Server address, control port, spectrum port
+  - CamillaDSP version (if connected)
+  - Last 50 failures with full context
+  - Config summary (filter count, mixer count, pipeline steps)
+- "Copy Diagnostics" button on Connection page
+- JSON format suitable for bug reports and troubleshooting
+
+### Config Operations During Failures
 
 **Config Load Failure:**
-- Return default config + error warning (if policy allows)
-- OR fail hard and require user intervention
-- Policy defined in config specification
+- Empty config from CamillaDSP → attempt restore from `GET /api/state/latest`
+- Restore failure → user sees empty editor + error message
+- No automatic default config injection (user must take action)
+
+**Config Upload Failure:**
+- Optimistic UI updates (no revert on failure)
+- Upload status tracked in eqStore (idle/pending/success/error)
+- Debounced retries (200ms) allow transient failures to self-heal
+- Write-through to backend (`PUT /api/state/latest`) is non-fatal
+
+**Spectrum Data Unavailability:**
+- `getSpectrumData()` returns `null` when spectrum socket closed (graceful)
+- Throws error only on actual protocol/parse failures
+- Polling automatically stops when spectrum unavailable
+- EQ editing continues unaffected
+
+### Backend Failures
 
 **Shell-out Failure:**
 - Return partial results + diagnostic error code
 - Log failure with correlation ID
 - Never crash server process
+- Timeout protection (configurable per command)
 
 **CamillaDSP Service Unavailable:**
-- UI shows connection error
-- User can retry or reconfigure service address
-- No data loss (browser state preserved)
+- UI shows connection error with retry guidance
+- User can reconfigure service address
+- No data loss (browser state preserved in localStorage)
+- Preset library remains accessible (server-side)
 
 **Backend Crash:**
 - Static assets already loaded (browser continues running)
-- Config save operations fail gracefully
-- User can reload page to restart
+- Config save operations fail gracefully with error messages
+- Spectrum/EQ editing continues (direct connection to CamillaDSP)
+- User can reload page to restart backend connection
+
+**Backend Unavailable During Upload:**
+- Write-through to `PUT /api/state/latest` fails silently (non-fatal)
+- Upload to CamillaDSP still succeeds (critical path)
+- State persistence lost only until backend recovers
+- Next successful upload will persist state again
 
 ---
 

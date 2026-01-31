@@ -621,3 +621,81 @@ If your new application spec needs a clean “interface definition”, the stabl
 ---
 
 This document is not authoritative when it comes to the filter class. It remains open to change and subject to other specifications in that regard. Specifically choices with regards to DOM element factories inside `filter` or splitting those things up. The purpose is primarily to illustrate a potential usage pattern of the primary class, camillaDSP
+
+---
+
+## As-Built Implementation Notes (CamillaEQ)
+
+The actual implementation in CamillaEQ (`client/src/lib/camillaDSP.ts`) extends the salvage spec with several enhancements:
+
+### Request Queue & Timeout Management
+- **Per-socket queues:** All commands queued and processed serially (one in-flight at a time per socket)
+- **Timeout protection:** Configurable timeouts (default: 5s control, 2s spectrum)
+- **Abort handling:** Socket closure or disconnect immediately aborts all pending/in-flight requests
+- **Implementation:** `SocketRequestQueue` class manages queue + timeout per socket
+
+### Lifecycle Event Callbacks
+Beyond the salvage spec's message handling, the as-built implementation adds:
+
+```typescript
+onSocketLifecycleEvent?: (event: SocketLifecycleEvent) => void;
+onDspSuccess?: (info: DspEventInfo) => void;
+onDspFailure?: (info: DspEventInfo) => void;
+```
+
+**Purpose:**
+- Event-driven monitoring of socket health (open/close/error)
+- Success/failure tracking for all DSP commands on both sockets
+- Enables UI to show degraded state and log failures for diagnostics
+
+**Lifecycle events include:**
+- `socket: 'control' | 'spectrum'`
+- `type: 'open' | 'close' | 'error'`
+- `message: string` (optional error/close reason)
+- `timestampMs: number`
+
+**DspEvent info includes:**
+- `timestampMs: number`
+- `socket: 'control' | 'spectrum'`
+- `command: string` (e.g., "GetConfigJson")
+- `request: string` (stringified request)
+- `response: any` (parsed response or error)
+
+### Transport Failure Logging
+The as-built implementation logs failures even when requests never reach CamillaDSP:
+- `"spectrum WebSocket not connected"` when calling `getSpectrumData()` on closed socket
+- Request timeout errors (5s/2s)
+- Request aborts due to socket closure
+
+This differs from the salvage spec which only handles parsed DSP responses.
+
+### Spectrum Readiness
+`getSpectrumData()` behavior:
+- **Returns `null`** when spectrum socket is not open (graceful degradation)
+- **Throws error** only on actual protocol/parse failures
+- Allows EQ editing to continue when spectrum unavailable
+
+### CamillaDSP v3.0 Compatibility
+- `uploadConfig()` no longer calls `Reload` after `SetConfigJson`
+- CamillaDSP v3 applies config changes immediately on `SetConfigJson`
+- Calling `Reload` in v3 would revert to disk config (breaking uploads)
+
+### Additional Protocol Methods
+The as-built implementation adds methods not in the salvage spec:
+- `getVersion()` - Read CamillaDSP version string
+- `getAvailableCaptureDevices(backend)` - List capture devices for backend
+- `getAvailablePlaybackDevices(backend)` - List playback devices for backend
+- `getConfigYaml(socket)` - Read config as YAML from control or spectrum
+- `getConfigTitle(socket)` - Read config title from control or spectrum
+- `getConfigDescription(socket)` - Read config description from control or spectrum
+
+### Socket State Queries
+```typescript
+isControlSocketOpen(): boolean
+isSpectrumSocketOpen(): boolean
+```
+
+Used to derive connection state (connected/degraded/error) and determine if spectrum polling should occur.
+
+### Memory Leak Fix
+Unlike the salvage spec note, the as-built implementation properly removes WebSocket event listeners after promise resolution/rejection (no listener accumulation).

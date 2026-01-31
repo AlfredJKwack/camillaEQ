@@ -20,6 +20,7 @@
 
   // Derive status color from connection and upload states
   // Green = connected or upload success
+  // Yellow = degraded (control OK, spectrum down)
   // Blue = connecting or upload pending
   // Red = error
   // Default = muted
@@ -39,6 +40,9 @@
     if ($connectionState === 'connected') {
       return 'green';
     }
+    if ($connectionState === 'degraded') {
+      return 'yellow';
+    }
     if ($connectionState === 'connecting') {
       return 'blue';
     }
@@ -56,6 +60,7 @@
       class="nav-button"
       class:active={currentRoute === item.route}
       class:status-green={item.route === '/connect' && statusColor === 'green'}
+      class:status-yellow={item.route === '/connect' && statusColor === 'yellow'}
       class:status-blue={item.route === '/connect' && statusColor === 'blue'}
       class:status-red={item.route === '/connect' && statusColor === 'red'}
       on:click={() => navigate(item.route)}
@@ -142,6 +147,15 @@
 
   .nav-button.status-green:not(.active) {
     background: rgba(120, 255, 190, 0.05);
+  }
+
+  .nav-button.status-yellow {
+    border-color: rgba(255, 200, 80, 0.5);
+    box-shadow: 0 0 8px rgba(255, 200, 80, 0.2);
+  }
+
+  .nav-button.status-yellow:not(.active) {
+    background: rgba(255, 200, 80, 0.05);
   }
 
   .nav-button.status-blue {

@@ -136,9 +136,19 @@ This document describes the actual implementation as it exists in the codebase.
 
 ### Global DSP State (`dspStore.ts`)
 - Singleton `CamillaDSP` instance shared across pages
-- Connection state machine (disconnected/connecting/connected/error)
-- Auto-reconnect with exponential backoff (max 10 attempts)
-- Stores: `connectionState`, `dspConfig`, `dspVolume`
+- **Connection state machine:** `disconnected` / `connecting` / `connected` / `degraded` / `error`
+  - **Per-socket tracking:** `controlConnected` (boolean), `spectrumConnected` (boolean)
+  - **State derivation:**
+    - `error` when control socket closed
+    - `degraded` when control open but spectrum closed
+    - `connected` when both sockets open
+- Auto-reconnect with exponential backoff (max 10 attempts, 1s → 30s delays)
+- **Lifecycle monitoring:**
+  - `CamillaDSP.onSocketLifecycleEvent(event)` - fires on open/close/error for both sockets
+  - Event-driven state transitions based on socket open/close events
+  - Transport failures logged even when requests never reach DSP
+- **Diagnostics export:** `exportDiagnostics()` returns connection state, version, failures (last 50), config summary
+- Stores: `connectionState`, `controlConnected`, `spectrumConnected`, `dspConfig`, `dspVolume`, `failures[]`
 
 ### EQ Band State (`eqStore.ts`)
 - Derived from `dspStore.dspConfig` on connect
@@ -146,6 +156,41 @@ This document describes the actual implementation as it exists in the codebase.
 - Derived: `sumCurvePath`, `perBandCurvePaths`
 - Actions: `setBandFreq()`, `setBandGain()`, `setBandQ()`, `toggleBandEnabled()`
 - Upload: debounced 200ms, calls `applyEqBandsToConfig()` → `uploadConfig()`
+
+### WebSocket Lifecycle Monitoring
+
+The client uses event-driven monitoring to track the health of both WebSocket connections:
+
+**Lifecycle Events:**
+- `CamillaDSP.onSocketLifecycleEvent(event)` callback fires for:
+  - `type: 'open'` - Socket connected successfully
+  - `type: 'close'` - Socket closed (graceful or unexpected)
+  - `type: 'error'` - Socket error occurred
+- Each event includes: `socket` ('control' | 'spectrum'), `type`, `message`, `timestampMs`
+
+**Failure Logging:**
+- All DSP command responses tracked via `onDspSuccess()` and `onDspFailure()` callbacks
+- Failures include: socket identifier, command, request, response, timestamp
+- **Transport failures** logged even when request never reaches DSP:
+  - `"spectrum WebSocket not connected"` when calling `getSpectrumData()` on closed socket
+  - Request timeouts (5s control, 2s spectrum defaults)
+  - Request aborts due to socket closure
+- **Bounded retention:** Last 50 failures kept in `dspState.failures[]`
+- Failures NOT cleared on success (persistent for diagnostics)
+
+**Degraded State Semantics:**
+- **Control socket open + spectrum closed** = `degraded` state
+- **EQ editing continues to work** (config upload via control socket)
+- **Spectrum overlay unavailable** (`getSpectrumData()` returns `null`)
+- **UI feedback:**
+  - Nav icon shows yellow/amber color
+  - Spectrum canvas clears or shows "unavailable" state
+  - Connection page shows which socket is down
+
+**Automatic Recovery:**
+- Control socket failure → full reconnect attempt (both sockets)
+- Spectrum socket failure → app remains in degraded state
+- TODO: Implement spectrum-only reconnect for faster recovery from degraded
 
 ### Persistence Strategy
 - **Source of truth:** CamillaDSP when running, backend when not
