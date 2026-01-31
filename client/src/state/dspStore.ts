@@ -98,8 +98,8 @@ export async function connect(
   controlPort: number,
   spectrumPort: number
 ): Promise<boolean> {
-  // Cancel any pending reconnects
-  cancelReconnect();
+  // Clear any pending reconnect timer (but don't reset attempt counter)
+  clearReconnectTimer();
 
   // Update state to connecting
   dspState.update((s) => ({
@@ -174,8 +174,8 @@ export async function connect(
  * Disconnect from CamillaDSP
  */
 export function disconnect(): void {
-  // Stop any pending reconnect attempts
-  cancelReconnect();
+  // Stop any pending reconnect attempts and reset counter (fresh start on manual disconnect)
+  resetReconnectState();
 
   if (dspInstance) {
     dspInstance.disconnect();
@@ -194,13 +194,20 @@ export function disconnect(): void {
 }
 
 /**
- * Cancel pending reconnect attempts
+ * Clear any pending reconnect timer (without resetting attempt counter)
  */
-function cancelReconnect(): void {
+function clearReconnectTimer(): void {
   if (reconnectTimer !== null) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+}
+
+/**
+ * Reset reconnect state (clears timer and resets attempt counter)
+ */
+function resetReconnectState(): void {
+  clearReconnectTimer();
   reconnectAttempts = 0;
 }
 
@@ -238,7 +245,7 @@ async function attemptReconnect(
     `Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`
   );
 
-  reconnectTimer = window.setTimeout(async () => {
+  reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
 
     // Attempt connection
@@ -252,7 +259,7 @@ async function attemptReconnect(
       reconnectAttempts = 0;
       console.log('Reconnected successfully');
     }
-  }, delay);
+  }, delay) as unknown as number;
 }
 
 /**

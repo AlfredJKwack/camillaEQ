@@ -276,4 +276,72 @@ describe('dspStore lifecycle event handling', () => {
     expect(state.connectionState).toBe('connected');
     expect(state.spectrumConnected).toBe(true);
   });
+
+  it('should apply exponential backoff to reconnect attempts', async () => {
+    // Use fake timers to control time
+    vi.useFakeTimers();
+
+    // Enable auto-reconnect in localStorage
+    const mockLocalStorage = {
+      getItem: vi.fn((key: string) => {
+        if (key === 'camillaDSP.autoReconnect') return 'true';
+        if (key === 'camillaDSP.server') return '127.0.0.1';
+        if (key === 'camillaDSP.controlPort') return '1234';
+        if (key === 'camillaDSP.spectrumPort') return '1235';
+        return null;
+      }),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+      length: 0,
+      key: vi.fn(() => null),
+    };
+    global.localStorage = mockLocalStorage as any;
+
+    // Spy on console.log to verify backoff messages
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // First establish a successful connection
+    await connect('127.0.0.1', 1234, 1235);
+    const dsp = getDspInstance();
+    const lifecycleCallback = dsp!.onSocketLifecycleEvent!;
+
+    // Now mock CamillaDSP to always fail reconnection attempts
+    const { CamillaDSP } = await import('../../lib/camillaDSP');
+    const originalConnect = CamillaDSP.prototype.connect;
+    CamillaDSP.prototype.connect = vi.fn().mockResolvedValue(false);
+
+    try {
+      consoleLogSpy.mockClear();
+
+      // Simulate control socket close (triggers attemptReconnect)
+      lifecycleCallback({
+        socket: 'control',
+        type: 'close',
+        message: 'Connection lost',
+        timestampMs: Date.now(),
+      });
+
+      // Run timers to trigger reconnect attempts
+      await vi.advanceTimersByTimeAsync(1000); // First attempt
+      await vi.advanceTimersByTimeAsync(2000); // Second attempt  
+      await vi.advanceTimersByTimeAsync(5000); // Third attempt
+
+      // Verify exponential backoff by checking console.log messages
+      const reconnectLogs = consoleLogSpy.mock.calls
+        .map(call => call[0])
+        .filter((msg: string) => typeof msg === 'string' && msg.includes('Reconnect attempt'));
+
+      expect(reconnectLogs.length).toBeGreaterThanOrEqual(3);
+      expect(reconnectLogs[0]).toContain('Reconnect attempt 1/10 in 1000ms');
+      expect(reconnectLogs[1]).toContain('Reconnect attempt 2/10 in 2000ms');
+      expect(reconnectLogs[2]).toContain('Reconnect attempt 3/10 in 5000ms');
+
+    } finally {
+      // Restore original implementation
+      CamillaDSP.prototype.connect = originalConnect;
+      vi.useRealTimers();
+      consoleLogSpy.mockRestore();
+    }
+  });
 });
