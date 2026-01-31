@@ -4,6 +4,7 @@
  */
 
 import { writable } from 'svelte/store';
+import { getVersion } from '../lib/api';
 
 export interface AppVersionInfo {
   version: string;
@@ -19,14 +20,8 @@ export const appVersion = writable<AppVersionInfo | null>(null);
  */
 export async function loadAppVersion(): Promise<void> {
   try {
-    const response = await fetch('/api/version');
-    if (!response.ok) {
-      console.warn('Failed to fetch app version:', response.statusText);
-      return;
-    }
-    
-    const data = await response.json();
-    appVersion.set(data);
+    const data = await getVersion();
+    appVersion.set(data as any);
   } catch (error) {
     console.warn('Failed to load app version:', error);
     // Silently fail - version display is non-critical

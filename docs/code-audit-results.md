@@ -35,6 +35,7 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding A2 — Client does heavy “domain mapping” inline (no explicit boundary)
 - **Severity:** Medium
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** The client’s “domain logic” (EQ band extraction + application + clamping) is spread across `eqStore.ts`, `camillaEqMapping.ts`, and rendering code. This is expected, but there’s no explicit boundary between:
   1) “CamillaDSP config protocol”
   2) “EQ domain model”
@@ -51,6 +52,7 @@ Below is my **code audit report** (non-security; also excluding perf/scalability
 
 ### Finding A3 — Spectrum analyzer design is intentionally “hacky” but coupled to config semantics
 - **Severity:** Low
+- **Status:** ✅ **Resolved** (2026-01-30)
 - **Description:** The spectrum is implemented as a 256-bandpass filterbank (“poor man’s FFT”). This matches the docs, but the UI is now coupled to the presence/behavior of that special spectrum pipeline.
 - **Evidence:**
   - `tools/build-camillaDSP-spectrum-yml.js` generates 256 filters + mixer + pipeline.

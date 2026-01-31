@@ -6,6 +6,8 @@
 import { writable, derived, get } from 'svelte/store';
 import { CamillaDSP, type CamillaDSPConfig, type DeviceEntry, type DspEventInfo } from '../lib/camillaDSP';
 import { debounce } from '../lib/debounce';
+import { getLatestState } from '../lib/api';
+import { parseSpectrumData } from '../dsp/spectrumParser';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -33,6 +35,7 @@ export interface DspState {
     spectrum: { title?: string; description?: string; yaml?: string };
   };
   failures: FailureEntry[];
+  spectrumSupported: boolean | 'unknown'; // Spectrum analyzer capability
 }
 
 // Internal state
@@ -63,6 +66,7 @@ const debouncedSetVolume = debounce(async (volumeDb: number) => {
 export const dspState = writable<DspState>({
   connectionState: 'disconnected',
   failures: [],
+  spectrumSupported: 'unknown',
 });
 
 // Derived stores for convenience
@@ -135,6 +139,9 @@ export async function connect(
       await refreshVolume();
       await refreshDspInfo();
       
+      // Check spectrum capability
+      await checkSpectrumCapability();
+      
       return true;
     } else {
       // Connection failed
@@ -171,6 +178,7 @@ export function disconnect(): void {
   dspState.set({
     connectionState: 'disconnected',
     failures: [],
+    spectrumSupported: 'unknown',
   });
 
   console.log('Global DSP connection closed');
@@ -311,18 +319,8 @@ async function maybeRestoreLatestState(): Promise<void> {
     // Dynamically import to avoid circular dependency
     const { initializeFromConfig } = await import('./eqStore');
 
-    // Fetch latest state from server
-    const response = await fetch('/api/state/latest');
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log('No latest state stored on server');
-      } else {
-        console.error(`Failed to fetch latest state: ${response.statusText}`);
-      }
-      return;
-    }
-
-    const latestConfig = await response.json();
+    // Fetch latest state from server using API module
+    const latestConfig = await getLatestState();
 
     // Upload to CamillaDSP
     dspInstance.config = latestConfig;
@@ -443,6 +441,125 @@ export async function refreshDspInfo(): Promise<void> {
     }));
   } catch (error) {
     console.error('Error refreshing DSP info:', error);
+  }
+}
+
+/**
+ * Check spectrum analyzer capability
+ * Verifies that spectrum pipeline is configured and returns expected 256 bins
+ */
+async function checkSpectrumCapability(): Promise<void> {
+  if (!dspInstance || !dspInstance.isSpectrumSocketOpen()) {
+    dspState.update((s) => ({ ...s, spectrumSupported: false }));
+    return;
+  }
+
+  try {
+    // Attempt to get spectrum data
+    const rawData = await dspInstance.getSpectrumData();
+    
+    if (!rawData) {
+      // No spectrum data available
+      console.error('Spectrum analyzer not available: no data returned');
+      dspState.update((s) => ({ ...s, spectrumSupported: false }));
+      
+      // Add diagnostic failure entry
+      const failure: FailureEntry = {
+        timestampMs: Date.now(),
+        socket: 'spectrum',
+        command: 'GetPlaybackSignalPeak',
+        request: 'Spectrum capability check',
+        response: 'No data returned (likely spectrum pipeline not configured)',
+      };
+      handleDspFailure({
+        timestampMs: failure.timestampMs,
+        socket: failure.socket,
+        command: failure.command,
+        request: failure.request,
+        response: failure.response,
+      });
+      
+      return;
+    }
+
+    // Parse spectrum data
+    const parsed = parseSpectrumData(rawData);
+    
+    if (!parsed) {
+      console.error('Spectrum analyzer not available: failed to parse data');
+      dspState.update((s) => ({ ...s, spectrumSupported: false }));
+      
+      const failure: FailureEntry = {
+        timestampMs: Date.now(),
+        socket: 'spectrum',
+        command: 'GetPlaybackSignalPeak',
+        request: 'Spectrum capability check',
+        response: 'Failed to parse spectrum data format',
+      };
+      handleDspFailure({
+        timestampMs: failure.timestampMs,
+        socket: failure.socket,
+        command: failure.command,
+        request: failure.request,
+        response: failure.response,
+      });
+      
+      return;
+    }
+
+    // Check bin count (expected 256 for our spectrum pipeline)
+    const expectedBins = 256;
+    const actualBins = parsed.binsDb.length;
+    
+    if (actualBins !== expectedBins) {
+      console.error(
+        `Spectrum analyzer configuration mismatch: expected ${expectedBins} bins, got ${actualBins}. ` +
+        'Please ensure the spectrum pipeline is correctly configured. ' +
+        'Consult documentation at docs/reference/camillaDSP-websocket.md'
+      );
+      
+      dspState.update((s) => ({ ...s, spectrumSupported: false }));
+      
+      const failure: FailureEntry = {
+        timestampMs: Date.now(),
+        socket: 'spectrum',
+        command: 'GetPlaybackSignalPeak',
+        request: 'Spectrum capability check',
+        response: `Configuration mismatch: expected ${expectedBins} bins, got ${actualBins}. Please consult documentation.`,
+      };
+      handleDspFailure({
+        timestampMs: failure.timestampMs,
+        socket: failure.socket,
+        command: failure.command,
+        request: failure.request,
+        response: failure.response,
+      });
+      
+      return;
+    }
+
+    // Success - spectrum is properly configured
+    console.log(`Spectrum analyzer detected: ${actualBins} bins`);
+    dspState.update((s) => ({ ...s, spectrumSupported: true }));
+    
+  } catch (error) {
+    console.error('Error checking spectrum capability:', error);
+    dspState.update((s) => ({ ...s, spectrumSupported: false }));
+    
+    const failure: FailureEntry = {
+      timestampMs: Date.now(),
+      socket: 'spectrum',
+      command: 'GetPlaybackSignalPeak',
+      request: 'Spectrum capability check',
+      response: error instanceof Error ? error.message : 'Unknown error',
+    };
+    handleDspFailure({
+      timestampMs: failure.timestampMs,
+      socket: failure.socket,
+      command: failure.command,
+      request: failure.request,
+      response: failure.response,
+    });
   }
 }
 

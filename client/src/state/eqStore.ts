@@ -15,6 +15,7 @@ import {
 } from '../lib/camillaEqMapping';
 import { debounceCancelable } from '../lib/debounce';
 import { getDspInstance, updateConfig as updateDspConfig } from './dspStore';
+import { putLatestState } from '../lib/api';
 
 // Upload debounce time (ms)
 const UPLOAD_DEBOUNCE_MS = 200;
@@ -73,11 +74,7 @@ const debouncedUpload = debounceCancelable(async () => {
       
       // Persist to server as latest state (write-through)
       try {
-        await fetch('/api/state/latest', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedConfig),
-        });
+        await putLatestState(updatedConfig);
       } catch (error) {
         console.warn('Failed to persist latest state to server:', error);
         // Non-fatal: continue even if persistence fails

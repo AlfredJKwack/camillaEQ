@@ -3,14 +3,7 @@
   import { getDspInstance, dspConfig, updateConfig } from '../state/dspStore';
   import { pipelineConfigToCamillaDSP, camillaDSPToPipelineConfig, type PipelineConfig } from '../lib/pipelineConfigMapping';
   import { initializeFromConfig } from '../state/eqStore';
-
-  interface ConfigMetadata {
-    id: string;
-    configName: string;
-    file: string;
-    mtimeMs: number;
-    size: number;
-  }
+  import { listConfigs, getConfig, putConfig, type ConfigMetadata } from '../lib/api';
 
   let configs: ConfigMetadata[] = [];
   let loading = false;
@@ -54,11 +47,7 @@
     loading = true;
     error = null;
     try {
-      const response = await fetch('/api/configs');
-      if (!response.ok) {
-        throw new Error(`Failed to load configs: ${response.statusText}`);
-      }
-      configs = await response.json();
+      configs = await listConfigs();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load configs';
       console.error('Error loading configs:', err);
@@ -71,12 +60,8 @@
     loading = true;
     error = null;
     try {
-      // Fetch pipeline-config from server
-      const response = await fetch(`/api/configs/${id}`);
-      if (!response.ok) {
-        throw new Error(`Failed to load config: ${response.statusText}`);
-      }
-      const pipelineConfig: PipelineConfig = await response.json();
+      // Fetch pipeline-config from server using API module
+      const pipelineConfig: PipelineConfig = await getConfig(id) as any;
 
       // Get DSP instance
       const dsp = getDspInstance();
@@ -151,16 +136,8 @@
       // Generate ID from name
       const id = newConfigName.toLowerCase().trim().replace(/\s+/g, '-');
 
-      // Save to server
-      const response = await fetch(`/api/configs/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pipelineConfig),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save config: ${response.statusText}`);
-      }
+      // Save to server using API module
+      await putConfig(id, pipelineConfig as any);
 
       // Reload configs list
       await loadConfigsList();
