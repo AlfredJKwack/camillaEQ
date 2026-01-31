@@ -268,9 +268,47 @@ log.error('Error message', errorObject);
 
 All log messages include timestamp and level prefix for easy filtering.
 
+## Pipeline Editor (MVP-19/20)
+
+The **Pipeline page** (`/#/pipeline`) provides a read-only view of the CamillaDSP signal processing pipeline, showing each processing step in the order audio flows through them.
+
+### What You See
+
+- **Filter blocks**: Display which channels they apply to and list all filters in that block
+- **Mixer blocks**: Show input/output channel counts and mixer name
+- **Processor blocks**: Display processor type and name
+- **Signal flow**: Top → Bottom (Input → blocks → Output)
+
+Each block shows:
+- Missing references (filters/mixers not found in config)
+- Bypass state indicators
+
+### Reordering Filters Inside a Filter Block (MVP-20)
+
+You can **reorder filters within the same Filter block** using drag-and-drop:
+
+1. **Grab the handle** (☰) on the left side of any filter row
+2. **Drag up or down** - a **"Drop here" landing zone** appears showing where the filter will be inserted
+3. **Drop** to commit the reorder:
+   - Config is validated automatically
+   - Invalid reorders revert with an inline error banner
+   - Valid reorders upload to CamillaDSP with the existing 200ms debounce
+4. Changes appear immediately in the EQ page (band order icons update)
+
+**Note:** Moving filters **between different Filter blocks** is not yet supported. Moving entire pipeline blocks is also deferred to a future milestone.
+
+---
+
 ## Project Status
 
-**Current Milestone:** MVP-17 Complete ✓ — DSP info display on Connection page
+**Current Milestone:** MVP-20 Complete ✓ — Pipeline filter reordering
+
+**New in MVP-20:**
+- **Drag-and-drop filter reordering** inside Filter blocks on Pipeline page
+- **Landing zone visualization** shows insertion point during drag
+- **Direction-aware index adjustment** ensures correct drop behavior when dragging up/down
+- **Validation + snapshot/revert** prevents invalid pipeline states
+- **Stable identity keying** ensures smooth DOM updates during reorder
 
 **New in MVP-17:**
 - **CamillaDSP version display** in status card when connected
@@ -490,6 +528,39 @@ The application now provides a **fully interactive equalizer editor** with:
 - Band fill opacity control: Knob dial (0-100%, default 40%) with sum-curve colored arc
 - Deselection: Click plot background clears selection
 - All 137 tests passing
+
+#### MVP-19: Pipeline Viewer (Read-Only Display) ✓
+**Pipeline page showing CamillaDSP signal flow:**
+- **Pipeline view model** (`client/src/lib/pipelineViewModel.ts`):
+  - Converts CamillaDSP config → render-friendly block view models
+  - Supports Filter, Mixer, and Processor pipeline steps
+  - Detects missing references (orphaned filter/mixer names)
+- **Block components** (`client/src/components/pipeline/*`):
+  - FilterBlock: channel badges, filter list with type icons, missing reference indicators
+  - MixerBlock: mixer name + in/out channel summary
+  - ProcessorBlock: generic processor/unknown step display
+- **Pipeline page** (`client/src/pages/PipelinePage.svelte`):
+  - Vertical stack with explicit `[ Input ] → blocks → [ Output ]` signal flow
+  - Robust empty states (not connected / loading / no pipeline)
+  - Pure read-only rendering of shared `dspStore.config`
+
+#### MVP-20: Pipeline Block & Element Reordering ✓
+**Drag-and-drop filter reordering within Filter blocks:**
+- **Filter row reordering** (`client/src/components/pipeline/FilterBlock.svelte`):
+  - Per-row grab handles (☰, 24px) with pointer-based DnD (6px movement threshold)
+  - Landing zone system: "Drop here" indicator rendered before target row
+  - Direction-aware index adjustment (drag down: toIndex -= 1 to account for array shift)
+  - Placeholder behavior: dragged row at 50% opacity, no-flicker design (gaps removed during drag)
+  - Stable identity keying by filter.name
+- **PipelinePage integration**:
+  - Identity-based lookup via `getStepByBlockId()` (WeakMap-based blockId tracking)
+  - Validation + snapshot/revert: deep snapshot before reorder, reverts on validation failure
+  - Debounced upload (200ms) on successful reorder
+- **Supporting infrastructure**:
+  - `client/src/lib/pipelineUiIds.ts`: Stable UI-only blockId generation
+  - `client/src/lib/pipelineReorder.ts`: Pure array reordering utilities
+  - `client/src/state/pipelineEditor.ts`: Upload status tracking
+- All 240 tests passing
 
 ### Next Milestone
 

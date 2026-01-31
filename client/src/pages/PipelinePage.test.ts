@@ -56,9 +56,9 @@ describe('PipelinePage MVP-19 Implementation', () => {
     const componentPath = path.join(__dirname, 'PipelinePage.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
-    // Verify buildPipelineViewModel is imported and used
+    // Verify buildPipelineViewModel is imported and used with stable IDs
     expect(source).toContain('buildPipelineViewModel');
-    expect(source).toContain('buildPipelineViewModel($dspConfig)');
+    expect(source).toContain('buildPipelineViewModel($dspConfig, getBlockId)');
   });
 
   it('reads from dspStore for connection state and config', async () => {

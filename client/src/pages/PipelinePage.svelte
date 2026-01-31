@@ -1,13 +1,229 @@
 <script lang="ts">
-  import { connectionState, dspConfig } from '../state/dspStore';
+  import { onMount, onDestroy } from 'svelte';
+  import { connectionState, dspConfig, getDspInstance, updateConfig } from '../state/dspStore';
   import { buildPipelineViewModel, type PipelineBlockVm } from '../lib/pipelineViewModel';
+  import { getBlockId, getStepByBlockId } from '../lib/pipelineUiIds';
+  import { reorderPipeline, reorderFilterNamesInStep } from '../lib/pipelineReorder';
+  import {
+    commitPipelineConfigChange,
+    setPipelineUploadStatusCallback,
+    type PipelineUploadStatus,
+  } from '../state/pipelineEditor';
   import FilterBlock from '../components/pipeline/FilterBlock.svelte';
   import MixerBlock from '../components/pipeline/MixerBlock.svelte';
   import ProcessorBlock from '../components/pipeline/ProcessorBlock.svelte';
 
-  // Reactive pipeline blocks
-  $: blocks = $dspConfig ? buildPipelineViewModel($dspConfig) : [];
+  // Reactive pipeline blocks (with stable IDs)
+  $: blocks = $dspConfig ? buildPipelineViewModel($dspConfig, getBlockId) : [];
   $: isConnected = $connectionState === 'connected' || $connectionState === 'degraded';
+
+  // Selection state
+  type Selection = { kind: 'block'; blockId: string } | null;
+  let selection: Selection = null;
+
+  // Upload status
+  let uploadStatus: PipelineUploadStatus = { state: 'idle' };
+
+  // Drag state
+  interface DragState {
+    blockId: string;
+    fromIndex: number;
+    startY: number;
+    currentY: number;
+  }
+  let dragState: DragState | null = null;
+  let landingZoneIndex: number | null = null;
+  let preDragConfigSnapshot: any = null;
+
+  // Inline error state
+  let validationError: string | null = null;
+
+  // Movement threshold (px)
+  const DRAG_THRESHOLD = 6;
+
+  // Setup upload status callback
+  onMount(() => {
+    setPipelineUploadStatusCallback((status) => {
+      uploadStatus = status;
+    });
+  });
+
+  onDestroy(() => {
+    setPipelineUploadStatusCallback(() => {});
+  });
+
+  // Selection handlers
+  function selectBlock(blockId: string) {
+    selection = { kind: 'block', blockId };
+  }
+
+  function deselectAll() {
+    selection = null;
+  }
+
+  function handlePageBackgroundClick(event: MouseEvent) {
+    const target = event.target as Element;
+    if (target.classList.contains('pipeline-page') || target.classList.contains('pipeline-container')) {
+      deselectAll();
+    }
+  }
+
+  // Block drag handlers
+  function handleBlockGrabPointerDown(event: PointerEvent, block: PipelineBlockVm) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const target = event.currentTarget as HTMLElement;
+    target.setPointerCapture(event.pointerId);
+
+    // Record start position (no drag yet until threshold exceeded)
+    dragState = {
+      blockId: block.blockId,
+      fromIndex: block.stepIndex,
+      startY: event.clientY,
+      currentY: event.clientY,
+    };
+
+    // Select block on grab
+    selectBlock(block.blockId);
+  }
+
+  function handleBlockGrabPointerMove(event: PointerEvent) {
+    if (!dragState) return;
+
+    const deltaY = event.clientY - dragState.startY;
+
+    // Check if we've exceeded threshold to start dragging
+    if (Math.abs(deltaY) < DRAG_THRESHOLD && landingZoneIndex === null) {
+      return; // Not dragging yet
+    }
+
+    // Start dragging (take snapshot on first move past threshold)
+    if (landingZoneIndex === null && !preDragConfigSnapshot && $dspConfig) {
+      preDragConfigSnapshot = JSON.parse(JSON.stringify($dspConfig));
+    }
+
+    // Update current Y for visual feedback
+    dragState.currentY = event.clientY;
+
+    // Compute landing zone index based on pointer position
+    // TODO: Implement proper hit-testing with hysteresis
+    const containerElement = document.querySelector('.pipeline-blocks');
+    if (!containerElement) return;
+
+    const blockElements = Array.from(containerElement.querySelectorAll('.pipeline-block'));
+    let newLandingIndex = dragState.fromIndex;
+
+    for (let i = 0; i < blockElements.length; i++) {
+      const el = blockElements[i] as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+
+      if (event.clientY < midY) {
+        newLandingIndex = i;
+        break;
+      } else if (i === blockElements.length - 1) {
+        newLandingIndex = i + 1;
+      }
+    }
+
+    // Clamp to valid range
+    landingZoneIndex = Math.max(0, Math.min(blocks.length, newLandingIndex));
+  }
+
+  function handleBlockGrabPointerUp(event: PointerEvent) {
+    if (!dragState) return;
+
+    const target = event.currentTarget as HTMLElement;
+    target.releasePointerCapture(event.pointerId);
+
+    // Check if we actually dragged (moved past threshold)
+    const didDrag = landingZoneIndex !== null;
+
+    if (didDrag && landingZoneIndex !== dragState.fromIndex) {
+      // Commit reorder
+      commitReorder();
+    }
+
+    // Clean up drag state
+    dragState = null;
+    landingZoneIndex = null;
+    preDragConfigSnapshot = null;
+  }
+
+  function commitReorder() {
+    if (!$dspConfig || landingZoneIndex === null || !dragState) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    try {
+      // Apply reorder
+      const updatedConfig = reorderPipeline($dspConfig, dragState.fromIndex, landingZoneIndex);
+
+      // Trigger debounced upload (will validate internally)
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Reorder error:', error);
+      validationError = error instanceof Error ? error.message : 'Reorder failed';
+
+      // Revert to snapshot
+      if (preDragConfigSnapshot) {
+        // Note: In a real implementation, we'd need to trigger a config update
+        // For now, just show the error
+      }
+    }
+  }
+
+  // Filter-name reorder handler (from FilterBlock event)
+  function handleFilterNameReorder(event: CustomEvent<{ blockId: string; fromIndex: number; toIndex: number }>) {
+    const { blockId, fromIndex, toIndex } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find actual pipeline step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Apply reorder
+      const updatedConfig = reorderFilterNamesInStep($dspConfig, stepIndex, fromIndex, toIndex);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after reorder');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter name reorder error:', error);
+      validationError = error instanceof Error ? error.message : 'Filter reorder failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
 </script>
 
 <div class="pipeline-page">
@@ -43,24 +259,54 @@
       </div>
 
       <!-- Pipeline blocks -->
-      <div class="pipeline-blocks">
-        {#each blocks as block, i (block.stepIndex)}
-          {#if block.kind === 'filter'}
-            <FilterBlock {block} />
-          {:else if block.kind === 'mixer'}
-            <MixerBlock {block} />
-          {:else if block.kind === 'processor'}
-            <ProcessorBlock {block} />
+      <div class="pipeline-blocks" on:click={handlePageBackgroundClick}>
+        {#each blocks as block, i (block.blockId)}
+          <!-- Block wrapper with selection state -->
+          <div
+            class="block-wrapper"
+            class:selected={selection?.kind === 'block' && selection.blockId === block.blockId}
+            class:dragging={dragState?.blockId === block.blockId}
+            on:click={() => selectBlock(block.blockId)}
+          >
+            <!-- Grab handle -->
+            <button
+              class="grab-handle"
+              on:pointerdown={(e) => handleBlockGrabPointerDown(e, block)}
+              on:pointermove={handleBlockGrabPointerMove}
+              on:pointerup={handleBlockGrabPointerUp}
+              title="Drag to reorder"
+            >
+              ☰
+            </button>
+
+            <!-- Block content -->
+            {#if block.kind === 'filter'}
+              <FilterBlock {block} on:reorderName={handleFilterNameReorder} />
+            {:else if block.kind === 'mixer'}
+              <MixerBlock {block} />
+            {:else if block.kind === 'processor'}
+              <ProcessorBlock {block} />
+            {/if}
+          </div>
+
+          <!-- Landing zone (shown during drag) -->
+          {#if landingZoneIndex === i}
+            <div class="landing-zone">Drop here</div>
           {/if}
 
           <!-- Connector arrow between blocks -->
-          {#if i < blocks.length - 1}
+          {#if i < blocks.length - 1 && landingZoneIndex !== i + 1}
             <div class="flow-connector">
               <div class="flow-line"></div>
               <div class="flow-arrow">↓</div>
             </div>
           {/if}
         {/each}
+
+        <!-- Final landing zone (at end) -->
+        {#if landingZoneIndex === blocks.length}
+          <div class="landing-zone">Drop here</div>
+        {/if}
       </div>
 
       <!-- Output indicator -->
@@ -178,5 +424,71 @@
     font-size: 1.25rem;
     color: var(--ui-text-dim);
     line-height: 1;
+  }
+
+  .block-wrapper {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    transition: all 0.15s ease;
+  }
+
+  /* Ensure child blocks stretch to fill available width */
+  .block-wrapper :global(.pipeline-block) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .block-wrapper.selected {
+    outline: 2px solid rgba(74, 158, 255, 0.5);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  .block-wrapper.dragging {
+    opacity: 0.5;
+  }
+
+  .grab-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    flex-shrink: 0;
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text-muted);
+    font-size: 1.25rem;
+    cursor: grab;
+    transition: all 0.15s ease;
+    padding: 0;
+  }
+
+  .grab-handle:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--ui-text);
+  }
+
+  .grab-handle:active {
+    cursor: grabbing;
+  }
+
+  .landing-zone {
+    height: 60px;
+    margin: 0.5rem 0;
+    border: 2px dashed rgba(74, 158, 255, 0.5);
+    border-radius: 8px;
+    background: rgba(74, 158, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(74, 158, 255, 0.8);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 </style>

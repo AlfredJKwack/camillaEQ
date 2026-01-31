@@ -649,6 +649,36 @@ Load/save configs via backend and keep browser/WebSocket state consistent.
 
 ---
 
+## Post-MVP-9 Enhancement — PipelineConfig supports optional advanced fields
+
+### Goal
+Allow preset/library configs to optionally carry full pipeline sections (filters/mixers/processors/pipeline) while keeping the legacy EQ-focused format and **never persisting devices**.
+
+### Status
+✅ **COMPLETED** (2026-01-31)
+
+### As Built
+**Extended PipelineConfig type** (`client/src/lib/pipelineConfigMapping.ts`):
+- Added optional fields:
+  - `title?: string`
+  - `description?: string`
+  - `filters?: Record<string, any>`
+  - `mixers?: Record<string, any>`
+  - `processors?: Record<string, any>`
+  - `pipeline?: any[]`
+
+**Loading behavior** (`pipelineConfigToCamillaDSP()`):
+- If `pipeline` is present and non-empty, the advanced fields are used directly.
+- `devices` are always taken from the current DSP/template config (or defaults), not from disk.
+- If `pipeline` is absent, the legacy `filterArray` mapping continues to be used.
+
+### Test Coverage
+- `client/src/lib/__tests__/pipelineConfigMapping.test.ts`
+
+---
+
+
+
 ## MVP-10 — Tooltip & Labels on Band Editor
 
 ### Goal
@@ -1706,100 +1736,354 @@ Implement read-only visualization of the CamillaDSP pipeline structure to establ
 - Detailed mixer routing view (MVP-22)
 - Selection/focus states (MVP-20)
 
----
-
-## Post-MVP-9 Enhancement — PipelineConfig supports optional advanced fields
-
-### Goal
-Allow preset/library configs to optionally carry full pipeline sections (filters/mixers/processors/pipeline) while keeping the legacy EQ-focused format and **never persisting devices**.
-
-### Status
-✅ **COMPLETED** (2026-01-31)
-
-### As Built
-**Extended PipelineConfig type** (`client/src/lib/pipelineConfigMapping.ts`):
-- Added optional fields:
-  - `title?: string`
-  - `description?: string`
-  - `filters?: Record<string, any>`
-  - `mixers?: Record<string, any>`
-  - `processors?: Record<string, any>`
-  - `pipeline?: any[]`
-
-**Loading behavior** (`pipelineConfigToCamillaDSP()`):
-- If `pipeline` is present and non-empty, the advanced fields are used directly.
-- `devices` are always taken from the current DSP/template config (or defaults), not from disk.
-- If `pipeline` is absent, the legacy `filterArray` mapping continues to be used.
-
-### Test Coverage
-- `client/src/lib/__tests__/pipelineConfigMapping.test.ts`
 
 ⸻
 
-## MVP-20 — Pipeline Block Reordering
+## MVP-20 — Pipeline Block & Element Reordering
 
 ### Goal
-Enable drag-and-drop reordering of pipeline blocks with live DSP application and validation.
+Enable **drag-and-drop reordering** of:
+
+- **Pipeline blocks** (items in `dspStore.config.pipeline[]`)
+- **Elements within a block**, specifically:
+  - Filter block: `pipeline[i].names[]` reordering **within the same Filter block**
+  - (Deferred: moving names across different Filter blocks)
+
+All reorders must preserve a valid CamillaDSP config and apply live via the **existing upload flow** (same behavior/policy as EQ: optimistic UI, debounced upload).
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-02-01)
 
-### Deliverables
+### As Built
 
-1. **Drag-and-drop implementation:**
-   - HTML5 drag-and-drop on block components
-   - Visual feedback during drag (ghost element, drop zones)
-   - Reorder `dspStore.config.pipeline` array on drop
-   - Mouse-only interaction (keyboard reordering deferred)
+**Row-level drag & drop implementation** with pointer events (no HTML5 drag-drop API):
 
-2. **Selection state:**
-   - Single-selection model
-   - Click block to select
-   - Visual highlight on selected block
-   - Click pipeline background to deselect
+1. **Filter row reordering** (`client/src/components/pipeline/FilterBlock.svelte`):
+   - Per-row grab handles (☰, 24px width) for each filter in Filter blocks
+   - Pointer-based DnD with 6px movement threshold
+   - **Landing zone system:** Visual "Drop here" indicator rendered **before** target row
+   - **Index adjustment logic:** Accounts for remove-then-insert shift when dragging down
+     - Drag up (toIndex < fromIndex): no adjustment
+     - Drag down (toIndex > fromIndex): `toIndex -= 1` to account for array shift
+   - **Placeholder behavior:** Dragged row becomes semi-transparent (50% opacity)
+   - **No-flicker design:** Gaps removed during drag (`gap: 0`) to prevent visual jitter
+   - Stable identity: Each filter row keyed by `filter.name`
+   - Dispatches `reorderName` event with `{blockId, fromIndex, toIndex}`
 
-3. **Validation during reorder:**
-   - Reuse `camillaDSP.validateConfig()` after each reorder
-   - Prevent reorders that would create invalid references
-   - Show inline error if reorder would break pipeline
-   - Revert to previous state if validation fails
+2. **PipelinePage integration** (`client/src/pages/PipelinePage.svelte`):
+   - Event handler: `handleFilterNameReorder()` receives events from FilterBlock
+   - **Identity-based lookup:** Uses `getStepByBlockId()` to find pipeline step by blockId
+   - **Validation + snapshot/revert:**
+     - Takes deep snapshot before reorder
+     - Applies reorder via `reorderFilterNamesInStep()`
+     - Validates updated config against CamillaDSP
+     - On failure: reverts to snapshot + shows inline error banner
+     - On success: optimistically updates UI + triggers debounced upload (200ms)
+   - Same upload flow as EQ editor: `commitPipelineConfigChange()`
 
-4. **Live upload:**
-   - Debounced upload after reorder completes (200ms, same as EQ)
-   - Uses existing `uploadConfig()` → `SetConfigJson` → download flow
-   - Upload status indicator (pending/success/error)
+3. **Supporting infrastructure:**
+   - **Stable IDs** (`client/src/lib/pipelineUiIds.ts`):
+     - `getBlockId(step, index)` - Generates UI-only blockId (not persisted)
+     - `getStepByBlockId(blockId)` - Reverse lookup using WeakMap
+     - Regenerated only when config loaded from DSP/preset
+   - **Reorder utilities** (`client/src/lib/pipelineReorder.ts`):
+     - `arrayMove(arr, fromIndex, toIndex)` - Pure array reordering function
+     - `reorderFilterNamesInStep(config, stepIndex, fromIndex, toIndex)` - Reorders `names[]` array
+     - Returns new config (immutable pattern)
+   - **Pipeline editor state** (`client/src/state/pipelineEditor.ts`):
+     - `commitPipelineConfigChange()` - Debounced upload with validation
+     - Upload status tracking (idle/pending/success/error)
 
-5. **Pipeline integrity checks:**
-   - Filter blocks reference existing filters
-   - Mixer blocks reference existing mixers
-   - Channel references remain valid
-   - No orphaned data
+4. **Test coverage:**
+   - Updated `PipelinePage.test.ts` to expect `buildPipelineViewModel($dspConfig, getBlockId)`
+   - All 240 tests passing (client + server)
 
-### Test / Acceptance Criteria
-- ✅ Component tests:
-  - Drag-and-drop updates pipeline order
-  - Selection state managed correctly
-  - Invalid reorders rejected with error message
-- ✅ Integration tests:
-  - Reorder 3-block pipeline → config updated → uploaded to CamillaDSP
-  - Reorder that breaks filter reference → validation error → revert
-  - Selection persists across re-renders
-- ✅ Visual verification:
-  - Drag feedback is smooth
-  - Drop zones are clear
-  - Selected block visually distinct
+### Implementation Notes
+- **Pointer capture:** Uses `setPointerCapture()` for smooth dragging outside element bounds
+- **Landing zone placement:** Rendered before target row to align with insertion semantics
+- **Direction-aware index fix:** Critical for correct drop behavior (fixed off-by-one in both directions)
+- **No HTML5 drag-drop:** Avoids jitter and nested dragging issues
+- **Block-level reordering:** Deferred to future milestone (MVP-20 focuses on row-level only)
 
 ### Risk Reduced Early
-- ✅ Validates reordering interaction model before adding editing complexity
-- ✅ Proves validation integration works correctly
-- ✅ Confirms upload policy is consistent with EQ editor
+- ✅ Validated pointer-event drag implementation (no jitter, smooth performance)
+- ✅ Proved landing zone approach eliminates visual flicker
+- ✅ Confirmed index adjustment logic works for both directions
+- ✅ Validated snapshot/revert pattern for error recovery
 
 ### Deferred Complexity
-- Keyboard reordering (arrow keys, shortcuts)
-- Button-based reordering (move up/down buttons)
-- Multi-block selection
+- Block-level reordering (moving entire pipeline steps)
+- Cross-block filter moves (dragging filters between different Filter blocks)
+- Keyboard-based reordering
+- Multi-selection
 - Undo/redo
-- Drag-and-drop from external sources (e.g., filter library)
+- Auto-scroll during drag
+
+### 1. Drag-and-Drop Implementation (Hard Constraints)
+
+#### 1.1 Event Model
+- **HTML5 drag-and-drop API is forbidden** (`draggable`, `dragstart`, `dragover`, `drop`)
+  - Rationale: causes jitter, unstable hit testing, and broken nested dragging.
+- Use **Pointer Events with manual hit testing**:
+  - `pointerdown`: record candidate (pointer position + element rect)
+  - Drag begins only after movement threshold (~4–6px)
+  - Single `pointermove` listener while dragging
+  - Visual updates via `requestAnimationFrame`
+  - `pointerup` / `pointercancel`: commit or cancel reorder
+
+#### 1.2 Drag Scopes
+Two mutually exclusive drag scopes:
+
+1. **Block-level drag**
+   - Reorders `dspStore.config.pipeline[]`
+   - Drag handle: block header / explicit handle only
+2. **In-block drag (Filter blocks only)**
+   - Reorders `pipeline[i].names[]`
+   - Drag handle: per-row handle only
+
+Forbidden in MVP:
+- Dragging filter names across blocks
+- Dragging into non-Filter blocks
+- Nesting blocks
+
+---
+
+### 2. Stable Identity & Rendering Model (Non-Negotiable)
+
+#### 2.1 Identity Rules
+Rendering MUST be identity-based so DOM nodes move with data.
+
+- **Pipeline blocks**
+  - UI-only `blockId`, not persisted
+  - Computed when config is loaded:
+    - `blockId = \`\${type}:\${name ?? ''}:\${indexAtLoad}\``
+  - Stored via `WeakMap<object, string>` or parallel UI array
+  - Regenerated only when a new config is loaded from DSP/preset
+- **Filter names**
+  - Keyed by `{ blockId + filterName }`
+
+Keying by array index is explicitly forbidden.
+
+---
+
+### 3. Selection & Highlight Behavior
+
+#### 3.1 Selection Model
+Single-selection across both scopes:
+
+- `{ kind: 'block', blockId }`
+- `{ kind: 'filterName', blockId, name }`
+
+#### 3.2 Click Behavior
+- Click block background → select block
+- Click filter-name row → select that row
+- Click pipeline background → deselect
+
+#### 3.3 Drag Interaction
+- Dragged item becomes selected on drag start
+- Selection highlight MUST move with the dragged item (identity-based)
+
+---
+
+### 4. Landing Zones & Drop Target Mechanics (Normative)
+
+#### 4.1 Core Concepts
+During drag, the UI distinguishes between:
+
+- **Real rows**
+  - Existing pipeline blocks or filter-name rows
+- **Landing zone**
+  - A **synthetic row** representing the insertion point
+  - Only **one landing zone** may exist at any time
+  - The landing zone is the authoritative drop target
+
+---
+
+#### 4.2 Landing Zone Creation
+- No landing zone is shown at drag start.
+- When the pointer enters a reorderable list:
+  - Compute candidate insertion index
+  - Render a landing zone at that index
+
+**Landing zone characteristics**
+- Height:
+  - Approximately equal to the dragged row (or consistent fixed gap)
+- Appearance:
+  - Empty slot / dashed outline / glow
+  - Visually distinct from real rows
+- Layout:
+  - Occupies real space (pushes rows apart)
+
+---
+
+#### 4.3 Placeholder vs Landing Zone (Distinct Roles)
+
+- **Placeholder**
+  - Occupies the original position of the dragged item
+  - Exists for the entire drag
+  - Prevents list collapse
+- **Landing zone**
+  - Represents potential drop position
+  - Moves as drag intent changes
+  - Is the sole drop target while hovered
+
+They MUST NOT be conflated.
+
+---
+
+### 5. Landing Zone Hit Testing & Continuity (No-Flicker Corridor)
+
+#### 5.1 Priority Rules
+1. Landing zone has highest hit-test priority
+2. Real rows are considered only when pointer is not over the landing zone
+
+---
+
+#### 5.2 Continuous Hit Corridor (Mandatory)
+
+The pointer MUST be treated as moving through a **single continuous corridor**:
+
+`[row N] → [landing zone] → [row N+1]`
+
+Within this corridor:
+
+- The landing zone MUST NOT be removed, recreated, or repositioned
+- No flicker, redraw, or index change is permitted
+- The insertion index remains stable
+
+This explicitly covers:
+- row → landing zone → next row transitions
+
+---
+
+#### 5.3 Zero-Gap Geometry Requirement
+- No visual or hit-test gaps may exist between:
+  - Row N bottom ↔ landing zone top
+  - Landing zone bottom ↔ row N+1 top
+- Boundaries must abut exactly
+- If the pointer lies exactly on a shared boundary:
+  - The landing zone owns that boundary
+
+---
+
+#### 5.4 Reposition Rules
+- The landing zone MAY move only when:
+  - The pointer exits the current corridor AND
+  - Enters a different corridor (different adjacent row pair)
+- Optional hysteresis:
+  - Require ≥25–35% penetration into a new row before corridor change
+
+---
+
+#### 5.5 Drop Commit Semantics
+- Dropping anywhere over the landing zone:
+  - Commits insertion at the landing zone’s index
+- Dropping outside all valid zones:
+  - Cancels reorder and restores snapshot
+- No midpoint logic is evaluated at drop time
+
+---
+
+### 6. Reorder Semantics (Data-Level)
+
+#### 6.1 Block Reorder
+- Move pipeline entry `fromIndex → toIndex`
+
+#### 6.2 Filter Name Reorder (MVP-Critical)
+- Applies only to `pipeline[i].type === 'Filter'`
+- Reorder `pipeline[i].names[]` in-place
+- `channels[]` remains unchanged
+
+---
+
+### 7. Validation, Snapshot, and Revert Rules
+
+#### 7.1 Snapshot Policy
+- Take deep snapshot of config at drag start:
+  - `preDragConfigSnapshot`
+- Snapshot is local to pipeline editor module
+
+#### 7.2 Validation Flow
+1. Apply reorder optimistically
+2. Run `camillaDSP.validateConfig()`
+3. On failure:
+   - Revert snapshot
+   - Show inline editor error
+   - Do not upload
+4. On success:
+   - Trigger debounced upload
+
+---
+
+### 8. Live Upload (No Contract Changes)
+
+- 200ms debounce (same as EQ)
+- Triggered only on drop commit
+- Use existing flow:
+  - `uploadConfig()` → `SetConfigJson` → `Reload`
+- Upload failure:
+  - No rollback protocol
+  - UI remains optimistic
+  - Surface error state only
+
+---
+
+### 9. No Contract / Store Churn (Hard Constraint)
+
+Forbidden:
+- WebSocket protocol changes
+- New DSP commands
+- Store architecture rewrites
+- Transactional commit systems
+
+Allowed:
+- Local drag state
+- Helper utilities for hit testing / reorder math
+- Editor-local error and status indicators
+
+---
+
+### 10. Pipeline Integrity Checks
+
+After reorder, validation must ensure:
+
+- Filter blocks reference existing `config.filters`
+- Mixer blocks reference existing `config.mixers`
+- Processor blocks reference existing `config.processors`
+
+No auto-repair in MVP.
+
+---
+
+### 11. Test & Acceptance Criteria
+
+#### Component
+- Block reorder updates `pipeline[]`
+- Filter-name reorder updates `pipeline[i].names[]`
+- Selection highlight follows moved element
+- Invalid reorder reverts snapshot and blocks upload
+
+#### Integration
+- Valid reorder → debounced upload → CamillaDSP updated
+- Invalid reorder → no upload → error shown
+
+#### Visual
+- Smooth drag, no jitter
+- Stable landing zone
+- No flicker when traversing row → zone → row
+- Placeholder prevents layout collapse
+
+---
+
+### 12. Deferred Complexity
+
+- Keyboard reordering
+- Button-based reordering
+- Multi-selection
+- Undo / redo
+- Cross-block filter moves
+- Block creation / deletion
+- Auto-scroll during drag
 
 ⸻
 

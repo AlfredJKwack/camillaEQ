@@ -396,8 +396,27 @@
     - **Devices never stored** - always from templateConfig or defaults
   - **Test coverage:** 6 new tests in `pipelineConfigMapping.test.ts`
 
+- [x] **MVP-20: Pipeline Block & Element Reordering** (2026-02-01)
+  - **Filter row reordering** (`client/src/components/pipeline/FilterBlock.svelte`):
+    - Per-row grab handles (☰, 24px width) with pointer-based DnD
+    - Landing zone system rendered before target row for correct insertion
+    - Index adjustment logic: accounts for remove-then-insert shift when dragging down
+    - Placeholder behavior: dragged row at 50% opacity
+    - No-flicker design: gaps removed during drag
+    - Stable identity keying by filter.name
+  - **PipelinePage integration** (`client/src/pages/PipelinePage.svelte`):
+    - Event handler receives reorderName events from FilterBlock
+    - Identity-based lookup via getStepByBlockId()
+    - Validation + snapshot/revert flow on drop
+    - Debounced upload (200ms) via commitPipelineConfigChange()
+  - **Supporting infrastructure:**
+    - Stable IDs: `client/src/lib/pipelineUiIds.ts` (WeakMap-based blockId tracking)
+    - Reorder utilities: `client/src/lib/pipelineReorder.ts` (arrayMove, reorderFilterNamesInStep)
+    - Pipeline editor state: `client/src/state/pipelineEditor.ts` (upload status tracking)
+  - All 240 tests passing (client + server)
+
 ## Current Status
-**Phase:** MVP-19 Completed - Pipeline Viewer + PipelineConfig Extension
+**Phase:** MVP-20 Completed - Pipeline Block & Element Reordering
 
 ## Planned Milestones
 

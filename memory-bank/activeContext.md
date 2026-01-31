@@ -1,58 +1,62 @@
 # Active Context
 
 ## Current Focus
-**MVP-19 completed** (2026-01-31) - Pipeline Viewer (read-only display) + PipelineConfig extended format support. Documentation updated across implementation-plan, current-architecture, and memory-bank.
+**MVP-20 completed** (2026-02-01) - Pipeline Block & Element Reordering with pointer-based drag-and-drop, landing zone system, and direction-aware index adjustment. All documentation updated.
 
 ## Recently Completed
-**MVP-19: Pipeline Viewer + PipelineConfig Extension** (2026-01-31)
+**MVP-20: Pipeline Block & Element Reordering** (2026-02-01)
 
 ### Overview
-Implemented read-only pipeline visualization and extended the on-disk preset format to support full CamillaDSP pipeline configurations while maintaining backward compatibility with EQ-only presets.
+Implemented drag-and-drop reordering for filter rows within Filter blocks using pointer events with landing zone visualization, direction-aware index adjustment, and validation/snapshot/revert error handling.
 
 ### Implemented Features
 
-**1. Pipeline Viewer (Read-Only Display):**
-- **Pipeline view model** (`client/src/lib/pipelineViewModel.ts`):
-  - Converts CamillaDSP config → render-friendly block view models
-  - Supports Filter, Mixer, and Processor pipeline steps
-  - Detects missing references (orphaned filter/mixer names)
-  - Surfaces bypass state and per-block display labels
-- **Block components** (`client/src/components/pipeline/*`):
-  - `FilterBlock.svelte`: channel badges, filter list with type icons, missing reference indicators
-  - `MixerBlock.svelte`: mixer name + in/out channel summary
-  - `ProcessorBlock.svelte`: generic processor/unknown step display
-- **Pipeline page** (`client/src/pages/PipelinePage.svelte`):
-  - Vertical stack: `[ Input ] → blocks → [ Output ]`
-  - Robust empty states (not connected / loading / no pipeline)
-  - Pure read-only rendering of `dspStore.config.pipeline` (reactive)
+**1. Filter row reordering** (`client/src/components/pipeline/FilterBlock.svelte`):
+- Per-row grab handles (☰, 24px width) with pointer-based DnD
+- 6px movement threshold before drag begins
+- **Landing zone system:** Visual "Drop here" indicator rendered **before** target row
+- **Direction-aware index adjustment:**
+  - Drag up (toIndex < fromIndex): no adjustment needed
+  - Drag down (toIndex > fromIndex): `toIndex -= 1` to account for remove-then-insert shift
+- Placeholder behavior: dragged row at 50% opacity during drag
+- No-flicker design: gaps removed during drag (`gap: 0`)
+- Stable identity keying by `filter.name`
+- Dispatches `reorderName` event with `{blockId, fromIndex, toIndex}`
 
-**2. PipelineConfig Extended Format:**
-- **Extended interface** (`client/src/lib/pipelineConfigMapping.ts`):
-  - Added optional fields: `title`, `description`, `filters`, `mixers`, `processors`, `pipeline`
-  - Maintains full backward compatibility with legacy `filterArray`-only format
-- **Loading behavior** (`pipelineConfigToCamillaDSP()`):
-  - If `pipeline` array present and non-empty → uses advanced fields directly
-  - If `pipeline` absent → converts legacy `filterArray` to filters/pipeline
-  - **Devices never persisted** - always from templateConfig or defaults
-- **Test coverage:** 6 new tests in `pipelineConfigMapping.test.ts`
+**2. PipelinePage integration** (`client/src/pages/PipelinePage.svelte`):
+- Event handler `handleFilterNameReorder()` receives events from FilterBlock
+- Identity-based lookup via `getStepByBlockId()` to find pipeline step
+- **Validation + snapshot/revert:**
+  - Deep snapshot before reorder
+  - Applies reorder via `reorderFilterNamesInStep()`
+  - Validates updated config
+  - On failure: reverts to snapshot + shows inline error
+  - On success: optimistic UI update + debounced upload (200ms)
 
-**3. Bug fix:**
-- `normalizePipelineStep()` now preserves `name` for any step type (not only Mixer/Processor)
+**3. Supporting infrastructure:**
+- **Stable IDs** (`client/src/lib/pipelineUiIds.ts`):
+  - `getBlockId()` generates UI-only blockId (WeakMap-based, not persisted)
+  - Regenerated only when config loaded from DSP/preset
+- **Reorder utilities** (`client/src/lib/pipelineReorder.ts`):
+  - `arrayMove()` - Pure array reordering function
+  - `reorderFilterNamesInStep()` - Reorders `names[]` array in pipeline step
+- **Pipeline editor state** (`client/src/state/pipelineEditor.ts`):
+  - `commitPipelineConfigChange()` - Debounced upload with validation
+  - Upload status tracking (idle/pending/success/error)
 
 ### Documentation Updates
-- **docs/implementation-plan.md**: Marked MVP-19 complete, added as-built section
-- **docs/current-architecture.md**: Updated pages list, module structure, added Pipeline Viewer + PipelineConfig Extension sections
-- **memory-bank/progress.md**: Added MVP-19 + Post-MVP-9 Enhancement entries
+- **docs/implementation-plan.md**: Marked MVP-20 complete, added comprehensive as-built section
+- **memory-bank/progress.md**: Added MVP-20 milestone entry
 - **memory-bank/activeContext.md**: Updated current focus
 
 ### Test Coverage
-- Test files: `pipelineViewModel.test.ts`, `PipelinePage.test.ts`, `pipelineConfigMapping.test.ts`
-- All tests remain passing
+- Updated `PipelinePage.test.ts` to expect `buildPipelineViewModel($dspConfig, getBlockId)`
+- All 240 tests passing (client + server)
 
 ### Next Steps
-- MVP-20: Pipeline block reordering (drag-and-drop)
 - MVP-21: Filter block editor (parameter editing)
 - MVP-22: Mixer block editor (routing editing)
+- MVP-23: Add/remove pipeline blocks
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)

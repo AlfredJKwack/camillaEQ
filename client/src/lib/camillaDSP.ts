@@ -671,6 +671,20 @@ export class CamillaDSP {
       }
     }
 
+    // Check if processor steps reference existing processors
+    const processors = this.config.pipeline.filter((e) => e.type !== 'Filter' && e.type !== 'Mixer');
+    for (const processor of processors) {
+      const procStep = processor as any;
+      if (!procStep.name) {
+        console.error(`Processor step of type "${procStep.type}" has no name`);
+        return false;
+      }
+      if (!this.config.processors || !this.config.processors[procStep.name]) {
+        console.error(`Processor "${procStep.name}" not found in config.processors`);
+        return false;
+      }
+    }
+
     return true;
   }
 

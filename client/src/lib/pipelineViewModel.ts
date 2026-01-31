@@ -22,6 +22,7 @@ export interface FilterInfo {
 export interface FilterBlockVm {
   kind: 'filter';
   stepIndex: number;
+  blockId: string; // Stable UI identity
   channels: number[];
   bypassed: boolean; // Pipeline-level bypass
   filters: FilterInfo[];
@@ -33,6 +34,7 @@ export interface FilterBlockVm {
 export interface MixerBlockVm {
   kind: 'mixer';
   stepIndex: number;
+  blockId: string; // Stable UI identity
   name: string;
   bypassed: boolean;
   channelsInOut?: { in: number; out: number }; // From mixer definition
@@ -45,6 +47,7 @@ export interface MixerBlockVm {
 export interface ProcessorBlockVm {
   kind: 'processor';
   stepIndex: number;
+  blockId: string; // Stable UI identity
   typeLabel: string; // e.g. "Processor", "Limiter", etc.
   name?: string;
   bypassed: boolean;
@@ -57,8 +60,13 @@ export type PipelineBlockVm = FilterBlockVm | MixerBlockVm | ProcessorBlockVm;
 
 /**
  * Build pipeline view model from CamillaDSP config
+ * @param config The CamillaDSP config
+ * @param getBlockId Function to get stable block ID for a pipeline step
  */
-export function buildPipelineViewModel(config: CamillaDSPConfig): PipelineBlockVm[] {
+export function buildPipelineViewModel(
+  config: CamillaDSPConfig,
+  getBlockId?: (stepObj: object, indexAtLoad: number, config: CamillaDSPConfig) => string
+): PipelineBlockVm[] {
   const blocks: PipelineBlockVm[] = [];
   
   if (!config.pipeline || config.pipeline.length === 0) {
@@ -72,12 +80,18 @@ export function buildPipelineViewModel(config: CamillaDSPConfig): PipelineBlockV
       continue; // Skip malformed steps
     }
     
+    // Get blockId (use provided function or fallback to index-based ID)
+    const stepObj = config.pipeline[i];
+    const blockId = getBlockId 
+      ? getBlockId(stepObj, i, config)
+      : `${step.type}:${i}`;
+    
     if (step.type === 'Filter') {
-      blocks.push(buildFilterBlockVm(step, i, config));
+      blocks.push(buildFilterBlockVm(step, i, blockId, config));
     } else if (step.type === 'Mixer') {
-      blocks.push(buildMixerBlockVm(step, i, config));
+      blocks.push(buildMixerBlockVm(step, i, blockId, config));
     } else {
-      blocks.push(buildProcessorBlockVm(step, i));
+      blocks.push(buildProcessorBlockVm(step, i, blockId));
     }
   }
   
@@ -90,6 +104,7 @@ export function buildPipelineViewModel(config: CamillaDSPConfig): PipelineBlockV
 function buildFilterBlockVm(
   step: PipelineStepNormalized,
   stepIndex: number,
+  blockId: string,
   config: CamillaDSPConfig
 ): FilterBlockVm {
   const channels = step.channels || [];
@@ -120,6 +135,7 @@ function buildFilterBlockVm(
   return {
     kind: 'filter',
     stepIndex,
+    blockId,
     channels,
     bypassed,
     filters,
@@ -132,6 +148,7 @@ function buildFilterBlockVm(
 function buildMixerBlockVm(
   step: PipelineStepNormalized,
   stepIndex: number,
+  blockId: string,
   config: CamillaDSPConfig
 ): MixerBlockVm {
   const name = step.name || '';
@@ -151,6 +168,7 @@ function buildMixerBlockVm(
   return {
     kind: 'mixer',
     stepIndex,
+    blockId,
     name,
     bypassed,
     channelsInOut,
@@ -163,7 +181,8 @@ function buildMixerBlockVm(
  */
 function buildProcessorBlockVm(
   step: PipelineStepNormalized,
-  stepIndex: number
+  stepIndex: number,
+  blockId: string
 ): ProcessorBlockVm {
   const typeLabel = step.type || 'Unknown';
   const name = step.name;
@@ -172,6 +191,7 @@ function buildProcessorBlockVm(
   return {
     kind: 'processor',
     stepIndex,
+    blockId,
     typeLabel,
     name,
     bypassed,

@@ -60,6 +60,7 @@ describe('pipelineViewModel', () => {
     expect(blocks[0]).toMatchObject({
       kind: 'filter',
       stepIndex: 0,
+      blockId: 'Filter:0',
       channels: [0, 1],
       bypassed: false,
       filters: [
