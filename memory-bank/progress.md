@@ -335,19 +335,21 @@
     - Version updated to '3.0.0'
   - All 145 client tests + 54 server tests passing
 
+- [x] **MVP-18 - Double-click fader reset to 0 dB** (2026-01-31)
+  - **Double-click handlers** (`client/src/pages/EqPage.svelte`):
+    - Band faders: Double-clicking `.fader-thumb` calls `setBandGain(index, 0)`
+    - Master/preamp fader: Double-clicking `.fader-thumb` calls `setPreampGain(0)`
+    - Uses existing debounced upload + persistence logic (no new upload path needed)
+    - `event.preventDefault()` prevents text-selection quirks
+
 ## Current Status
-**Phase:** MVP-17 Completed - DSP Info Display on Connection Page
+**Phase:** MVP-18 Completed - Double-click fader reset to 0 dB
 
 ## Planned Milestones
 
 > **Implementation plan:** See `docs/implementation-plan.md` for detailed deliverables, acceptance criteria, and risk mitigation strategy.
 
-### MVP-18: Review and refine state management
-- Ensure state management is robust and efficient
-- Review eqStore, dspStore patterns
-- Validate reactive update performance
-- Document state flow patterns
-
+### MVP-19: Pipeline Editor
 
 
 ## Known Issues

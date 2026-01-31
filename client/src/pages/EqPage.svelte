@@ -524,6 +524,11 @@
   }
 
   // Fader interaction
+  function handleFaderDoubleClick(event: MouseEvent, bandIndex: number) {
+    event.preventDefault();
+    setBandGain(bandIndex, 0);
+  }
+
   function handleFaderPointerDown(event: PointerEvent, bandIndex: number) {
     event.preventDefault();
     event.stopPropagation(); // Prevent band selection from triggering
@@ -1172,7 +1177,7 @@
               <!-- Empty spacer -->
             </div>
 
-            <div class="slope-icon" style="visibility: hidden;">
+            <div class="order-icon" style="visibility: hidden;">
               <!-- Empty spacer -->
             </div>
           </div>
@@ -1190,6 +1195,7 @@
                   <div
                     class="fader-thumb"
                     on:pointerdown={handleMasterFaderPointerDown}
+                    on:dblclick={(e) => { e.preventDefault(); setPreampGain(0); }}
                   ></div>
                 </div>
               </div>
@@ -1226,7 +1232,7 @@
                 <FilterIcon type={band.type} />
               </button>
 
-              <div class="slope-icon">
+              <div class="order-icon">
                 <BandOrderIcon position={$bandOrderNumbers[i] ?? (i + 1)} />
               </div>
             </div>
@@ -1244,6 +1250,7 @@
                     <div
                       class="fader-thumb"
                       on:pointerdown={(e) => handleFaderPointerDown(e, i)}
+                      on:dblclick={(e) => handleFaderDoubleClick(e, i)}
                     ></div>
                   </div>
                 </div>
@@ -1730,7 +1737,7 @@
     color: inherit;
   }
 
-  .slope-icon {
+  .order-icon {
     display: flex;
     align-items: center;
     justify-content: center;

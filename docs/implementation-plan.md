@@ -1579,40 +1579,48 @@ Implementation notes:
 - ✅ Failures cleared automatically on next successful DSP response
 - ✅ All 145 client tests + 54 server tests passing
 
-## MVP-18 - Review and refine state management
-### Goal: Ensure that the state management is robust and efficient.
+## MVP-18 - Double-click fader reset to 0 dB
+### Goal: Quick zero reset for fader gain values by double-clicking.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-01-31)
 
-### Deliverables:
+### As Built
 
-1. 
+**Double-click handlers** (`client/src/pages/EqPage.svelte`):
+- Band faders: Double-clicking `.fader-thumb` calls `setBandGain(index, 0)`
+- Master/preamp fader: Double-clicking `.fader-thumb` calls `setPreampGain(0)`
+- Uses existing debounced upload + persistence logic (no new upload path needed)
+- `event.preventDefault()` prevents text-selection quirks
+
+**Implementation:**
+- Handler: `handleFaderDoubleClick(event, bandIndex)` for band faders
+- Handler: Inline arrow function for master fader (simpler, no band index needed)
+- No changes to knobs (frequency/Q) - preserves current workflow
+
+### Success criteria
+- ✅ Double-clicking any band fader thumb sets gain to 0 dB
+- ✅ Double-clicking master fader thumb sets preamp to 0 dB
+- ✅ UI updates immediately (thumb position, tooltip if visible)
+- ✅ Existing upload debounce applies (config persisted after 200ms)
+- ✅ All existing tests remain passing
+
+
 ⸻
 ## Future MVPs 
 
 ### Deliverables:
-1. **double click sets to zero**
-	- double-clicking fader-thumb resets is to zero value (and updates data accordingly)
-	- double click on knobs resets is to zero value (and updates data accordingly)
-3. **More informative connection page**
-  - Indicate the version of Camilla your're connected to
-4. **Implement a system information page**
-  This only makes sense if CamillaEQ runs on the same machine as CamillaDSP.
-  - Indicate the OS version, and the CPU architecture
-  - Indicate load on OS
-  - Provide output of aplay/arecord in a sensible way (or nothing if not running linux/macos)
-  - Provide output of `cat /proc/asound/cards` in a sensible way (or nothing if not running linux/macos)
-  - show the camilladsp yml file in a read-only pane
-5. Wherever it says console.log in the code, put that behind a switch. Maybe make that switch available to the system information page (eg debug log)
-6. **Aria roles**
-
-8. **Band re-ordering with drag**
-  - Allow user to select the order (number) where the band sits in the pipeline by click-dragging icon-placeholder.
-  - Hover will change the cursor to scroll
-  - The visual feedback is a box with dots. One dot is position 1, ten dots is positoin 10. Beyond ten we change the type of dot, for instance a circle. 
-9. **Implement pipeline editor**
-10. **Ability to switch from pre-EQ to post-EQ**
+1. **Implement pipeline editor**
+2. **Ability to switch from pre-EQ to post-EQ**
+3. **Band re-ordering with drag**
+  - Allow user to select the order (number) where the band sits in the pipeline
+  - Clicking on a band-order-icon pops up a context menu. 
+  - The contedt menu wil contain a title "new position" and icons arranged in two columns.
+  - The icons correspond to the band number icons with their respective colors.
+  - The number of icons shown is the same as the number of bands shown on the page.
+  - The current band is not displayed in the pop-up menu.
+  - Selecting a band number icon will move the band to that position in the pipeline.
+  - The 
 
 ## Explicitly Deferred Complexity
 
