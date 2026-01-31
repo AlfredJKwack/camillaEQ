@@ -1607,7 +1607,582 @@ Implementation notes:
 
 
 ⸻
-## Future MVPs 
+
+## MVP-19 — Pipeline Viewer (Read-Only Display)
+
+### Goal
+Implement read-only visualization of the CamillaDSP pipeline structure to establish the UI foundation before adding editing capabilities.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **PipelinePage layout (`client/src/pages/PipelinePage.svelte`):**
+   - Vertical stack of pipeline blocks (signal flow: top → bottom)
+   - Fixed-width column (similar to EQ editor width constraints)
+   - One visual block per pipeline step
+   - Input/Output indicators at top/bottom
+
+2. **Block component architecture:**
+   - `FilterBlock.svelte` - Displays filter step with:
+     - Filter type icons (reuse from EQ editor)
+     - Channel indicators (which channels this filter applies to)
+     - Filter names list
+     - Bypass state indicator
+   - `MixerBlock.svelte` - Displays mixer step with:
+     - Mixer name
+     - Summary view (channel counts: in → out)
+     - Bypass state indicator
+   - `ProcessorBlock.svelte` - Generic display for Processor/Unknown steps with:
+     - Step type label
+     - Step name (if present)
+     - Bypass state indicator
+
+3. **Visual distinction between block types:**
+   - Color-coded borders or background tints
+   - Type-specific icons
+   - Consistent with existing theme variables
+
+4. **Data source:**
+   - Reads from `dspStore.config.pipeline`
+   - Reactive updates when config changes
+   - No local state (pure view of shared config)
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Each block type renders with correct data
+  - Blocks display in pipeline order
+  - Bypass state visually indicated
+- ✅ Integration test:
+  - Load config with multiple block types
+  - Pipeline page displays all blocks correctly
+  - Changes to `dspStore.config` trigger re-render
+- ✅ Visual verification:
+  - Signal flow direction is clear (top → bottom)
+  - Block types are visually distinguishable
+  - Layout matches spec (vertical stack, fixed width)
+
+### Risk Reduced Early
+- ✅ Validates layout approach before adding interaction complexity
+- ✅ Confirms block component architecture is extensible
+- ✅ Proves reactive rendering from shared config works
+
+### Deferred Complexity
+- Block editing (MVP-21, MVP-22)
+- Reordering (MVP-20)
+- Add/remove operations (MVP-23)
+- Detailed mixer routing view (MVP-22)
+- Selection/focus states (MVP-20)
+
+⸻
+
+## MVP-20 — Pipeline Block Reordering
+
+### Goal
+Enable drag-and-drop reordering of pipeline blocks with live DSP application and validation.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Drag-and-drop implementation:**
+   - HTML5 drag-and-drop on block components
+   - Visual feedback during drag (ghost element, drop zones)
+   - Reorder `dspStore.config.pipeline` array on drop
+   - Mouse-only interaction (keyboard reordering deferred)
+
+2. **Selection state:**
+   - Single-selection model
+   - Click block to select
+   - Visual highlight on selected block
+   - Click pipeline background to deselect
+
+3. **Validation during reorder:**
+   - Reuse `camillaDSP.validateConfig()` after each reorder
+   - Prevent reorders that would create invalid references
+   - Show inline error if reorder would break pipeline
+   - Revert to previous state if validation fails
+
+4. **Live upload:**
+   - Debounced upload after reorder completes (200ms, same as EQ)
+   - Uses existing `uploadConfig()` → `SetConfigJson` → download flow
+   - Upload status indicator (pending/success/error)
+
+5. **Pipeline integrity checks:**
+   - Filter blocks reference existing filters
+   - Mixer blocks reference existing mixers
+   - Channel references remain valid
+   - No orphaned data
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Drag-and-drop updates pipeline order
+  - Selection state managed correctly
+  - Invalid reorders rejected with error message
+- ✅ Integration tests:
+  - Reorder 3-block pipeline → config updated → uploaded to CamillaDSP
+  - Reorder that breaks filter reference → validation error → revert
+  - Selection persists across re-renders
+- ✅ Visual verification:
+  - Drag feedback is smooth
+  - Drop zones are clear
+  - Selected block visually distinct
+
+### Risk Reduced Early
+- ✅ Validates reordering interaction model before adding editing complexity
+- ✅ Proves validation integration works correctly
+- ✅ Confirms upload policy is consistent with EQ editor
+
+### Deferred Complexity
+- Keyboard reordering (arrow keys, shortcuts)
+- Button-based reordering (move up/down buttons)
+- Multi-block selection
+- Undo/redo
+- Drag-and-drop from external sources (e.g., filter library)
+
+⸻
+
+## MVP-21 — Filter Block Editor (Basic Parameters)
+
+### Goal
+Enable inline editing of filter parameters with live DSP application and parameter validation.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Filter block editor UI:**
+   - Expand selected filter block to show parameter controls
+   - Reuse existing components from EQ editor:
+     - `KnobDial` for frequency/Q
+     - Filter type icon (read-only for now)
+     - Gain fader (if filter type supports gain)
+   - Enable/disable toggle per filter
+   - Remove filter button
+
+2. **Parameter editing:**
+   - Edit frequency: 20-20000 Hz (same constraints as EQ)
+   - Edit Q: 0.1-10 (same constraints as EQ)
+   - Edit gain: ±24 dB (for gain-capable filter types)
+   - Parameter changes update `dspStore.config.filters[filterName]` directly
+   - Reuse existing clamping/rounding functions from `eqStore.ts`
+
+3. **Filter list display:**
+   - Show all filters referenced by selected Filter block
+   - Expand/collapse individual filters
+   - Visual indicator for which filters are enabled/disabled
+   - Display filter order (matches pipeline order)
+
+4. **Validation:**
+   - Reuse existing filter param validation from `camillaEqMapping.ts`
+   - Prevent invalid parameter values (clamp on input)
+   - Show warning if filter type doesn't support gain parameter
+
+5. **Live upload:**
+   - Debounced upload after parameter change (200ms)
+   - Same flow as EQ editor: update config → validate → upload → download
+   - Upload status indicator
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Parameter controls update filter definition
+  - Clamping works correctly
+  - Enable/disable updates filter bypass state
+  - Remove filter updates pipeline step names array
+- ✅ Integration tests:
+  - Edit filter frequency → config updated → uploaded → CamillaDSP reflects change
+  - Edit gain on non-gain filter type → gain ignored or clamped
+  - Remove filter from middle of list → pipeline integrity maintained
+- ✅ Visual verification:
+  - Parameter controls match EQ editor styling
+  - Changes reflect immediately in UI
+  - Upload status visible
+
+### Risk Reduced Early
+- ✅ Validates filter editing interaction model
+- ✅ Proves component reuse from EQ editor works in Pipeline context
+- ✅ Confirms parameter validation is consistent across editors
+
+### Deferred Complexity
+- Filter type changing (use FilterTypePicker from EQ)
+- Adding new filters to block (MVP-23)
+- Multi-filter selection/editing
+- Advanced filter types (Gain, Conv, etc.)
+- Copy/paste filter parameters
+
+⸻
+
+## MVP-22 — Mixer Block Editor (Basic Routing)
+
+### Goal
+Enable editing of mixer routing, per-source gains, and inversion with validation to prevent invalid routing states.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Mixer block editor UI:**
+   - Summary view (default): channel counts (in → out)
+   - Detailed view (expandable): full routing matrix
+   - Per-destination channel:
+     - List of source channels
+     - Per-source gain control (slider or numeric input)
+     - Per-source inversion toggle
+     - Mute toggle per source
+
+2. **Routing validation:**
+   - Prevent silent channel loss (at least one non-muted source per dest)
+   - Warn on summing (multiple sources to one dest)
+   - Enforce gain ≤ 0 dB when summing (attenuation requirement)
+   - Show inline warnings/errors per destination channel
+
+3. **Gain editing:**
+   - Per-source gain: -150 to +50 dB (CamillaDSP range)
+   - Default: 0 dB (unity gain)
+   - Slider or numeric input (implementation choice)
+   - Visual warning if gain > 0 dB while summing
+
+4. **Channel mapping:**
+   - Visual representation of source → dest mapping
+   - Highlight active (non-muted) sources
+   - Clear indication of channel indices
+
+5. **Live upload:**
+   - Debounced upload after routing/gain change (200ms)
+   - Validation blocks upload if routing is invalid
+   - Upload status indicator
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Routing changes update mixer definition
+  - Validation catches silent channel loss
+  - Validation catches gain > 0 dB summing
+  - Inversion toggle updates source config
+- ✅ Integration tests:
+  - Edit mixer routing → config updated → uploaded → CamillaDSP reflects change
+  - Create invalid routing (silent channel) → error shown → upload blocked
+  - Sum with gain > 0 → warning shown → upload blocked
+- ✅ Visual verification:
+  - Routing matrix is clear and unambiguous
+  - Warnings/errors are descriptive
+  - Gain controls are easy to adjust
+
+### Risk Reduced Early
+- ✅ Validates mixer editing complexity
+- ✅ Proves routing validation logic is sound
+- ✅ Confirms inline error display approach
+
+### Deferred Complexity
+- Adding/removing mixer destination channels (requires device config awareness)
+- Advanced routing patterns (crossfeed, etc.)
+- Preset routing templates
+- Copy/paste routing configurations
+- Mixer name editing
+
+⸻
+
+## MVP-23 — Add/Remove Pipeline Blocks
+
+### Goal
+Explicit add/remove actions for pipeline blocks with validation to maintain pipeline integrity.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Add actions (explicit buttons):**
+   - "Add Filter Block" button (+ icon, positioned at top or in toolbar)
+   - "Add Mixer Block" button
+   - "Add Processor Block" button (generic/unknown type)
+   - Click to add → new block inserted at selected position or end of pipeline
+
+2. **Add Filter Block flow:**
+   - Create new Filter pipeline step with empty names array
+   - Default: applies to channel 0 (or all channels, configurable)
+   - Opens editor to add filters to new block (or starts empty)
+
+3. **Add Mixer Block flow:**
+   - Create new Mixer definition with default routing (passthrough)
+   - Default: 2 in → 2 out (or match device config)
+   - Create pipeline step referencing new mixer
+   - Opens editor to configure routing
+
+4. **Add Processor Block flow:**
+   - Create new Processor step with user-specified name
+   - Prompt for processor type/name (text input)
+   - Parameters left empty (user must configure externally or via advanced editor)
+
+5. **Remove actions:**
+   - Remove button on selected block
+   - Confirmation dialog for destructive operations (filter blocks with filters, mixers with complex routing)
+   - Remove step from pipeline array
+   - Optionally remove orphaned filter/mixer definitions (if not referenced elsewhere)
+
+6. **Validation:**
+   - Prevent adding blocks that would exceed v1 limits (max 3 blocks, 20 filters per block)
+   - Later MVPs: remove limits or make configurable
+   - Validate pipeline integrity after add/remove
+   - Block invalid operations (e.g., removing last Filter block if EQ editor depends on it)
+
+7. **Live upload:**
+   - Debounced upload after add/remove (200ms)
+   - Same validation + upload flow
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Add filter block → pipeline updated
+  - Add mixer block → mixer definition created
+  - Remove block → pipeline step removed
+  - Validation blocks invalid add/remove
+- ✅ Integration tests:
+  - Add filter block → uploaded → CamillaDSP has new step
+  - Remove mixer block → uploaded → mixer definition removed (if orphaned)
+  - Remove block with confirmation → user can cancel
+- ✅ Visual verification:
+  - Add buttons are clear and accessible
+  - Remove confirmation dialog is descriptive
+  - New blocks appear in correct position
+
+### Risk Reduced Early
+- ✅ Validates add/remove interaction model
+- ✅ Proves pipeline integrity checks work
+- ✅ Confirms destructive operation UX (confirmations)
+
+### Deferred Complexity
+- Adding filters to existing Filter block (inline "Add Filter" within block)
+- Drag-and-drop to reorder while adding
+- Template-based block creation (e.g., "Add 4-band EQ block")
+- Duplicate block operation
+- Import/export individual blocks
+
+⸻
+
+## MVP-24 — Processor/Unknown Block Support
+
+### Goal
+View and manipulate Processor and unknown pipeline step types to enable construction of arbitrary CamillaDSP pipelines.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Processor block display:**
+   - Show processor type (e.g., "Processor", "Compressor", "Limiter")
+   - Show processor name
+   - Show parameters (if present) as key-value pairs (read-only or basic editing)
+   - Bypass state indicator
+
+2. **Unknown block display:**
+   - Show step type (whatever CamillaDSP returns)
+   - Show all step properties as JSON (formatted, read-only)
+   - Warning indicator: "Unknown block type - external configuration required"
+
+3. **Add Processor block:**
+   - Prompt for processor name (text input)
+   - Optionally prompt for processor type (dropdown of known types)
+   - Create pipeline step with empty parameters object
+   - User must configure processor externally (via CamillaDSP config file or advanced editor)
+
+4. **Edit Processor block (basic):**
+   - Edit processor name
+   - Edit bypass state
+   - Reorder (already supported from MVP-20)
+   - Remove (already supported from MVP-23)
+
+5. **Preserve unknown block data:**
+   - Never modify unknown block properties
+   - Reordering/removal works
+   - Editing not allowed (read-only view)
+   - Warning: "This block type is not fully supported - changes may require external configuration"
+
+6. **Validation:**
+   - Processor blocks: validate name is non-empty
+   - Unknown blocks: no validation (assume valid if CamillaDSP accepts it)
+   - Pipeline integrity checks still apply
+
+### Test / Acceptance Criteria
+- ✅ Component tests:
+  - Processor block renders with name and parameters
+  - Unknown block renders with JSON view
+  - Add processor → pipeline updated
+  - Remove processor → step removed
+- ✅ Integration tests:
+  - Load config with processor step → displayed correctly
+  - Add processor → uploaded → CamillaDSP accepts it
+  - Reorder pipeline with processor → order updated
+  - Load config with unknown type → displayed with warning
+- ✅ Visual verification:
+  - Processor blocks visually distinct
+  - Unknown blocks have clear warning indicator
+  - JSON view is readable
+
+### Risk Reduced Early
+- ✅ Validates generic block handling approach
+- ✅ Proves unknown block preservation works
+- ✅ Confirms editor can handle arbitrary pipeline step types
+
+### Deferred Complexity
+- Advanced processor parameter editing (type-specific UIs)
+- Processor parameter validation
+- Processor library/presets
+- Drag-and-drop processor templates
+- External processor configuration import
+
+⸻
+
+## MVP-25 — Pipeline Validation UI
+
+### Goal
+Implement comprehensive inline validation with descriptive error messages that block invalid DSP applications.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Validation layer (`client/src/lib/pipelineValidation.ts`):**
+   - `validatePipeline(config): ValidationResult` - Top-level validation
+   - Checks:
+     - Filter references: all filter names in pipeline exist in config.filters
+     - Mixer references: all mixer names in pipeline exist in config.mixers
+     - Processor references: processor names are non-empty
+     - Channel references: channels exist in device config
+     - Mixer routing: no silent channels, valid summing
+     - Filter parameters: within valid ranges
+   - Returns: `{ valid: boolean, errors: ValidationError[], warnings: ValidationWarning[] }`
+
+2. **Inline error display:**
+   - Errors shown on affected block (red border, error icon)
+   - Error message displayed in block or in tooltip
+   - Example: "Filter 'EQ5' referenced but not found in config.filters"
+   - Block-level errors prevent that block's changes from uploading
+
+3. **Inline warning display:**
+   - Warnings shown on affected block (yellow border, warning icon)
+   - Warning message displayed
+   - Example: "Mixer 'preamp' sums 2 sources - ensure gains are attenuated"
+   - Warnings do not block upload (user can proceed)
+
+4. **Global validation state:**
+   - Show validation summary at top of page (e.g., "3 errors, 1 warning")
+   - "Apply" button (if added) disabled when errors present
+   - Or: upload automatically blocked when errors present (existing debounced flow)
+
+5. **Validation triggers:**
+   - After every pipeline edit (reorder, add, remove, parameter change)
+   - Before upload attempt
+   - Continuous (reactive) validation as user edits
+
+6. **Integration with existing validators:**
+   - Reuse `camillaDSP.validateConfig()` for filter/mixer reference checks
+   - Reuse `camillaEqMapping.ts` validation for filter parameters
+   - Add new validators for mixer routing (silent channels, summing)
+
+### Test / Acceptance Criteria
+- ✅ Unit tests (20+ tests in `pipelineValidation.test.ts`):
+  - All validation rules tested individually
+  - Error messages are descriptive
+  - Edge cases handled (empty pipeline, single block, etc.)
+- ✅ Component tests:
+  - Errors displayed on correct blocks
+  - Warnings displayed correctly
+  - Validation state updates reactively
+- ✅ Integration tests:
+  - Create invalid pipeline → errors shown → upload blocked
+  - Fix errors → upload proceeds
+  - Warnings do not block upload
+- ✅ Visual verification:
+  - Error/warning indicators are clear
+  - Error messages are helpful
+  - Validation summary is visible
+
+### Risk Reduced Early
+- ✅ Validates validation layer is comprehensive
+- ✅ Proves error display UX is clear
+- ✅ Confirms validation integrates with existing code
+
+### Deferred Complexity
+- Advanced validation rules (e.g., phase coherence, latency checks)
+- Validation for advanced filter types (Conv, DiffEq, etc.)
+- Validation suggestions (e.g., "Did you mean 'EQ5_L' instead of 'EQ5'?")
+- Validation history/log
+
+⸻
+
+## MVP-26 — EQ-Pipeline Synchronization
+
+### Goal
+Ensure changes made in the EQ editor are immediately visible in the Pipeline editor and vice versa, with no duplicate state.
+
+### Status
+To Do.
+
+### Deliverables
+
+1. **Shared model verification:**
+   - Both editors operate on `dspStore.config` directly
+   - No local copies of pipeline/filter state
+   - All mutations go through `dspStore.config` → validate → upload → update store
+
+2. **EQ → Pipeline sync:**
+   - When EQ editor changes band frequency → filter definition in `dspStore.config.filters` updated
+   - Pipeline editor's FilterBlock reactively displays new frequency
+   - No explicit sync code needed (reactive stores handle it)
+
+3. **Pipeline → EQ sync:**
+   - When Pipeline editor reorders filters → `dspStore.config.pipeline[].names` array updated
+   - EQ editor's band order updates (via `eqStore.bandOrderNumbers` derived from pipeline)
+   - Band order icons reflect new pipeline position
+
+4. **Test scenarios:**
+   - EQ editor: Change band 3 frequency → Pipeline editor: Filter block shows new frequency
+   - Pipeline editor: Reorder filters → EQ editor: Band tokens reorder on graph
+   - Pipeline editor: Remove filter → EQ editor: Band disappears
+   - EQ editor: Add band → Pipeline editor: Filter block shows new filter
+   - Pipeline editor: Disable filter → EQ editor: Band shows as disabled (muted)
+
+5. **Edge cases:**
+   - User switches between pages mid-edit → no data loss
+   - Upload pending while switching pages → upload completes, both pages update
+   - Error state in one editor → visible in both editors
+
+6. **UI indicators:**
+   - Show "modified" indicator if config has unsaved changes (optional)
+   - Show upload status (pending/success/error) consistently in both editors
+
+### Test / Acceptance Criteria
+- ✅ Integration tests (10+ scenarios):
+  - All sync scenarios listed above tested
+  - No state duplication detected
+  - Race conditions handled (concurrent edits from both editors)
+- ✅ Component tests:
+  - EQ editor updates trigger Pipeline re-render
+  - Pipeline editor updates trigger EQ re-render
+- ✅ Manual testing:
+  - Open both editors side-by-side (split screen)
+  - Edit in one → changes visible in other immediately
+  - No lag, no stale data
+
+### Risk Reduced Early
+- ✅ Validates shared model approach is sound
+- ✅ Proves no hidden state duplication
+- ✅ Confirms reactive stores handle cross-editor sync correctly
+
+### Deferred Complexity
+- Optimistic UI updates (show change before upload confirms)
+- Conflict resolution (if CamillaDSP rejects change)
+- Multi-user editing (multiple clients editing same config)
+- Change history/undo across editors
+
+⸻
+
+## Future MVPs
 
 ### Deliverables:
 1. **Implement pipeline editor**
