@@ -99,7 +99,7 @@ This document describes the actual implementation as it exists in the codebase.
    - Interval: 100ms (10Hz)
    - Stops polling and clears canvas when overlay disabled or connection lost
 2. Each tick calls `dsp.getSpectrumData()` → sends `GetPlaybackSignalPeak` on spectrum socket
-3. Response arrives with 256-bin dB array
+3. Response arrives with N-bin dB array (N depends on spectrum pipeline configuration, typically 128-256)
 4. **Fractional-octave smoothing** applied via `smoothDbBins()`:
    - Options: Off / 1/12 / 1/6 (default) / 1/3 octave
    - Operates on log-frequency spacing
@@ -354,16 +354,25 @@ The spectrum analyzer in CamillaEQ displays data from CamillaDSP's filterbank-ba
 
 ### Current Implementation Status
 - **Tool:** `tools/build-camillaDSP-spectrum-yml.js` generates CamillaDSP spectrum config
-- **Current Q:** 18 (can be adjusted in tool)
+  - Supports CLI arguments: `--bins <int>`, `--q <number>`, `--out <filename>`
+  - Defaults: 256 bins, Q=18
+- **Client:** Auto-detects bin count on connection, accepts any value ≥3
+- **UI:** Displays detected bin count on Connect page when connected
 - **UI smoothing:** Fractional-octave (default 1/6) + STA (default ON) compensates for narrow Q
 - **User control:** Smoothing selector in viz options (Off / 1/12 / 1/6 / 1/3 octave)
 
 ### Tuning Guidance
 Users deploying CamillaEQ should:
-1. Generate CamillaDSP spectrum config using the provided tool
-2. Consider lowering Q to 12-16 if spectrum appears too jittery
-3. Adjust CamillaEQ's fractional-octave smoothing setting to taste
-4. Use STA (default ON) for stable display suitable for EQ adjustment decisions
+1. Generate CamillaDSP spectrum config using the provided tool:
+   ```bash
+   # Example: 128 bins with Q=12 for smoother display
+   node tools/build-camillaDSP-spectrum-yml.js --bins 128 --q 12
+   ```
+2. Edit the `devices:` section to match your audio setup
+3. Load config on CamillaDSP's spectrum port
+4. Client will auto-detect bin count and display it on Connect page
+5. Adjust CamillaEQ's fractional-octave smoothing setting to taste
+6. Use STA (default ON) for stable display suitable for EQ adjustment decisions
 
 **Note:** This is a **display-only** consideration. The Q parameter in CamillaDSP's spectrum generation does not affect audio processing.
 

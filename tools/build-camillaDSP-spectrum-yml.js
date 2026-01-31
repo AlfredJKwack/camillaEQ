@@ -1,9 +1,65 @@
 import fs from "node:fs";
 
-const N = 256;
+// Parse CLI arguments
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    bins: 256,
+    q: 18,
+    out: null,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--bins' && i + 1 < args.length) {
+      options.bins = parseInt(args[i + 1], 10);
+      i++;
+    } else if (args[i] === '--q' && i + 1 < args.length) {
+      options.q = parseFloat(args[i + 1]);
+      i++;
+    } else if (args[i] === '--out' && i + 1 < args.length) {
+      options.out = args[i + 1];
+      i++;
+    } else if (args[i] === '--help' || args[i] === '-h') {
+      console.log(`Usage: node build-camillaDSP-spectrum-yml.js [options]
+
+Options:
+  --bins <int>      Number of spectrum bins (default: 256)
+  --q <number>      Q factor for bandpass filters (default: 18)
+  --out <filename>  Output filename (default: spectrum-<bins>.yml)
+  --help, -h        Show this help message
+
+Examples:
+  node build-camillaDSP-spectrum-yml.js
+  node build-camillaDSP-spectrum-yml.js --bins 128 --q 12
+  node build-camillaDSP-spectrum-yml.js --bins 256 --q 16 --out my-spectrum.yml
+`);
+      process.exit(0);
+    }
+  }
+
+  // Validate
+  if (isNaN(options.bins) || options.bins < 1) {
+    console.error('Error: --bins must be a positive integer');
+    process.exit(1);
+  }
+  if (isNaN(options.q) || options.q <= 0) {
+    console.error('Error: --q must be a positive number');
+    process.exit(1);
+  }
+
+  // Default output filename
+  if (!options.out) {
+    options.out = `spectrum-${options.bins}.yml`;
+  }
+
+  return options;
+}
+
+const options = parseArgs();
+const N = options.bins;
 const fMin = 20;
 const fMax = 20000;
-const Q = 18;
+const Q = options.q;
 
 const ratio = Math.pow(fMax / fMin, 1 / (N - 1));
 const freqs = Array.from({ length: N }, (_, i) => fMin * Math.pow(ratio, i));
@@ -66,5 +122,5 @@ for (let i = 0; i < N; i++) {
   out.push(y(`- band_${i}`, 6));
 }
 
-fs.writeFileSync("spectrum-256.yml", out.join("\n"));
-console.log("Wrote spectrum-256.yml");
+fs.writeFileSync(options.out, out.join("\n"));
+console.log(`Wrote ${options.out} (${N} bins, Q=${Q})`);

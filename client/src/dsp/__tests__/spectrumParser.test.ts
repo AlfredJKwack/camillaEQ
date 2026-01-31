@@ -30,50 +30,55 @@ describe('spectrumParser', () => {
       expect(result?.binsDb).toEqual(input);
     });
 
-    it('should detect and downmix stereo-interleaved data', () => {
-      // Stereo-interleaved: pairs of identical values (L, R, L, R, ...)
-      const input = [-80, -80, -85, -85, -90, -90, -88, -88];
-      const result = parseSpectrumData(input);
+    it('should accept any bin count without downmixing', () => {
+      // Various bin counts should all be preserved
+      const input128 = Array(128).fill(-80);
+      const result128 = parseSpectrumData(input128);
+      expect(result128?.binsDb.length).toBe(128);
 
-      expect(result).toBeDefined();
-      expect(result?.binsDb).toBeDefined();
-      // Should be downmixed to half the length (4 bins) using max of each pair
-      expect(result?.binsDb.length).toBe(4);
-      expect(result?.binsDb).toEqual([-80, -85, -90, -88]);
+      const input256 = Array(256).fill(-80);
+      const result256 = parseSpectrumData(input256);
+      expect(result256?.binsDb.length).toBe(256);
+
+      const input512 = Array(512).fill(-80);
+      const result512 = parseSpectrumData(input512);
+      expect(result512?.binsDb.length).toBe(512);
     });
 
-    it('should NOT downmix non-interleaved data', () => {
-      // Different values in pairs (difference > 0.1 dB)
-      const input = [-80, -85, -82, -88, -90, -92, -88, -84];
+    it('should NOT halve bins when all values are identical (silent feed)', () => {
+      // Regression test: silence (all bins at floor) should not trigger halving
+      const input = Array(256).fill(-100);
       const result = parseSpectrumData(input);
 
       expect(result).toBeDefined();
-      // Should keep original length (8 bins)
-      expect(result?.binsDb.length).toBe(8);
+      expect(result?.binsDb.length).toBe(256); // Should stay 256, not become 128
+      expect(result?.binsDb).toEqual(input);
     });
 
-    it('should downmix with max when pairs are similar', () => {
-      // Pairs differ by < 0.1 dB (considered interleaved)
-      const input = [-80.00, -80.05, -85.01, -85.03];
+    it('should NOT halve bins when values are very similar', () => {
+      // Even if adjacent values are nearly identical, don't downmix
+      const input = [-80.00, -80.01, -80.02, -80.03, -80.04, -80.05];
       const result = parseSpectrumData(input);
 
       expect(result).toBeDefined();
-      // Should be downmixed (4 → 2 bins)
-      expect(result?.binsDb.length).toBe(2);
-      // Max of each pair
-      expect(result?.binsDb[0]).toBeCloseTo(-80.00, 2);
-      expect(result?.binsDb[1]).toBeCloseTo(-85.01, 2);
+      expect(result?.binsDb.length).toBe(6); // Should stay 6
+    });
+
+    it('should return null if array contains non-numbers', () => {
+      expect(parseSpectrumData([1, 2, 'three'])).toBeNull();
+      expect(parseSpectrumData([1, 2, null])).toBeNull();
+      expect(parseSpectrumData([1, 2, undefined])).toBeNull();
+      expect(parseSpectrumData([1, 2, NaN])).toBeNull();
     });
 
     it('should handle typical CamillaDSP spectrum data', () => {
-      const input = [-88.2, -88.2, -83.5, -83.5, -82.9, -82.9, -78.7, -78.7];
+      const input = [-88.2, -83.5, -82.9, -78.7, -75.1, -70.3];
       const result = parseSpectrumData(input);
 
       expect(result).toBeDefined();
       expect(result?.binsDb).toBeDefined();
-      // Should detect stereo interleaving and downmix to 4 bins
-      expect(result?.binsDb.length).toBe(4);
-      expect(result?.binsDb).toEqual([-88.2, -83.5, -82.9, -78.7]);
+      expect(result?.binsDb.length).toBe(6);
+      expect(result?.binsDb).toEqual(input);
     });
   });
 

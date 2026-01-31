@@ -10,7 +10,9 @@ export interface SpectrumData {
 /**
  * Parse spectrum data from WebSocket response
  * Expects CamillaDSP spectrum in dBFS (negative values, 0 dB max)
- * Handles stereo-interleaved downmixing if detected
+ * 
+ * For our spectrum pipeline, GetPlaybackSignalPeak returns one value per channel.
+ * Since playback channels ARE the spectrum bins, we accept the array as-is.
  */
 export function parseSpectrumData(value: unknown): SpectrumData | null {
   if (!Array.isArray(value)) {
@@ -22,50 +24,12 @@ export function parseSpectrumData(value: unknown): SpectrumData | null {
     return null;
   }
 
-  let binsDb = value;
-  
-  // Check if data is stereo-interleaved (pairs of identical/similar values)
-  if (binsDb.length % 2 === 0 && binsDb.length >= 4) {
-    const pairsSimilar = checkIfStereoInterleaved(binsDb);
-    if (pairsSimilar) {
-      // Downmix by taking max of each pair
-      binsDb = downmixStereoPairs(binsDb);
-    }
+  // Validate all entries are numbers
+  if (!value.every(v => typeof v === 'number' && !isNaN(v))) {
+    return null;
   }
   
-  return { binsDb };
-}
-
-/**
- * Check if array appears to be stereo-interleaved
- * (many adjacent pairs have identical or very similar values)
- */
-function checkIfStereoInterleaved(bins: number[]): boolean {
-  if (bins.length < 4 || bins.length % 2 !== 0) return false;
-  
-  let identicalPairs = 0;
-  const pairCount = bins.length / 2;
-  
-  for (let i = 0; i < bins.length; i += 2) {
-    // Check if pair values are identical or very close (within 0.1 dB)
-    if (Math.abs(bins[i] - bins[i + 1]) < 0.1) {
-      identicalPairs++;
-    }
-  }
-  
-  // If >80% of pairs are identical/similar, assume stereo-interleaved
-  return (identicalPairs / pairCount) > 0.8;
-}
-
-/**
- * Downmix stereo-interleaved pairs by taking max of each pair
- */
-function downmixStereoPairs(bins: number[]): number[] {
-  const downmixed: number[] = [];
-  for (let i = 0; i < bins.length; i += 2) {
-    downmixed.push(Math.max(bins[i], bins[i + 1]));
-  }
-  return downmixed;
+  return { binsDb: value as number[] };
 }
 
 /**

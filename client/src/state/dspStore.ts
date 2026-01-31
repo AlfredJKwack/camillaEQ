@@ -38,6 +38,7 @@ export interface DspState {
   };
   failures: FailureEntry[];
   spectrumSupported: boolean | 'unknown'; // Spectrum analyzer capability
+  spectrumBins?: number; // Detected number of spectrum bins
 }
 
 // Internal state
@@ -462,11 +463,11 @@ export async function refreshDspInfo(): Promise<void> {
 
 /**
  * Check spectrum analyzer capability
- * Verifies that spectrum pipeline is configured and returns expected 256 bins
+ * Detects the number of spectrum bins and verifies the spectrum pipeline is operational
  */
 async function checkSpectrumCapability(): Promise<void> {
   if (!dspInstance || !dspInstance.isSpectrumSocketOpen()) {
-    dspState.update((s) => ({ ...s, spectrumSupported: false }));
+    dspState.update((s) => ({ ...s, spectrumSupported: false, spectrumBins: undefined }));
     return;
   }
 
@@ -477,7 +478,7 @@ async function checkSpectrumCapability(): Promise<void> {
     if (!rawData) {
       // No spectrum data available
       console.error('Spectrum analyzer not available: no data returned');
-      dspState.update((s) => ({ ...s, spectrumSupported: false }));
+      dspState.update((s) => ({ ...s, spectrumSupported: false, spectrumBins: undefined }));
       
       // Add diagnostic failure entry
       const failure: FailureEntry = {
@@ -498,12 +499,19 @@ async function checkSpectrumCapability(): Promise<void> {
       return;
     }
 
+    // Handle empty arrays (can happen with certain CamillaDSP commands)
+    if (Array.isArray(rawData) && rawData.length === 0) {
+      console.warn('Spectrum analyzer: received empty array, keeping status as unknown');
+      // Keep spectrumSupported as-is (likely 'unknown'), don't mark as false
+      return;
+    }
+
     // Parse spectrum data
     const parsed = parseSpectrumData(rawData);
     
     if (!parsed) {
       console.error('Spectrum analyzer not available: failed to parse data');
-      dspState.update((s) => ({ ...s, spectrumSupported: false }));
+      dspState.update((s) => ({ ...s, spectrumSupported: false, spectrumBins: undefined }));
       
       const failure: FailureEntry = {
         timestampMs: Date.now(),
@@ -523,44 +531,20 @@ async function checkSpectrumCapability(): Promise<void> {
       return;
     }
 
-    // Check bin count (expected 256 for our spectrum pipeline)
-    const expectedBins = 256;
+    // Accept any bin count >= 3 (validated by parser)
     const actualBins = parsed.binsDb.length;
-    
-    if (actualBins !== expectedBins) {
-      console.error(
-        `Spectrum analyzer configuration mismatch: expected ${expectedBins} bins, got ${actualBins}. ` +
-        'Please ensure the spectrum pipeline is correctly configured. ' +
-        'Consult documentation at docs/reference/camillaDSP-websocket.md'
-      );
-      
-      dspState.update((s) => ({ ...s, spectrumSupported: false }));
-      
-      const failure: FailureEntry = {
-        timestampMs: Date.now(),
-        socket: 'spectrum',
-        command: 'GetPlaybackSignalPeak',
-        request: 'Spectrum capability check',
-        response: `Configuration mismatch: expected ${expectedBins} bins, got ${actualBins}. Please consult documentation.`,
-      };
-      handleDspFailure({
-        timestampMs: failure.timestampMs,
-        socket: failure.socket,
-        command: failure.command,
-        request: failure.request,
-        response: failure.response,
-      });
-      
-      return;
-    }
 
     // Success - spectrum is properly configured
     console.log(`Spectrum analyzer detected: ${actualBins} bins`);
-    dspState.update((s) => ({ ...s, spectrumSupported: true }));
+    dspState.update((s) => ({ 
+      ...s, 
+      spectrumSupported: true,
+      spectrumBins: actualBins,
+    }));
     
   } catch (error) {
     console.error('Error checking spectrum capability:', error);
-    dspState.update((s) => ({ ...s, spectrumSupported: false }));
+    dspState.update((s) => ({ ...s, spectrumSupported: false, spectrumBins: undefined }));
     
     const failure: FailureEntry = {
       timestampMs: Date.now(),

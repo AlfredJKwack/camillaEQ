@@ -1,10 +1,41 @@
 # Tools
 
 ## Build CamillaDSP Spectrum YAML
-This script builds out a 256 bandpass filter (log-spaced) yaml for CamillaDSP which is then used as the source for the spectrum analyzer. It's the poor man's hack to approximate a visual aid for the Graphical Equalizer resembling a FFT.
+This script builds out a log-spaced bandpass filter bank yaml for CamillaDSP which is then used as the source for the spectrum analyzer. It's the poor man's hack to approximate a visual aid for the Graphical Equalizer resembling a FFT.
 
-Run the below
+### Usage
 ```bash
-node build-camillaDSP-spectrum-yml.js
+node build-camillaDSP-spectrum-yml.js [options]
 ```
-and it will create a file `spectrum-256.yml`. You'll still have to change the `devices:` portion to fit your actual CamillaDSP setup. 
+
+### Options
+- `--bins <int>` - Number of spectrum bins (default: 256)
+- `--q <number>` - Q factor for bandpass filters (default: 18)
+- `--out <filename>` - Output filename (default: spectrum-<bins>.yml)
+- `--help`, `-h` - Show help message
+
+### Examples
+```bash
+# Default: 256 bins, Q=18, writes spectrum-256.yml
+node build-camillaDSP-spectrum-yml.js
+
+# Custom: 128 bins with Q=12 for smoother display
+node build-camillaDSP-spectrum-yml.js --bins 128 --q 12
+
+# Custom output filename
+node build-camillaDSP-spectrum-yml.js --bins 256 --q 16 --out my-spectrum.yml
+```
+
+### Q Value Recommendations
+The Q parameter controls the bandwidth of each bandpass filter:
+- **Q = 12** - Smoothest, best for general room EQ / tonal balance work
+- **Q = 16** - Good compromise between detail and smoothness
+- **Q = 18** - Default, more detail but may appear "busy" without UI smoothing
+
+Lower Q values produce a more stable, easier-to-read spectrum display at the cost of frequency resolution.
+
+### Post-Generation Setup
+After generating the config file, you'll need to:
+1. Edit the `devices:` section to match your CamillaDSP audio setup
+2. Load the config on CamillaDSP's spectrum port (typically different from the control port)
+3. The client will auto-detect the number of bins when connecting

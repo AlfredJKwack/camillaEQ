@@ -10,6 +10,7 @@
     dspConfigs, 
     dspFailures,
     dspConfig,
+    dspState,
     exportDiagnostics 
   } from '../state/dspStore';
 
@@ -120,6 +121,11 @@
         {#if $dspVersion}
           <div class="status-subtext">
             CamillaDSP v{$dspVersion}
+          </div>
+        {/if}
+        {#if $dspState.spectrumBins}
+          <div class="status-subtext">
+            Spectrum: {$dspState.spectrumBins} bins
           </div>
         {/if}
       {/if}
