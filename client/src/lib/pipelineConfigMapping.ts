@@ -9,27 +9,47 @@
 import type { CamillaDSPConfig } from './camillaDSP';
 
 /**
- * Pipeline config format (canonical on-disk format for MVP-9)
+ * Pipeline config format (canonical on-disk format for MVP-9+)
+ * 
+ * Basic format (EQ-only, legacy):
+ * - configName, accessKey, filterArray
+ * 
+ * Extended format (full pipeline):
+ * - configName, accessKey, filterArray (can be empty)
+ * - filters, mixers, processors, pipeline (optional)
+ * - title, description (optional)
+ * 
+ * Note: devices are never stored (always from templateConfig or defaults)
  */
 export interface PipelineConfig {
   configName: string;
   accessKey?: string;
   filterArray: Array<Record<string, any>>;
+  
+  // Extended format for full pipeline support
+  title?: string;
+  description?: string;
+  filters?: Record<string, any>;
+  mixers?: Record<string, any>;
+  processors?: Record<string, any>;
+  pipeline?: any[];
 }
 
 /**
  * Convert pipeline-config to full CamillaDSP config
  * 
- * Takes the filter array and creates a complete CamillaDSP config with:
- * - Pipeline routing (passthrough for now)
- * - Filters (from filterArray)
- * - Devices (placeholder capture/playback)
+ * Extended format (if pipeline/filters/mixers/processors are present):
+ * - Uses those sections directly from pipelineConfig
+ * - Devices always come from templateConfig (never stored on disk)
+ * 
+ * Legacy format (if only filterArray is present):
+ * - Converts filterArray to filters/pipeline as before
  */
 export function pipelineConfigToCamillaDSP(
   pipelineConfig: PipelineConfig,
   templateConfig?: CamillaDSPConfig
 ): CamillaDSPConfig {
-  // Start with template or minimal config
+  // Start with template or minimal config (devices always from template)
   const baseConfig: CamillaDSPConfig = templateConfig || {
     devices: {
       samplerate: 48000,
@@ -53,7 +73,33 @@ export function pipelineConfigToCamillaDSP(
     pipeline: [],
   };
 
-  // Extract filters and metadata from filterArray
+  // Check if this is extended format (has pipeline section)
+  if (pipelineConfig.pipeline && pipelineConfig.pipeline.length > 0) {
+    // Extended format: use pipeline/filters/mixers/processors directly
+    const config: CamillaDSPConfig = {
+      ...baseConfig,
+      filters: pipelineConfig.filters || {},
+      mixers: pipelineConfig.mixers || {},
+      pipeline: pipelineConfig.pipeline || [],
+    };
+
+    // Add processors if present (CamillaDSP v3+)
+    if (pipelineConfig.processors) {
+      (config as any).processors = pipelineConfig.processors;
+    }
+
+    // Add title/description if present
+    if (pipelineConfig.title) {
+      (config as any).title = pipelineConfig.title;
+    }
+    if (pipelineConfig.description) {
+      (config as any).description = pipelineConfig.description;
+    }
+
+    return config;
+  }
+
+  // Legacy format: convert filterArray to filters + pipeline
   const filters: Record<string, any> = {};
   const filterNames: string[] = [];
   let preampGain = 0;

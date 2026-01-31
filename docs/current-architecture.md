@@ -1,7 +1,7 @@
 # Current Architecture (as-built)
 
-**Last updated:** 2026-01-30  
-**Status:** MVP-16 Complete
+**Last updated:** 2026-01-31  
+**Status:** MVP-19 Complete (Pipeline Viewer + PipelineConfig Extension)
 
 This document describes the actual implementation as it exists in the codebase.
 
@@ -53,10 +53,10 @@ This document describes the actual implementation as it exists in the codebase.
 - Hash-based routing (`client/src/lib/router.ts`)
 
 **Pages:**
-- `/connect` - Connection parameters
+- `/connect` - Connection parameters + DSP diagnostics
 - `/eq` - Interactive EQ editor (main page)
 - `/presets` - Configuration library
-- `/pipeline` - Pipeline editor (placeholder, not implemented)
+- `/pipeline` - Pipeline viewer (read-only, MVP-19)
 
 **Direct WebSocket Connections:**
 - Opens two separate connections to CamillaDSP:
@@ -129,6 +129,58 @@ This document describes the actual implementation as it exists in the codebase.
 3. `pipelineConfigMapping.ts` converts → pipeline-config format
 4. Send `PUT /api/configs/:id` with JSON body
 5. Refresh preset list
+
+### Pipeline Viewer (MVP-19)
+**Read-only visualization** of the DSP signal flow:
+
+1. User navigates to `/pipeline` page
+2. `PipelinePage.svelte` reads `dspStore.config.pipeline` (reactive)
+3. `pipelineViewModel.ts` converts config → block view models:
+   - Filter blocks: extract filter names, types, channel indicators
+   - Mixer blocks: extract name, in/out channel counts
+   - Processor blocks: extract name, type
+   - Detects missing references (orphaned filter/mixer names)
+4. Renders vertical stack: `[ Input ] → blocks → [ Output ]`
+5. Empty states: not connected / loading / no pipeline
+6. Reactive updates when config changes (e.g., after preset load or EQ edit)
+
+**Components:**
+- `FilterBlock.svelte` - displays channel badges, filter list with type icons, bypass state
+- `MixerBlock.svelte` - displays mixer name, channel routing summary
+- `ProcessorBlock.svelte` - displays processor name, bypass state
+
+**PipelineConfig Extension (Post-MVP-9):**
+The on-disk preset format now supports **optional advanced fields**:
+
+**Legacy format (EQ-only):**
+```json
+{
+  "configName": "My EQ",
+  "filterArray": [
+    { "Filter01": { "type": "Peaking", "freq": 1000, "gain": 6, "q": 1.0 } },
+    { "Preamp": { "gain": -3.0 } }
+  ]
+}
+```
+
+**Extended format (full pipeline):**
+```json
+{
+  "configName": "My Pipeline",
+  "filterArray": [],
+  "filters": { ... },
+  "mixers": { ... },
+  "processors": { ... },
+  "pipeline": [ ... ],
+  "title": "Optional title",
+  "description": "Optional description"
+}
+```
+
+**Loading behavior** (`pipelineConfigToCamillaDSP()`):
+- If `pipeline` array is present and non-empty → uses advanced fields directly
+- If `pipeline` is absent → converts legacy `filterArray` to filters/pipeline
+- **Devices never stored** - always from templateConfig or defaults
 
 ---
 
@@ -217,14 +269,15 @@ services/
 ### Frontend (`client/src/`)
 ```
 pages/
-  ConnectPage.svelte  - Connection parameters
+  ConnectPage.svelte  - Connection parameters + DSP diagnostics
   EqPage.svelte       - Interactive EQ editor
   PresetsPage.svelte  - Config library UI
-  PipelinePage.svelte - Placeholder
+  PipelinePage.svelte - Pipeline viewer (read-only)
 lib/
   camillaDSP.ts       - WebSocket client + protocol
   camillaEqMapping.ts - EqBand ↔ CamillaDSP config conversion
-  pipelineConfigMapping.ts - Pipeline-config ↔ CamillaDSP config
+  pipelineConfigMapping.ts - Pipeline-config ↔ CamillaDSP config (extended format support)
+  pipelineViewModel.ts - Converts CamillaDSP config to render-friendly view models
   router.ts           - Hash-based routing
   debounce.ts         - Cancelable debounce utility
 state/
@@ -384,8 +437,7 @@ Users deploying CamillaEQ should:
 - Static asset serving from Fastify in production
 - ALSA device enumeration endpoints (`/api/alsa/devices`)
 - systemctl status endpoints (`/api/system/services`)
-- Pipeline editor UI (page exists as placeholder)
-- Filter type selection UI (currently static peaking filters only)
+- Pipeline editor UI (MVP-20+: block reordering, parameter editing, add/remove)
 - Right-click context menu on tokens
 - Volume control UI (CamillaDSP `SetVolume` implemented, no UI)
 

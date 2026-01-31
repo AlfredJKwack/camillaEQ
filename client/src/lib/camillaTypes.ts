@@ -149,7 +149,8 @@ export function normalizePipelineStep(step: any): PipelineStepNormalized | null 
   // Copy type-specific fields
   if (step.type === 'Filter' && step.names) {
     normalized.names = step.names;
-  } else if ((step.type === 'Mixer' || step.type === 'Processor') && step.name) {
+  } else if (step.name) {
+    // For Mixer, Processor, or any other type that has a name
     normalized.name = step.name;
   }
 

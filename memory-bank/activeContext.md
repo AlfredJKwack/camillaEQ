@@ -1,94 +1,58 @@
 # Active Context
 
 ## Current Focus
-**Post-MVP-18 work completed** (2026-01-31) - WebSocket lifecycle monitoring and diagnostics export. All documentation updated to reflect degraded state, lifecycle events, and failure logging architecture.
+**MVP-19 completed** (2026-01-31) - Pipeline Viewer (read-only display) + PipelineConfig extended format support. Documentation updated across implementation-plan, current-architecture, and memory-bank.
 
 ## Recently Completed
-**Post-MVP-18: WebSocket Lifecycle Monitoring & Diagnostics** (2026-01-31)
+**MVP-19: Pipeline Viewer + PipelineConfig Extension** (2026-01-31)
 
 ### Overview
-Extended the WebSocket client with event-driven lifecycle monitoring and comprehensive diagnostics export, enabling better visibility into connection health and failure patterns.
+Implemented read-only pipeline visualization and extended the on-disk preset format to support full CamillaDSP pipeline configurations while maintaining backward compatibility with EQ-only presets.
 
 ### Implemented Features
-1. **Degraded State Support:**
-   - Connection state now includes `degraded` (control OK, spectrum down)
-   - Per-socket tracking: `controlConnected`, `spectrumConnected` booleans
-   - State derivation logic: error (control down) / degraded (spectrum down) / connected (both up)
 
-2. **Lifecycle Event Monitoring:**
-   - `CamillaDSP.onSocketLifecycleEvent(event)` callback for open/close/error on both sockets
-   - Event-driven state transitions based on actual socket events
-   - Transport failures logged even when requests never reach DSP
+**1. Pipeline Viewer (Read-Only Display):**
+- **Pipeline view model** (`client/src/lib/pipelineViewModel.ts`):
+  - Converts CamillaDSP config → render-friendly block view models
+  - Supports Filter, Mixer, and Processor pipeline steps
+  - Detects missing references (orphaned filter/mixer names)
+  - Surfaces bypass state and per-block display labels
+- **Block components** (`client/src/components/pipeline/*`):
+  - `FilterBlock.svelte`: channel badges, filter list with type icons, missing reference indicators
+  - `MixerBlock.svelte`: mixer name + in/out channel summary
+  - `ProcessorBlock.svelte`: generic processor/unknown step display
+- **Pipeline page** (`client/src/pages/PipelinePage.svelte`):
+  - Vertical stack: `[ Input ] → blocks → [ Output ]`
+  - Robust empty states (not connected / loading / no pipeline)
+  - Pure read-only rendering of `dspStore.config.pipeline` (reactive)
 
-3. **Failure Logging with Bounded Retention:**
-   - Last 50 failures kept in `dspState.failures[]`
-   - Failures include: timestamp, socket, command, request, response
-   - Failures NOT cleared on success (persistent for diagnostics)
-   - Transport errors logged: "WebSocket not connected", timeouts, aborts
+**2. PipelineConfig Extended Format:**
+- **Extended interface** (`client/src/lib/pipelineConfigMapping.ts`):
+  - Added optional fields: `title`, `description`, `filters`, `mixers`, `processors`, `pipeline`
+  - Maintains full backward compatibility with legacy `filterArray`-only format
+- **Loading behavior** (`pipelineConfigToCamillaDSP()`):
+  - If `pipeline` array present and non-empty → uses advanced fields directly
+  - If `pipeline` absent → converts legacy `filterArray` to filters/pipeline
+  - **Devices never persisted** - always from templateConfig or defaults
+- **Test coverage:** 6 new tests in `pipelineConfigMapping.test.ts`
 
-4. **Diagnostics Export:**
-   - `exportDiagnostics()` function in dspStore
-   - Exports: connection state, server/ports, version, failure log, config summary
-   - "Copy Diagnostics" button on Connection page
-   - JSON format for easy bug reporting
-
-5. **UI Improvements:**
-   - Nav icon shows yellow/amber for degraded state
-   - Connection page shows which socket is down
-   - Spectrum canvas clears in degraded mode
-   - EQ editing continues when spectrum unavailable
+**3. Bug fix:**
+- `normalizePipelineStep()` now preserves `name` for any step type (not only Mixer/Processor)
 
 ### Documentation Updates
-- **docs/current-architecture.md**: Added WebSocket lifecycle monitoring section, updated state machine
-- **README.md**: Added "Degraded Connection" and "Copy Diagnostics" sections, updated nav icon colors
-- **docs/api-contract-camillaDSP.md**: Added "As-Built Implementation Notes" covering lifecycle callbacks, queue/timeout, v3 compatibility
-- **memory-bank**: Updated activeContext, progress, systemPatterns with new patterns
+- **docs/implementation-plan.md**: Marked MVP-19 complete, added as-built section
+- **docs/current-architecture.md**: Updated pages list, module structure, added Pipeline Viewer + PipelineConfig Extension sections
+- **memory-bank/progress.md**: Added MVP-19 + Post-MVP-9 Enhancement entries
+- **memory-bank/activeContext.md**: Updated current focus
 
 ### Test Coverage
-- All 202 tests passing (145 client + 54 server + 3 new lifecycle tests)
-- New test files: `camillaDSP.lifecycle.test.ts`, `dspStore.lifecycle.test.ts`
+- Test files: `pipelineViewModel.test.ts`, `PipelinePage.test.ts`, `pipelineConfigMapping.test.ts`
+- All tests remain passing
 
----
-
-**MVP-17: DSP Info Display** (2026-01-30)
-
-### Delivered in MVP-16:
-- ✅ Temporal averaging engine with STA (τ=0.8s), LTA (τ=8s), Peak hold (2s hold, 12 dB/s decay)
-- ✅ Fractional-octave smoothing (Off / 1/12 / 1/6 / 1/3 octave)
-- ✅ Multi-series canvas rendering layer (SpectrumAnalyzerLayer)
-- ✅ Coherent overlay enablement model (overlay ON when any of STA/LTA/PEAK enabled)
-- ✅ UI controls: 2×2 analyzer grid + smoothing dropdown + reset button
-- ✅ Reactive polling (starts/stops based on overlayEnabled state)
-- ✅ All 140 tests passing
-
-## Recent Work
-
-### MVP-17 Implementation Details (2026-01-30)
-
-**Extended CamillaDSP Client:**
-- New protocol methods: `getVersion()`, `getAvailableCaptureDevices()`, `getAvailablePlaybackDevices()`, `getConfigYaml()`, `getConfigTitle()`, `getConfigDescription()`
-- Event callbacks: `onDspSuccess(info)` and `onDspFailure(info)` for tracking all DSP responses
-- Callbacks fire for both control and spectrum sockets
-- Info includes: timestamp, socket, command, request, response
-
-**DSP State Management:**
-- Extended `DspState` with: version, availableDevices, currentConfigs, failures array
-- New action: `refreshDspInfo()` - fetches all metadata after connection
-- Failure tracking: accumulates failures, clears on any successful response
-- Device highlighting: compares active config devices with available device lists
-
-**ConnectPage UI Enhancements:**
-- Version display in status card ("CamillaDSP vX.Y.Z")
-- Audio devices section: two-column grid with "In Use" badges
-- Current configuration section: YAML display for control + spectrum with title/description
-- DSP failures section: timestamped error log with full request/response context
-
-**Files Modified:**
-- `client/src/lib/camillaDSP.ts` - Extended with 6 new methods + event callbacks
-- `client/src/state/dspStore.ts` - Added DSP info state + refresh action + failure tracking
-- `client/src/pages/ConnectPage.svelte` - Added 3 new info sections + styling
-- `server/src/services/mockCamillaDSP.ts` - Added 5 new command handlers per socket
-- `client/src/lib/__tests__/camillaDSP.integration.test.ts` - Added 24 tests (9 DSP info + 2 callbacks)
+### Next Steps
+- MVP-20: Pipeline block reordering (drag-and-drop)
+- MVP-21: Filter block editor (parameter editing)
+- MVP-22: Mixer block editor (routing editing)
 
 ## Decisions Made
 - ✅ **Frontend framework:** Svelte (ADR-003)

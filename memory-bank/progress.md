@@ -371,8 +371,33 @@
     - New: `dspStore.lifecycle.test.ts` (3 tests)
     - All 202 tests passing (148 client + 54 server)
 
+- [x] **MVP-19 - Pipeline Viewer (Read-Only Display)** (2026-01-31)
+  - **Pipeline view model** (`client/src/lib/pipelineViewModel.ts`):
+    - Converts CamillaDSP config into render-friendly block view models
+    - Supports Filter, Mixer, and Processor pipeline steps
+    - Surfaces missing references (missing filters/mixers), bypass state, per-block display labels
+  - **Pipeline block components** (`client/src/components/pipeline/*`):
+    - `FilterBlock.svelte`: channel badges, filter list with type icons, missing reference + bypass indicators
+    - `MixerBlock.svelte`: mixer name + in/out channel summary, missing reference indicator
+    - `ProcessorBlock.svelte`: generic processor/unknown step display, bypass indicator
+  - **Pipeline page** (`client/src/pages/PipelinePage.svelte`):
+    - Fixed-width vertical stack with explicit `[ Input ] → blocks → [ Output ]` signal flow
+    - Robust empty states (not connected / loading / no pipeline)
+    - Pure read-only rendering of shared `dspStore.config`
+  - **Bug fix:** `normalizePipelineStep()` now preserves `name` for any step type that includes it
+
+- [x] **Post-MVP-9 Enhancement - PipelineConfig Extended Format** (2026-01-31)
+  - **Extended PipelineConfig type** (`client/src/lib/pipelineConfigMapping.ts`):
+    - Added optional fields: `title`, `description`, `filters`, `mixers`, `processors`, `pipeline`
+    - Maintains backward compatibility with legacy EQ-only format
+  - **Loading behavior** (`pipelineConfigToCamillaDSP()`):
+    - If `pipeline` array present and non-empty → uses advanced fields directly
+    - If `pipeline` absent → converts legacy `filterArray` to filters/pipeline
+    - **Devices never stored** - always from templateConfig or defaults
+  - **Test coverage:** 6 new tests in `pipelineConfigMapping.test.ts`
+
 ## Current Status
-**Phase:** Post-MVP-18 Completed - WebSocket Lifecycle Monitoring & Diagnostics Export
+**Phase:** MVP-19 Completed - Pipeline Viewer + PipelineConfig Extension
 
 ## Planned Milestones
 

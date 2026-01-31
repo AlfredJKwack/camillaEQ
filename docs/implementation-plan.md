@@ -1614,7 +1614,7 @@ Implementation notes:
 Implement read-only visualization of the CamillaDSP pipeline structure to establish the UI foundation before adding editing capabilities.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-01-31)
 
 ### Deliverables
 
@@ -1649,6 +1649,33 @@ To Do.
    - Reactive updates when config changes
    - No local state (pure view of shared config)
 
+### As Built
+
+**Pipeline view model** (`client/src/lib/pipelineViewModel.ts`):
+- Converts CamillaDSP config into render-friendly block view models
+- Supports `Filter`, `Mixer`, and `Processor` pipeline steps
+- Surfaces missing references (missing filters/mixers), bypass state, and per-block display labels
+
+**Pipeline block components** (`client/src/components/pipeline/*`):
+- `FilterBlock.svelte`
+  - Channel badges
+  - Filter list with filter type icons when possible
+  - Missing reference + bypass indicators
+- `MixerBlock.svelte`
+  - Mixer name + in/out channel summary
+  - Missing reference indicator
+- `ProcessorBlock.svelte`
+  - Generic processor/unknown step display
+  - Bypass indicator
+
+**Pipeline page** (`client/src/pages/PipelinePage.svelte`):
+- Fixed-width vertical stack with explicit `[ Input ] → blocks → [ Output ]` signal flow
+- Robust empty states (not connected / loading / no pipeline)
+- Pure read-only rendering of shared `dspStore.config`
+
+**Bug fix (supporting)**
+- `client/src/lib/camillaTypes.ts`: `normalizePipelineStep()` now preserves `name` for any step type that includes it (not only Mixer/Processor)
+
 ### Test / Acceptance Criteria
 - ✅ Component tests:
   - Each block type renders with correct data
@@ -1663,6 +1690,10 @@ To Do.
   - Block types are visually distinguishable
   - Layout matches spec (vertical stack, fixed width)
 
+### Test Coverage (As Built)
+- `client/src/lib/__tests__/pipelineViewModel.test.ts`
+- `client/src/pages/PipelinePage.test.ts`
+
 ### Risk Reduced Early
 - ✅ Validates layout approach before adding interaction complexity
 - ✅ Confirms block component architecture is extensible
@@ -1674,6 +1705,34 @@ To Do.
 - Add/remove operations (MVP-23)
 - Detailed mixer routing view (MVP-22)
 - Selection/focus states (MVP-20)
+
+---
+
+## Post-MVP-9 Enhancement — PipelineConfig supports optional advanced fields
+
+### Goal
+Allow preset/library configs to optionally carry full pipeline sections (filters/mixers/processors/pipeline) while keeping the legacy EQ-focused format and **never persisting devices**.
+
+### Status
+✅ **COMPLETED** (2026-01-31)
+
+### As Built
+**Extended PipelineConfig type** (`client/src/lib/pipelineConfigMapping.ts`):
+- Added optional fields:
+  - `title?: string`
+  - `description?: string`
+  - `filters?: Record<string, any>`
+  - `mixers?: Record<string, any>`
+  - `processors?: Record<string, any>`
+  - `pipeline?: any[]`
+
+**Loading behavior** (`pipelineConfigToCamillaDSP()`):
+- If `pipeline` is present and non-empty, the advanced fields are used directly.
+- `devices` are always taken from the current DSP/template config (or defaults), not from disk.
+- If `pipeline` is absent, the legacy `filterArray` mapping continues to be used.
+
+### Test Coverage
+- `client/src/lib/__tests__/pipelineConfigMapping.test.ts`
 
 ⸻
 
