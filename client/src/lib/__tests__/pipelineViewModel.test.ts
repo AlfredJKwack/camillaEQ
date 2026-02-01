@@ -2,9 +2,10 @@
  * Pipeline view model tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildPipelineViewModel } from '../pipelineViewModel';
 import type { CamillaDSPConfig } from '../camillaDSP';
+import * as disabledFiltersOverlay from '../disabledFiltersOverlay';
 
 describe('pipelineViewModel', () => {
   it('returns empty array for empty pipeline', () => {
@@ -341,5 +342,200 @@ describe('pipelineViewModel', () => {
         },
       ],
     });
+  });
+  
+  it('handles disabled filters with duplicate indices (adjacent disables)', () => {
+    const config: CamillaDSPConfig = {
+      devices: { capture: { channels: 2 }, playback: { channels: 2 } },
+      filters: {
+        EQ1: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 100, q: 1.0, gain: 3.0 },
+        },
+        EQ2: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 200, q: 1.0, gain: 3.0 },
+        },
+        EQ3: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 300, q: 1.0, gain: 3.0 },
+        },
+        EQ4: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 400, q: 1.0, gain: 3.0 },
+        },
+      },
+      mixers: {},
+      pipeline: [
+        {
+          type: 'Filter',
+          channels: [0, 1],
+          names: ['EQ3', 'EQ4'], // EQ1 and EQ2 are disabled
+        },
+      ],
+    };
+    
+    // Mock overlay: EQ1 and EQ2 both disabled at index 0 (happens when you disable adjacent filters)
+    vi.spyOn(disabledFiltersOverlay, 'getDisabledFiltersForStep').mockReturnValue([
+      { filterName: 'EQ1', stepKey: 'Filter:ch0,1:idx0', index: 0 },
+      { filterName: 'EQ2', stepKey: 'Filter:ch0,1:idx0', index: 0 }, // Same index!
+    ]);
+    
+    const blocks = buildPipelineViewModel(config);
+    
+    expect(blocks).toHaveLength(1);
+    const filterBlock = blocks[0];
+    expect(filterBlock.kind).toBe('filter');
+    
+    // Both disabled filters should appear at the front (not at the end)
+    if (filterBlock.kind === 'filter') {
+      expect(filterBlock.filters).toHaveLength(4);
+      expect(filterBlock.filters[0]).toMatchObject({ name: 'EQ1', disabled: true });
+      expect(filterBlock.filters[1]).toMatchObject({ name: 'EQ2', disabled: true });
+      expect(filterBlock.filters[2]).toMatchObject({ name: 'EQ3', disabled: false });
+      expect(filterBlock.filters[3]).toMatchObject({ name: 'EQ4', disabled: false });
+    }
+    
+    vi.restoreAllMocks();
+  });
+  
+  it('handles disabled filters at various positions', () => {
+    const config: CamillaDSPConfig = {
+      devices: { capture: { channels: 2 }, playback: { channels: 2 } },
+      filters: {
+        EQ1: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 100, q: 1.0, gain: 3.0 },
+        },
+        EQ2: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 200, q: 1.0, gain: 3.0 },
+        },
+        EQ3: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 300, q: 1.0, gain: 3.0 },
+        },
+        EQ4: {
+          type: 'Biquad',
+          parameters: { type: 'Peaking', freq: 400, q: 1.0, gain: 3.0 },
+        },
+      },
+      mixers: {},
+      pipeline: [
+        {
+          type: 'Filter',
+          channels: [0],
+          names: ['EQ1', 'EQ4'], // EQ2 and EQ3 disabled
+        },
+      ],
+    };
+    
+    // Mock overlay: EQ2 at index 1, EQ3 at index 2
+    vi.spyOn(disabledFiltersOverlay, 'getDisabledFiltersForStep').mockReturnValue([
+      { filterName: 'EQ2', stepKey: 'Filter:ch0:idx0', index: 1 },
+      { filterName: 'EQ3', stepKey: 'Filter:ch0:idx0', index: 2 },
+    ]);
+    
+    const blocks = buildPipelineViewModel(config);
+    
+    const filterBlock = blocks[0];
+    if (filterBlock.kind === 'filter') {
+      expect(filterBlock.filters).toHaveLength(4);
+      // Expected order: EQ1 (active, idx 0), EQ2 (disabled, idx 1), EQ3 (disabled, idx 2), EQ4 (active, originally idx 3)
+      expect(filterBlock.filters[0]).toMatchObject({ name: 'EQ1', disabled: false });
+      expect(filterBlock.filters[1]).toMatchObject({ name: 'EQ2', disabled: true });
+      expect(filterBlock.filters[2]).toMatchObject({ name: 'EQ3', disabled: true });
+      expect(filterBlock.filters[3]).toMatchObject({ name: 'EQ4', disabled: false });
+    }
+    
+    vi.restoreAllMocks();
+  });
+  
+  it('handles disabling filter 5 then filter 4 from [1,2,3,4,5,6]', () => {
+    const config: CamillaDSPConfig = {
+      devices: { capture: { channels: 2 }, playback: { channels: 2 } },
+      filters: {
+        F1: { type: 'Biquad', parameters: { type: 'Peaking', freq: 100, q: 1.0, gain: 0 } },
+        F2: { type: 'Biquad', parameters: { type: 'Peaking', freq: 200, q: 1.0, gain: 0 } },
+        F3: { type: 'Biquad', parameters: { type: 'Peaking', freq: 300, q: 1.0, gain: 0 } },
+        F4: { type: 'Biquad', parameters: { type: 'Peaking', freq: 400, q: 1.0, gain: 0 } },
+        F5: { type: 'Biquad', parameters: { type: 'Peaking', freq: 500, q: 1.0, gain: 0 } },
+        F6: { type: 'Biquad', parameters: { type: 'Peaking', freq: 600, q: 1.0, gain: 0 } },
+      },
+      mixers: {},
+      pipeline: [
+        {
+          type: 'Filter',
+          channels: [0],
+          names: ['F1', 'F2', 'F3', 'F6'], // F4 and F5 disabled
+        },
+      ],
+    };
+    
+    // Mock overlay: F5 was disabled at index 4, then F4 at index 3
+    vi.spyOn(disabledFiltersOverlay, 'getDisabledFiltersForStep').mockReturnValue([
+      { filterName: 'F5', stepKey: 'Filter:ch0:idx0', index: 4 },
+      { filterName: 'F4', stepKey: 'Filter:ch0:idx0', index: 3 },
+    ]);
+    
+    const blocks = buildPipelineViewModel(config);
+    
+    const filterBlock = blocks[0];
+    if (filterBlock.kind === 'filter') {
+      expect(filterBlock.filters).toHaveLength(6);
+      // Expected order: [F1, F2, F3, F4, F5, F6] with F4 and F5 disabled
+      expect(filterBlock.filters[0]).toMatchObject({ name: 'F1', disabled: false });
+      expect(filterBlock.filters[1]).toMatchObject({ name: 'F2', disabled: false });
+      expect(filterBlock.filters[2]).toMatchObject({ name: 'F3', disabled: false });
+      expect(filterBlock.filters[3]).toMatchObject({ name: 'F4', disabled: true });
+      expect(filterBlock.filters[4]).toMatchObject({ name: 'F5', disabled: true });
+      expect(filterBlock.filters[5]).toMatchObject({ name: 'F6', disabled: false });
+    }
+    
+    vi.restoreAllMocks();
+  });
+  
+  it('handles disabling filter 3 then filter 5 from [1,2,3,4,5,6]', () => {
+    const config: CamillaDSPConfig = {
+      devices: { capture: { channels: 2 }, playback: { channels: 2 } },
+      filters: {
+        F1: { type: 'Biquad', parameters: { type: 'Peaking', freq: 100, q: 1.0, gain: 0 } },
+        F2: { type: 'Biquad', parameters: { type: 'Peaking', freq: 200, q: 1.0, gain: 0 } },
+        F3: { type: 'Biquad', parameters: { type: 'Peaking', freq: 300, q: 1.0, gain: 0 } },
+        F4: { type: 'Biquad', parameters: { type: 'Peaking', freq: 400, q: 1.0, gain: 0 } },
+        F5: { type: 'Biquad', parameters: { type: 'Peaking', freq: 500, q: 1.0, gain: 0 } },
+        F6: { type: 'Biquad', parameters: { type: 'Peaking', freq: 600, q: 1.0, gain: 0 } },
+      },
+      mixers: {},
+      pipeline: [
+        {
+          type: 'Filter',
+          channels: [0],
+          names: ['F1', 'F2', 'F4', 'F6'], // F3 and F5 disabled
+        },
+      ],
+    };
+    
+    // Mock overlay: F3 was disabled at index 2, then F5 at index 4
+    vi.spyOn(disabledFiltersOverlay, 'getDisabledFiltersForStep').mockReturnValue([
+      { filterName: 'F3', stepKey: 'Filter:ch0:idx0', index: 2 },
+      { filterName: 'F5', stepKey: 'Filter:ch0:idx0', index: 4 },
+    ]);
+    
+    const blocks = buildPipelineViewModel(config);
+    
+    const filterBlock = blocks[0];
+    if (filterBlock.kind === 'filter') {
+      expect(filterBlock.filters).toHaveLength(6);
+      // Expected order: [F1, F2, F3, F4, F5, F6] with F3 and F5 disabled
+      expect(filterBlock.filters[0]).toMatchObject({ name: 'F1', disabled: false });
+      expect(filterBlock.filters[1]).toMatchObject({ name: 'F2', disabled: false });
+      expect(filterBlock.filters[2]).toMatchObject({ name: 'F3', disabled: true });
+      expect(filterBlock.filters[3]).toMatchObject({ name: 'F4', disabled: false });
+      expect(filterBlock.filters[4]).toMatchObject({ name: 'F5', disabled: true });
+      expect(filterBlock.filters[5]).toMatchObject({ name: 'F6', disabled: false });
+    }
+    
+    vi.restoreAllMocks();
   });
 });

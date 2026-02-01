@@ -6,6 +6,7 @@
 import type { EqBand } from '../dsp/filterResponse';
 import type { CamillaDSPConfig, FilterDefinition } from './camillaDSP';
 import { normalizePipelineStep, isGainCapable, type PipelineStepNormalized } from './camillaTypes';
+import { isFilterDisabled } from './disabledFiltersOverlay';
 
 export interface ExtractedEqData {
   bands: EqBand[];
@@ -143,11 +144,11 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
       continue;
     }
 
-    // Determine if filter is enabled (not bypassed)
-    // Check both filter-level and pipeline-level bypass
-    const filterBypassed = params.bypassed === true;
+    // Determine if filter is enabled
+    // Check disabled overlay (UI state) and pipeline-level bypass
+    const isDisabled = isFilterDisabled(filterName);
     const pipelineBypassed = channel0Step.bypassed === true;
-    const enabled = !filterBypassed && !pipelineBypassed;
+    const enabled = !isDisabled && !pipelineBypassed;
 
     // Extract parameters with fallbacks
     const freq = Number(params.freq || params.Frequency || 1000);
@@ -269,13 +270,9 @@ export function applyEqBandsToConfig(
       delete params.gain;
     }
 
-    // Handle bypass status (enabled = not bypassed)
-    // Store at filter level for simplicity
-    if (!band.enabled) {
-      params.bypassed = true;
-    } else {
-      delete params.bypassed;
-    }
+    // Note: enabled/disabled state is now managed by the overlay system
+    // and reflected in pipeline step names[] (presence/absence of filter name)
+    // We don't set params.bypassed here anymore since CamillaDSP doesn't support it
   }
 
   return updatedConfig;

@@ -268,13 +268,13 @@ log.error('Error message', errorObject);
 
 All log messages include timestamp and level prefix for easy filtering.
 
-## Pipeline Editor (MVP-19/20)
+## Pipeline Editor (MVP-19/20/21)
 
-The **Pipeline page** (`/#/pipeline`) provides a read-only view of the CamillaDSP signal processing pipeline, showing each processing step in the order audio flows through them.
+The **Pipeline page** (`/#/pipeline`) provides an interactive editor for the CamillaDSP signal processing pipeline, showing each processing step in the order audio flows through them.
 
 ### What You See
 
-- **Filter blocks**: Display which channels they apply to and list all filters in that block
+- **Filter blocks**: Display which channels they apply to, list all filters, and allow inline editing (MVP-21)
 - **Mixer blocks**: Show input/output channel counts and mixer name
 - **Processor blocks**: Display processor type and name
 - **Signal flow**: Top → Bottom (Input → blocks → Output)
@@ -282,8 +282,26 @@ The **Pipeline page** (`/#/pipeline`) provides a read-only view of the CamillaDS
 Each block shows:
 - Missing references (filters/mixers not found in config)
 - Bypass state indicators
+- **Filter editing controls** (MVP-21): expand/collapse, parameter knobs, enable/disable, remove
 
-### Reordering Filters Inside a Filter Block (MVP-20)
+### Filter Editing (MVP-21)
+
+Click the **+** button on any filter row (when block is selected) to expand inline parameter controls:
+
+- **Parameter knobs**: Frequency (20-20k Hz), Q (0.1-10), Gain (±24 dB for Peaking/Shelf types)
+- **Power button (⏻)**: Enable/disable filter
+  - Disable removes filter from pipeline, stores position in browser localStorage
+  - Enable restores filter to original position
+- **Remove button (×)**: Permanently remove filter from config
+- **Collapsed rows**: Show compact values (e.g., "1000 Hz", "Q 1.0", "-3.0 dB")
+- **Reserved slot**: Expand button slot prevents layout shift when selecting blocks
+
+**Disabled filters overlay:**
+- Disabled filters stored in browser localStorage with step key and index
+- Overlay automatically remaps when you reorder pipeline steps (disabled filters "follow" their step)
+- Enable button restores filter to exact original position
+
+### Reordering Filters (MVP-20)
 
 You can **reorder filters within the same Filter block** using drag-and-drop:
 
@@ -301,9 +319,18 @@ You can **reorder filters within the same Filter block** using drag-and-drop:
 
 ## Project Status
 
-**Current Milestone:** MVP-20 Complete ✓ — Pipeline filter reordering
+**Current Milestone:** MVP-21 Complete ✓ — Pipeline filter editor with disabled overlay
 
-**New in MVP-20:**
+**New in MVP-21:**
+- **Inline filter parameter editing** in Pipeline page Filter blocks
+- **Enable/disable filters** with power button (⏻) - removes from pipeline, stores in localStorage overlay
+- **Remove filters** with × button - cleans up orphaned definitions
+- **Collapsed row value display** shows Hz, Q, dB without labels
+- **Reserved slot** for expand button prevents layout shift when block selected
+- **Disabled filters overlay** persists in browser localStorage and remaps on pipeline reorder
+- **Stable blockIds** remain unchanged across enable/disable operations
+
+**Previous (MVP-20):**
 - **Drag-and-drop filter reordering** inside Filter blocks on Pipeline page
 - **Landing zone visualization** shows insertion point during drag
 - **Direction-aware index adjustment** ensures correct drop behavior when dragging up/down

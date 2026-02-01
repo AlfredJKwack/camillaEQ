@@ -5,6 +5,7 @@
 
 import type { CamillaDSPConfig } from './camillaDSP';
 import { normalizePipelineStep, type PipelineStepNormalized } from './camillaTypes';
+import { getDisabledFiltersForStep, getStepKey } from './disabledFiltersOverlay';
 
 /**
  * Filter info for display in FilterBlock
@@ -13,7 +14,15 @@ export interface FilterInfo {
   name: string;
   iconType: string | null; // Biquad subtype for icon, or null for unsupported
   exists: boolean; // Whether filter is defined in config.filters
-  bypassed: boolean; // Filter-level bypass state
+  disabled: boolean; // Whether filter is disabled (UI overlay state)
+  bypassed: boolean; // Whether filter is bypassed (from filter definition)
+  // MVP-21: Parameter data for editing (only populated for Biquad filters)
+  filterType?: string; // e.g. 'Biquad'
+  biquadType?: string; // e.g. 'Peaking', 'Highpass'
+  freq?: number;
+  q?: number;
+  gain?: number;
+  supportsGain: boolean; // Whether this filter type can have gain
 }
 
 /**
@@ -100,6 +109,7 @@ export function buildPipelineViewModel(
 
 /**
  * Build FilterBlockVm from normalized Filter step
+ * Merges active filters (from step.names) with disabled filters (from overlay)
  */
 function buildFilterBlockVm(
   step: PipelineStepNormalized,
@@ -111,26 +121,51 @@ function buildFilterBlockVm(
   const filterNames = step.names || [];
   const bypassed = step.bypassed || false;
   
-  const filters: FilterInfo[] = filterNames.map((name) => {
-    const filterDef = config.filters[name];
-    const exists = !!filterDef;
+  // Get step key for overlay lookup
+  const stepKey = getStepKey(channels, stepIndex);
+  const disabledFilters = getDisabledFiltersForStep(stepKey);
+  
+  // Build FilterInfo for active filters
+  const activeFilters: FilterInfo[] = filterNames.map((name) => {
+    return buildFilterInfo(name, config, false);
+  });
+  
+  // Build FilterInfo for disabled filters
+  const disabledFilterInfos: FilterInfo[] = disabledFilters.map((loc) => {
+    return buildFilterInfo(loc.filterName, config, true);
+  });
+  
+  // Merge: reconstruct original order using slot-fill algorithm
+  // This preserves absolute positions of both active and disabled filters
+  const totalSlots = activeFilters.length + disabledFilterInfos.length;
+  const slots: (FilterInfo | null)[] = new Array(totalSlots).fill(null);
+  
+  // Step 1: Place disabled filters at their stored indices
+  for (let i = 0; i < disabledFilterInfos.length; i++) {
+    const disabledLoc = disabledFilters[i];
+    let targetIndex = Math.min(disabledLoc.index, totalSlots - 1);
     
-    let iconType: string | null = null;
-    let filterBypassed = false;
-    
-    if (exists && filterDef.type === 'Biquad') {
-      // Extract biquad subtype for icon
-      iconType = filterDef.parameters?.type || null;
-      filterBypassed = filterDef.parameters?.bypassed === true;
+    // Handle index collisions by finding next available slot
+    while (targetIndex < totalSlots && slots[targetIndex] !== null) {
+      targetIndex++;
     }
     
-    return {
-      name,
-      iconType,
-      exists,
-      bypassed: filterBypassed,
-    };
-  });
+    if (targetIndex < totalSlots) {
+      slots[targetIndex] = disabledFilterInfos[i];
+    }
+  }
+  
+  // Step 2: Fill remaining empty slots with active filters (left-to-right)
+  let activeIdx = 0;
+  for (let i = 0; i < totalSlots; i++) {
+    if (slots[i] === null && activeIdx < activeFilters.length) {
+      slots[i] = activeFilters[activeIdx];
+      activeIdx++;
+    }
+  }
+  
+  // Step 3: Extract non-null entries (should be all of them)
+  const allFilters = slots.filter((f): f is FilterInfo => f !== null);
   
   return {
     kind: 'filter',
@@ -138,7 +173,61 @@ function buildFilterBlockVm(
     blockId,
     channels,
     bypassed,
-    filters,
+    filters: allFilters,
+  };
+}
+
+/**
+ * Build FilterInfo for a single filter
+ */
+function buildFilterInfo(
+  name: string,
+  config: CamillaDSPConfig,
+  disabled: boolean
+): FilterInfo {
+  const filterDef = config.filters[name];
+  const exists = !!filterDef;
+  
+  let iconType: string | null = null;
+  let bypassed = false;
+  
+  // MVP-21: Extract parameter data for editing
+  let filterType: string | undefined;
+  let biquadType: string | undefined;
+  let freq: number | undefined;
+  let q: number | undefined;
+  let gain: number | undefined;
+  let supportsGain = false;
+  
+  if (exists && filterDef.type === 'Biquad') {
+    // Extract biquad subtype for icon
+    iconType = filterDef.parameters?.type || null;
+    bypassed = filterDef.parameters?.bypassed || false;
+    
+    // MVP-21: Extract parameters
+    filterType = filterDef.type;
+    biquadType = filterDef.parameters?.type;
+    freq = filterDef.parameters?.freq;
+    q = filterDef.parameters?.q;
+    gain = filterDef.parameters?.gain;
+    
+    // Determine if this type supports gain
+    const type = biquadType?.toLowerCase() || '';
+    supportsGain = type === 'peaking' || type === 'highshelf' || type === 'lowshelf' || type === 'notch';
+  }
+  
+  return {
+    name,
+    iconType,
+    exists,
+    disabled,
+    bypassed,
+    filterType,
+    biquadType,
+    freq,
+    q,
+    gain,
+    supportsGain,
   };
 }
 

@@ -1,18 +1,61 @@
 /**
  * Pipeline UI identity management
- * Provides stable IDs for pipeline blocks across reorders
+ * Provides stable IDs for pipeline blocks across reorders and config clones
  */
 
 import type { CamillaDSPConfig } from './camillaDSP';
+import { getDisabledFiltersForStep, getStepKey } from './disabledFiltersOverlay';
+
+/**
+ * Generate a stable signature for a pipeline step
+ * This signature is used to identify the same logical step across config clones
+ * 
+ * For Filter steps, includes both enabled and disabled filters to ensure
+ * blockId stability when toggling filters on/off
+ */
+function getStepSignature(step: any, stepIndex: number): string {
+  const type = step.type || 'Unknown';
+  
+  if (type === 'Mixer') {
+    // Mixer: identify by name
+    return `Mixer:${step.name || 'unnamed'}`;
+  } else if (type === 'Filter') {
+    // Filter: identify by channels + all filters (enabled + disabled, sorted for stability)
+    const channels = (step.channels || []).slice().sort((a: number, b: number) => a - b);
+    const channelsStr = channels.join(',');
+    
+    // Get enabled filters from step.names
+    const enabledNames = (step.names || []).slice();
+    
+    // Get disabled filters from overlay
+    const stepKey = getStepKey(channels, stepIndex);
+    const disabledFilters = getDisabledFiltersForStep(stepKey);
+    const disabledNames = disabledFilters.map(f => f.filterName);
+    
+    // Union of enabled + disabled (sorted for stable signature)
+    const allNames = [...enabledNames, ...disabledNames].sort().join(',');
+    
+    return `Filter:${channelsStr}:${allNames}`;
+  } else {
+    // Other processors: identify by type + name
+    const name = step.name || '';
+    return `${type}:${name}`;
+  }
+}
 
 /**
  * Stable ID provider for pipeline blocks
- * IDs are computed once per config load and remain stable during reorders
+ * IDs remain stable across config clones and reorders by using step signatures
  */
 class PipelineIdProvider {
-  private lastConfigRef: CamillaDSPConfig | null = null;
-  private blockIds = new WeakMap<object, string>();
-  private reverseMap = new Map<string, object>();
+  // Map from signature to stable ID
+  private signatureToId = new Map<string, string>();
+  
+  // Map from ID to current step object (refreshed on each getBlockId call)
+  private idToStep = new Map<string, object>();
+  
+  // Counter for generating unique IDs when signatures collide
+  private idCounter = 0;
 
   /**
    * Get stable ID for a pipeline step object
@@ -21,29 +64,20 @@ class PipelineIdProvider {
    * @param config The parent config (used to detect config changes)
    */
   getBlockId(stepObj: object, indexAtLoad: number, config: CamillaDSPConfig): string {
-    // Reset if config reference changed
-    if (this.lastConfigRef !== config) {
-      this.blockIds = new WeakMap();
-      this.reverseMap = new Map();
-      this.lastConfigRef = config;
+    const signature = getStepSignature(stepObj, indexAtLoad);
+    
+    // Check if we've seen this signature before
+    let id = this.signatureToId.get(signature);
+    
+    if (!id) {
+      // Generate new ID for this signature
+      id = `block_${this.idCounter++}_${signature}`;
+      this.signatureToId.set(signature, id);
     }
-
-    // Return existing ID if already assigned
-    const existingId = this.blockIds.get(stepObj);
-    if (existingId) {
-      return existingId;
-    }
-
-    // Generate new ID
-    const step = stepObj as any;
-    const type = step.type || 'Unknown';
-    const name = step.name || '';
-    const id = `${type}:${name}:${indexAtLoad}`;
-
-    // Store bidirectional mapping
-    this.blockIds.set(stepObj, id);
-    this.reverseMap.set(id, stepObj);
-
+    
+    // Update reverse mapping to current step object
+    this.idToStep.set(id, stepObj);
+    
     return id;
   }
 
@@ -51,16 +85,16 @@ class PipelineIdProvider {
    * Get the pipeline step object for a given blockId
    */
   getStepByBlockId(blockId: string): object | undefined {
-    return this.reverseMap.get(blockId);
+    return this.idToStep.get(blockId);
   }
 
   /**
    * Reset all mappings (useful for testing or forced refresh)
    */
   reset(): void {
-    this.lastConfigRef = null;
-    this.blockIds = new WeakMap();
-    this.reverseMap = new Map();
+    this.signatureToId.clear();
+    this.idToStep.clear();
+    this.idCounter = 0;
   }
 }
 

@@ -2093,61 +2093,102 @@ No auto-repair in MVP.
 Enable inline editing of filter parameters with live DSP application and parameter validation.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-02-01)
 
-### Deliverables
+### As Built
 
-1. **Filter block editor UI:**
-   - Expand selected filter block to show parameter controls
-   - Reuse existing components from EQ editor:
-     - `KnobDial` for frequency/Q
-     - Filter type icon (read-only for now)
-     - Gain fader (if filter type supports gain)
-   - Enable/disable toggle per filter
-   - Remove filter button
+1. **Filter block expanded editor UI:**
+   - Per-filter expand/collapse (local state in PipelinePage, keyed by `blockId`)
+   - Inline editor with reused EQ components:
+     - `KnobDial` for frequency/Q (24px size)
+     - Power button (⏻) for enable/disable toggle
+     - Remove button (×) for filter removal
+   - Gain fader removed (knob-only for consistency with Q)
+   - Disabled filters dim to 35% opacity (knobs/controls non-interactive)
 
-2. **Parameter editing:**
-   - Edit frequency: 20-20000 Hz (same constraints as EQ)
-   - Edit Q: 0.1-10 (same constraints as EQ)
-   - Edit gain: ±24 dB (for gain-capable filter types)
-   - Parameter changes update `dspStore.config.filters[filterName]` directly
-   - Reuse existing clamping/rounding functions from `eqStore.ts`
+2. **Disabled filters overlay (localStorage persistence):**
+   - Disabled filter state stored in browser localStorage
+   - `client/src/lib/disabledFiltersOverlay.ts`:
+     - `markFilterDisabled()` - stores filter in overlay with stepKey + index
+     - `markFilterEnabled()` - removes filter from overlay
+     - `getDisabledFilterLocation()` - retrieves original position for re-enable
+     - `remapDisabledFiltersAfterPipelineReorder()` - updates overlay when pipeline steps reordered
+   - `stepKey` format: `"Filter:ch0,1:idx2"` (type:channels:index)
+   - Overlay remaps when pipeline steps reordered to keep disabled filters following their step
 
-3. **Filter list display:**
-   - Show all filters referenced by selected Filter block
-   - Expand/collapse individual filters
-   - Visual indicator for which filters are enabled/disabled
-   - Display filter order (matches pipeline order)
+3. **Parameter editing:**
+   - Edit frequency: 20-20000 Hz (reuses clamping from `eqParamClamp.ts`)
+   - Edit Q: 0.1-10
+   - Edit gain: ±24 dB (for Peaking/Shelf types only)
+   - Parameter changes via `setBiquadFreq()`, `setBiquadQ()`, `setBiquadGain()` in `pipelineFilterEdit.ts`
+   - Changes update `dspStore.config.filters[filterName]` directly
 
-4. **Validation:**
-   - Reuse existing filter param validation from `camillaEqMapping.ts`
-   - Prevent invalid parameter values (clamp on input)
-   - Show warning if filter type doesn't support gain parameter
+4. **Filter list display (collapsed rows):**
+   - All filters shown in collapsed state by default
+   - Compact value display on collapsed rows (no labels):
+     - Frequency: "1000 Hz"
+     - Q: "Q 1.0"
+     - Gain: "-3.0 dB" (only when `supportsGain`)
+   - Reserved 24px slot for expand button prevents layout shift when block selected
+   - Expand button (+ / −) appears only when block selected
 
-5. **Live upload:**
-   - Debounced upload after parameter change (200ms)
-   - Same flow as EQ editor: update config → validate → upload → download
-   - Upload status indicator
+5. **Enable/Disable behavior:**
+   - Disable: removes filter from pipeline step `names[]`, stores in overlay
+   - Enable: retrieves original position from overlay, re-inserts into `names[]`
+   - Disabled filters show "Disabled" badge, dimmed to 35% opacity
+   - Power button (⏻) color-coded: green (enabled), gray (disabled)
+
+6. **Filter removal:**
+   - Remove button removes filter from pipeline step `names[]`
+   - If filter becomes orphaned (not referenced in any step), removed from `config.filters`
+   - Only available when filter is enabled (disabled filters must be enabled first)
+
+7. **Validation:**
+   - CamillaDSP config validation via `dsp.validateConfig()` before every upload
+   - Snapshot/revert pattern on validation failure (inline error shown)
+
+8. **Live upload:**
+   - Debounced upload (200ms) via `commitPipelineConfigChange()`
+   - Same validation + upload flow as MVP-20
+   - Optimistic UI updates with snapshot/revert on failure
+
+9. **Stable identity across enable/disable:**
+   - `getBlockId()` signature changed to include disabled overlay reference
+   - `blockId` remains stable when filter enabled/disabled (no re-keying)
+   - Prevents expand/collapse state loss during enable/disable
+
+### Implementation Files
+- **UI:** `client/src/components/pipeline/FilterBlock.svelte` (expanded editor)
+- **State:** `client/src/pages/PipelinePage.svelte` (expand state, event handlers)
+- **Mutations:** `client/src/lib/pipelineFilterEdit.ts` (setBiquad*, enable/disable, remove)
+- **Overlay:** `client/src/lib/disabledFiltersOverlay.ts` (localStorage persistence + remap)
+- **Identity:** `client/src/lib/pipelineUiIds.ts` (stable blockIds)
+- **Tests:**
+  - `client/src/lib/__tests__/pipelineFilterEdit.test.ts` (28 tests)
+  - `client/src/lib/__tests__/disabledFiltersOverlay.test.ts` (9 tests)
+  - Updated: `pipelineViewModel.test.ts`, `pipelineReorder.test.ts`
 
 ### Test / Acceptance Criteria
+- ✅ Unit tests (37 new tests):
+  - Parameter editing with clamping
+  - Enable/disable preserves original position
+  - Remove filter + orphan cleanup
+  - Overlay remap on pipeline reorder
 - ✅ Component tests:
-  - Parameter controls update filter definition
-  - Clamping works correctly
-  - Enable/disable updates filter bypass state
-  - Remove filter updates pipeline step names array
-- ✅ Integration tests:
-  - Edit filter frequency → config updated → uploaded → CamillaDSP reflects change
-  - Edit gain on non-gain filter type → gain ignored or clamped
-  - Remove filter from middle of list → pipeline integrity maintained
-- ✅ Visual verification:
-  - Parameter controls match EQ editor styling
-  - Changes reflect immediately in UI
-  - Upload status visible
+  - Expand/collapse state persists during parameter edits
+  - Disabled filters non-interactive
+  - Collapsed rows show values
+  - Reserved slot prevents layout shift
+- ✅ Integration:
+  - Edit filter → uploaded → CamillaDSP updated
+  - Disable filter → overlay stored → enable restores position
+  - Reorder pipeline → disabled filters follow their step
+- ✅ All 286 tests passing (client + server)
 
 ### Risk Reduced Early
-- ✅ Validates filter editing interaction model
-- ✅ Proves component reuse from EQ editor works in Pipeline context
-- ✅ Confirms parameter validation is consistent across editors
+- ✅ Validated disabled filter overlay + remap model works correctly
+- ✅ Proved stable identity across enable/disable prevents UI state loss
+- ✅ Confirmed component reuse from EQ editor in Pipeline context
 
 ### Deferred Complexity
 - Filter type changing (use FilterTypePicker from EQ)

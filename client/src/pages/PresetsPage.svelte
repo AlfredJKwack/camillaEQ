@@ -4,6 +4,7 @@
   import { pipelineConfigToCamillaDSP, camillaDSPToPipelineConfig, type PipelineConfig } from '../lib/pipelineConfigMapping';
   import { initializeFromConfig } from '../state/eqStore';
   import { listConfigs, getConfig, putConfig, type ConfigMetadata } from '../lib/api';
+  import { clearDisabledFilters } from '../lib/disabledFiltersOverlay';
 
   let configs: ConfigMetadata[] = [];
   let loading = false;
@@ -80,6 +81,9 @@
         throw new Error('Failed to upload config to CamillaDSP');
       }
 
+      // Clear disabled filters overlay (preset loads overwrite entire state)
+      clearDisabledFilters();
+      
       // Update global dspStore so EqPage can initialize from the new config
       updateConfig(camillaConfig);
       

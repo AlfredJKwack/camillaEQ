@@ -1,13 +1,25 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import FilterIcon from '../icons/FilterIcons.svelte';
+  import KnobDial from '../KnobDial.svelte';
   import type { FilterBlockVm } from '../../lib/pipelineViewModel';
 
   export let block: FilterBlockVm;
+  export let expanded: boolean = false;
+  export let expandedFilters: Set<string> = new Set(); // Now passed from parent
 
   const dispatch = createEventDispatcher<{
     reorderName: { blockId: string; fromIndex: number; toIndex: number };
+    updateFilterParam: { filterName: string; param: 'freq' | 'q' | 'gain'; value: number };
+    enableFilter: { blockId: string; filterName: string };
+    disableFilter: { blockId: string; filterName: string };
+    toggleFilterExpanded: { blockId: string; filterName: string };
+    removeFilter: { filterName: string };
   }>();
+  
+  function handleFilterExpandToggle(filterName: string) {
+    dispatch('toggleFilterExpanded', { blockId: block.blockId, filterName });
+  }
 
   // Row drag state
   interface RowDragState {
@@ -148,7 +160,7 @@
             </button>
 
             <!-- Filter row content -->
-            <div class="filter-row" class:missing={!filter.exists} class:bypassed={filter.bypassed}>
+            <div class="filter-row" class:missing={!filter.exists} class:disabled={filter.disabled}>
               <div class="filter-icon">
                 {#if filter.iconType}
                   <FilterIcon type={filter.iconType} />
@@ -160,10 +172,145 @@
               {#if !filter.exists}
                 <span class="warning-badge">Missing</span>
               {/if}
-              {#if filter.bypassed}
-                <span class="bypassed-badge">Off</span>
+              {#if filter.disabled}
+                <span class="disabled-badge">Disabled</span>
+              {/if}
+              
+              <!-- Compact parameter values (when collapsed) -->
+              {#if filter.exists && filter.filterType === 'Biquad' && !expandedFilters.has(filter.name)}
+                <div class="filter-values">
+                  <span class="value">{(filter.freq ?? 1000).toFixed(0)} Hz</span>
+                  <span class="value">Q {(filter.q ?? 1.0).toFixed(1)}</span>
+                  {#if filter.supportsGain}
+                    <span class="value">{(filter.gain ?? 0).toFixed(1)} dB</span>
+                  {/if}
+                </div>
+              {/if}
+              
+              <!-- MVP-21: Reserved slot for expand button (prevents layout shift) -->
+              {#if filter.exists && filter.filterType === 'Biquad'}
+                <div class="filter-expand-slot">
+                  {#if expanded}
+                    <button 
+                      class="filter-expand-btn"
+                      on:click={() => handleFilterExpandToggle(filter.name)}
+                      title={expandedFilters.has(filter.name) ? 'Collapse' : 'Edit parameters'}
+                    >
+                      {expandedFilters.has(filter.name) ? '−' : '+'}
+                    </button>
+                  {:else}
+                    <!-- Invisible placeholder to reserve space -->
+                    <span class="filter-expand-placeholder" aria-hidden="true"></span>
+                  {/if}
+                </div>
               {/if}
             </div>
+            
+            <!-- MVP-21: Per-filter editor (shown when expanded) -->
+            {#if expanded && expandedFilters.has(filter.name) && filter.exists && filter.filterType === 'Biquad'}
+              <div class="filter-editor">
+                <div class="editor-controls">
+                  <!-- Column 1: Power button -->
+                  <div class="editor-col power-col">
+                    <button 
+                      class="power-btn"
+                      class:enabled={!filter.disabled}
+                      on:click={() => {
+                        if (filter.disabled) {
+                          dispatch('enableFilter', { blockId: block.blockId, filterName: filter.name });
+                        } else {
+                          dispatch('disableFilter', { blockId: block.blockId, filterName: filter.name });
+                        }
+                      }}
+                      title={filter.disabled ? 'Enable filter' : 'Disable filter'}
+                      aria-label={filter.disabled ? 'Enable filter' : 'Disable filter'}
+                    >
+                      ⏻
+                    </button>
+                  </div>
+                  
+                  <!-- Column 2: Knobs (stretches) -->
+                  <div class="editor-col knobs-col" class:disabled={filter.disabled}>
+                    <!-- Frequency knob -->
+                    <div class="editor-control">
+                      <span class="control-label">Freq</span>
+                      <KnobDial 
+                        value={filter.freq ?? 1000} 
+                        mode="frequency" 
+                        size={24}
+                        on:change={(e) => {
+                          if (!filter.disabled) {
+                            dispatch('updateFilterParam', { 
+                              filterName: filter.name, 
+                              param: 'freq', 
+                              value: e.detail.value 
+                            });
+                          }
+                        }}
+                      />
+                      <span class="control-value">{(filter.freq ?? 1000).toFixed(0)} Hz</span>
+                    </div>
+                    
+                    <!-- Q knob -->
+                    <div class="editor-control">
+                      <span class="control-label">Q</span>
+                      <KnobDial 
+                        value={filter.q ?? 1.0} 
+                        mode="q" 
+                        size={24}
+                        on:change={(e) => {
+                          if (!filter.disabled) {
+                            dispatch('updateFilterParam', { 
+                              filterName: filter.name, 
+                              param: 'q', 
+                              value: e.detail.value 
+                            });
+                          }
+                        }}
+                      />
+                      <span class="control-value">{(filter.q ?? 1.0).toFixed(1)}</span>
+                    </div>
+                    
+                    <!-- Gain knob (only for gain-capable types) -->
+                    {#if filter.supportsGain}
+                      <div class="editor-control">
+                        <span class="control-label">Gain</span>
+                        <KnobDial 
+                          value={filter.gain ?? 0} 
+                          min={-24}
+                          max={24}
+                          scale="linear"
+                          size={24}
+                          on:change={(e) => {
+                            if (!filter.disabled) {
+                              dispatch('updateFilterParam', { 
+                                filterName: filter.name, 
+                                param: 'gain', 
+                                value: e.detail.value 
+                              });
+                            }
+                          }}
+                        />
+                        <span class="control-value">{(filter.gain ?? 0).toFixed(1)} dB</span>
+                      </div>
+                    {/if}
+                  </div>
+                  
+                  <!-- Column 3: Remove button -->
+                  <div class="editor-col actions-col">
+                    {#if !filter.disabled}
+                      <button 
+                        class="remove-filter-btn"
+                        on:click={() => dispatch('removeFilter', { filterName: filter.name })}
+                        title="Remove this filter"
+                      >
+                        ×
+                      </button>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/if}
           </div>
         {/each}
 
@@ -318,7 +465,7 @@
     border-radius: 4px;
     transition: all 0.15s ease;
     flex: 1;
-    min-width: 0;
+    /* min-width: 0; */
   }
 
   .filter-row:hover {
@@ -330,8 +477,9 @@
     background: rgba(255, 120, 120, 0.05);
   }
 
-  .filter-row.bypassed {
-    opacity: 0.5;
+  .filter-row.disabled {
+    opacity: 0.4;
+    background: rgba(128, 128, 128, 0.05);
   }
 
   .filter-icon {
@@ -365,13 +513,176 @@
     font-weight: 600;
   }
 
-  .bypassed-badge {
+  .disabled-badge {
     padding: 0.125rem 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(128, 128, 128, 0.15);
+    border: 1px solid rgba(128, 128, 128, 0.3);
     border-radius: 3px;
     font-size: 0.75rem;
-    color: var(--ui-text-muted);
+    color: rgba(128, 128, 128, 0.8);
     font-weight: 600;
+  }
+  
+  .filter-values {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    margin-left: auto;
+    padding-right: 0.25rem;
+  }
+  
+  .filter-values .value {
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+    color: var(--ui-text-muted);
+    white-space: nowrap;
+  }
+  
+  /* MVP-21: Editor UI */
+  .filter-expand-slot {
+    width: 24px;
+    flex: 0 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .filter-expand-placeholder {
+    width: 24px;
+    height: 24px;
+    visibility: hidden;
+  }
+  
+  .filter-expand-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--ui-border);
+    border-radius: 3px;
+    color: var(--ui-text-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .filter-expand-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--ui-text);
+  }
+  
+  .filter-editor {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+  }
+  
+  .editor-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .editor-col {
+    display: flex;
+    align-items: center;
+  }
+  
+  .power-col {
+    flex: 0 0 auto;
+  }
+  
+  .knobs-col {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    transition: opacity 0.15s ease;
+  }
+  
+  .knobs-col.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  
+  .actions-col {
+    flex: 0 0 auto;
+  }
+  
+  .editor-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .power-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: rgba(128, 128, 128, 0.15);
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 4px;
+    color: rgba(128, 128, 128, 0.8);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .power-btn.enabled {
+    background: rgba(80, 200, 120, 0.15);
+    border: 1px solid rgba(80, 200, 120, 0.3);
+    color: rgb(80, 200, 120);
+  }
+  
+  .power-btn:hover {
+    background: rgba(128, 128, 128, 0.25);
+    border-color: rgba(128, 128, 128, 0.5);
+  }
+  
+  .power-btn.enabled:hover {
+    background: rgba(80, 200, 120, 0.25);
+    border-color: rgba(80, 200, 120, 0.5);
+  }
+  
+  .control-label {
+    color: var(--ui-text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  .control-value {
+    min-width: 60px;
+    color: var(--ui-text);
+    font-size: 0.75rem;
+    font-family: 'Courier New', monospace;
+  }
+  
+  .remove-filter-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: rgba(255, 80, 80, 0.15);
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 4px;
+    color: rgb(255, 80, 80);
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .remove-filter-btn:hover {
+    background: rgba(255, 80, 80, 0.25);
+    border-color: rgba(255, 80, 80, 0.5);
   }
 </style>

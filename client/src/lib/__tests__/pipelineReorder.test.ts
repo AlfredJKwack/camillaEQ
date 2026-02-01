@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { arrayMove, reorderPipeline, reorderFilterNamesInStep } from '../pipelineReorder';
+import { arrayMove, reorderPipeline, reorderFilterNamesInStep, reorderFiltersWithDisabled } from '../pipelineReorder';
 import type { CamillaDSPConfig } from '../camillaDSP';
 
 describe('pipeline Reorder', () => {
@@ -137,6 +137,108 @@ describe('pipeline Reorder', () => {
       reorderFilterNamesInStep(config, 0, 0, 1);
 
       expect((config.pipeline[0] as any).names).toEqual(origNames);
+    });
+  });
+
+  describe('reorderFiltersWithDisabled', () => {
+    it('handles disable 2, then drag 3 to between 4 and 5 (failing scenario)', () => {
+      // Original: [1, 2, 3, 4, 5]
+      // After disable 2: [1, disabled(2), 3, 4, 5] (UI display)
+      // Drag 3 (index 2) to end (toIndex 4 after arrayMove semantics)
+      // arrayMove(2, 4): remove at 2 → [1, disabled(2), 4, 5], insert '3' at 4 → [1, disabled(2), 4, 5, 3]
+      
+      const filters = [
+        { name: '1', disabled: false },
+        { name: '2', disabled: true },
+        { name: '3', disabled: false },
+        { name: '4', disabled: false },
+        { name: '5', disabled: false },
+      ];
+
+      const result = reorderFiltersWithDisabled(filters, 2, 4);
+
+      // Enabled names should be [1, 4, 5, 3] (3 goes to end)
+      expect(result.enabledNames).toEqual(['1', '4', '5', '3']);
+      
+      // Disabled filter '2' should stay at index 1
+      expect(result.disabledIndices['2']).toBe(1);
+    });
+
+    it('handles disable 4, then drag 3 to between 1 and 2 (working scenario)', () => {
+      // Original: [1, 2, 3, 4, 5, 6]
+      // After disable 4: [1, 2, 3, disabled(4), 5, 6] (UI display)
+      // Drag 3 (index 2) to between 1 and 2 (to index 1)
+      // Expected result: [1, 3, 2, disabled(4), 5, 6]
+      
+      const filters = [
+        { name: '1', disabled: false },
+        { name: '2', disabled: false },
+        { name: '3', disabled: false },
+        { name: '4', disabled: true },
+        { name: '5', disabled: false },
+        { name: '6', disabled: false },
+      ];
+
+      const result = reorderFiltersWithDisabled(filters, 2, 1);
+
+      // Enabled names should be [1, 3, 2, 5, 6]
+      expect(result.enabledNames).toEqual(['1', '3', '2', '5', '6']);
+      
+      // Disabled filter '4' should stay at index 3
+      expect(result.disabledIndices['4']).toBe(3);
+    });
+
+    it('handles multiple disabled filters during drag', () => {
+      // [1, disabled(2), disabled(3), 4, 5]
+      // Drag 4 (index 3) to front (index 0)
+      // After arrayMove: [4, 1, disabled(2), disabled(3), 5]
+      // Expected: disabled(2) at index 2, disabled(3) at index 3
+      
+      const filters = [
+        { name: '1', disabled: false },
+        { name: '2', disabled: true },
+        { name: '3', disabled: true },
+        { name: '4', disabled: false },
+        { name: '5', disabled: false },
+      ];
+
+      const result = reorderFiltersWithDisabled(filters, 3, 0);
+
+      expect(result.enabledNames).toEqual(['4', '1', '5']);
+      expect(result.disabledIndices['2']).toBe(2);
+      expect(result.disabledIndices['3']).toBe(3);
+    });
+
+    it('handles dragging a disabled filter', () => {
+      // [1, disabled(2), 3, 4]
+      // Drag disabled(2) (index 1) to index 3 (after 3, before 4)
+      // After arrayMove: [1, 3, 4, disabled(2)]
+      // Expected: disabled(2) at index 3
+      
+      const filters = [
+        { name: '1', disabled: false },
+        { name: '2', disabled: true },
+        { name: '3', disabled: false },
+        { name: '4', disabled: false },
+      ];
+
+      const result = reorderFiltersWithDisabled(filters, 1, 3);
+
+      expect(result.enabledNames).toEqual(['1', '3', '4']);
+      expect(result.disabledIndices['2']).toBe(3);
+    });
+
+    it('no-op when from === to', () => {
+      const filters = [
+        { name: 'A', disabled: false },
+        { name: 'B', disabled: true },
+        { name: 'C', disabled: false },
+      ];
+
+      const result = reorderFiltersWithDisabled(filters, 1, 1);
+
+      expect(result.enabledNames).toEqual(['A', 'C']);
+      expect(result.disabledIndices['B']).toBe(1);
     });
   });
 });

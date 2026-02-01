@@ -1,7 +1,7 @@
 # Current Architecture (as-built)
 
-**Last updated:** 2026-01-31  
-**Status:** MVP-19 Complete (Pipeline Viewer + PipelineConfig Extension)
+**Last updated:** 2026-02-01  
+**Status:** MVP-21 Complete (Pipeline Filter Editor with Disabled Overlay)
 
 This document describes the actual implementation as it exists in the codebase.
 
@@ -130,8 +130,8 @@ This document describes the actual implementation as it exists in the codebase.
 4. Send `PUT /api/configs/:id` with JSON body
 5. Refresh preset list
 
-### Pipeline Viewer (MVP-19)
-**Read-only visualization** of the DSP signal flow:
+### Pipeline Editor (MVP-19, MVP-20, MVP-21)
+**Interactive pipeline editor** with filter editing and reordering:
 
 1. User navigates to `/pipeline` page
 2. `PipelinePage.svelte` reads `dspStore.config.pipeline` (reactive)
@@ -145,9 +145,29 @@ This document describes the actual implementation as it exists in the codebase.
 6. Reactive updates when config changes (e.g., after preset load or EQ edit)
 
 **Components:**
-- `FilterBlock.svelte` - displays channel badges, filter list with type icons, bypass state
+- `FilterBlock.svelte` - displays channel badges, filter list with type icons, inline filter editor (MVP-21)
 - `MixerBlock.svelte` - displays mixer name, channel routing summary
 - `ProcessorBlock.svelte` - displays processor name, bypass state
+
+**Filter editing capabilities (MVP-21):**
+- Per-filter expand/collapse with parameter controls (frequency, Q, gain)
+- Enable/disable filters (power button, removes from pipeline, stores in overlay)
+- Remove filters (× button, cleans up orphaned definitions)
+- Collapsed rows show compact parameter values (Hz, Q, dB)
+- Reserved slot prevents layout shift when expand button appears
+
+**Disabled filters overlay (MVP-21):**
+- Browser localStorage stores disabled filter metadata: `{ stepKey, filterName, index }`
+- `stepKey` format: `"Filter:ch0,1:idx2"` (type:channels:stepIndex)
+- Enable restores filter to original position in pipeline
+- Overlay remaps when pipeline steps reordered (disabled filters "follow" their step)
+- Implementation: `client/src/lib/disabledFiltersOverlay.ts`
+
+**Row reordering (MVP-20):**
+- Drag-and-drop filter reordering within Filter blocks
+- Landing zone visualization, pointer-based DnD with 6px threshold
+- Direction-aware index adjustment for correct insertion
+- Validation + snapshot/revert on errors
 
 **PipelineConfig Extension (Post-MVP-9):**
 The on-disk preset format now supports **optional advanced fields**:

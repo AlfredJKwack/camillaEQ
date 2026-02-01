@@ -3,12 +3,22 @@
   import { connectionState, dspConfig, getDspInstance, updateConfig } from '../state/dspStore';
   import { buildPipelineViewModel, type PipelineBlockVm } from '../lib/pipelineViewModel';
   import { getBlockId, getStepByBlockId } from '../lib/pipelineUiIds';
-  import { reorderPipeline, reorderFilterNamesInStep } from '../lib/pipelineReorder';
+  import { reorderPipeline, reorderFilterNamesInStep, reorderFiltersWithDisabled } from '../lib/pipelineReorder';
   import {
     commitPipelineConfigChange,
     setPipelineUploadStatusCallback,
     type PipelineUploadStatus,
   } from '../state/pipelineEditor';
+import {
+  setBiquadFreq,
+  setBiquadQ,
+  setBiquadGain,
+  disableFilter,
+  enableFilter,
+  removeFilterFromStep,
+  removeFilterDefinitionIfOrphaned,
+} from '../lib/pipelineFilterEdit';
+import { getDisabledFilterLocation, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder } from '../lib/disabledFiltersOverlay';
   import FilterBlock from '../components/pipeline/FilterBlock.svelte';
   import MixerBlock from '../components/pipeline/MixerBlock.svelte';
   import ProcessorBlock from '../components/pipeline/ProcessorBlock.svelte';
@@ -20,6 +30,14 @@
   // Selection state
   type Selection = { kind: 'block'; blockId: string } | null;
   let selection: Selection = null;
+
+  // Expanded filter state (per blockId)
+  let expandedFiltersByBlock: Map<string, Set<string>> = new Map();
+  
+  // Reactive: Get expanded filters for currently selected block
+  $: selectedBlockExpandedFilters = selection?.kind === 'block' 
+    ? (expandedFiltersByBlock.get(selection.blockId) || new Set<string>())
+    : new Set<string>();
 
   // Upload status
   let uploadStatus: PipelineUploadStatus = { state: 'idle' };
@@ -158,6 +176,9 @@
     validationError = null;
 
     try {
+      // Remap disabled filters overlay to follow reordered steps
+      remapDisabledFiltersAfterPipelineReorder(dragState.fromIndex, landingZoneIndex);
+      
       // Apply reorder
       const updatedConfig = reorderPipeline($dspConfig, dragState.fromIndex, landingZoneIndex);
 
@@ -172,6 +193,234 @@
         // Note: In a real implementation, we'd need to trigger a config update
         // For now, just show the error
       }
+    }
+  }
+
+  // MVP-21: Filter parameter update handler
+  function handleFilterParamUpdate(event: CustomEvent<{ filterName: string; param: 'freq' | 'q' | 'gain'; value: number }>) {
+    const { filterName, param, value } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Apply parameter update
+      let updatedConfig = $dspConfig;
+      if (param === 'freq') {
+        updatedConfig = setBiquadFreq(updatedConfig, filterName, value);
+      } else if (param === 'q') {
+        updatedConfig = setBiquadQ(updatedConfig, filterName, value);
+      } else if (param === 'gain') {
+        updatedConfig = setBiquadGain(updatedConfig, filterName, value);
+      }
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after parameter update');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter parameter update error:', error);
+      validationError = error instanceof Error ? error.message : 'Parameter update failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  // MVP-21: Filter enable handler
+  function handleFilterEnable(event: CustomEvent<{ blockId: string; filterName: string }>) {
+    const { filterName, blockId } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Get original location from overlay
+      const location = getDisabledFilterLocation(filterName);
+      if (!location) {
+        throw new Error(`Filter "${filterName}" not found in disabled overlay`);
+      }
+
+      // Find step index by searching for matching stepKey
+      // (stepKey is derived from channels + original index, we need to find current index)
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Re-enable filter at original position
+      const updatedConfig = enableFilter($dspConfig, stepIndex, filterName, location.index);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after enable');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter enable error:', error);
+      validationError = error instanceof Error ? error.message : 'Enable failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  // MVP-21: Filter disable handler
+  function handleFilterDisable(event: CustomEvent<{ blockId: string; filterName: string }>) {
+    const { filterName, blockId } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Disable filter (removes from names[], marks in overlay)
+      const updatedConfig = disableFilter($dspConfig, stepIndex, filterName);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after disable');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter disable error:', error);
+      validationError = error instanceof Error ? error.message : 'Disable failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  // MVP-21: Toggle filter expanded state
+  function handleToggleFilterExpanded(event: CustomEvent<{ blockId: string; filterName: string }>) {
+    const { blockId, filterName } = event.detail;
+    
+    // Get or create set for this block
+    let filtersSet = expandedFiltersByBlock.get(blockId);
+    if (!filtersSet) {
+      filtersSet = new Set();
+      expandedFiltersByBlock.set(blockId, filtersSet);
+    }
+    
+    // Toggle the filter
+    if (filtersSet.has(filterName)) {
+      filtersSet.delete(filterName);
+    } else {
+      filtersSet.add(filterName);
+    }
+    
+    // Trigger reactivity
+    expandedFiltersByBlock = expandedFiltersByBlock;
+  }
+
+  // MVP-21: Filter removal handler
+  function handleFilterRemove(event: CustomEvent<{ filterName: string; blockId: string }>) {
+    const { filterName, blockId } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find actual pipeline step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Remove filter from step
+      let updatedConfig = removeFilterFromStep($dspConfig, stepIndex, filterName);
+      
+      // Remove filter definition if orphaned
+      updatedConfig = removeFilterDefinitionIfOrphaned(updatedConfig, filterName);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after filter removal');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter removal error:', error);
+      validationError = error instanceof Error ? error.message : 'Filter removal failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
     }
   }
 
@@ -199,8 +448,34 @@
         throw new Error('Pipeline step not found in config');
       }
 
-      // Apply reorder
-      const updatedConfig = reorderFilterNamesInStep($dspConfig, stepIndex, fromIndex, toIndex);
+      // Find the FilterBlockVm for this blockId to get the full filter list
+      const block = blocks.find(b => b.blockId === blockId);
+      if (!block || block.kind !== 'filter') {
+        throw new Error('Filter block not found');
+      }
+
+      // Convert FilterInfo[] to FilterItem[] for reordering
+      const filterItems = block.filters.map(f => ({
+        name: f.name,
+        disabled: f.disabled,
+      }));
+
+      // Apply reorder using the new helper
+      const reorderResult = reorderFiltersWithDisabled(filterItems, fromIndex, toIndex);
+
+      // Update config with new enabled names order
+      const updatedConfig = JSON.parse(JSON.stringify($dspConfig)) as typeof $dspConfig;
+      const step = updatedConfig.pipeline[stepIndex];
+      if (step.type === 'Filter') {
+        (step as any).names = reorderResult.enabledNames;
+      }
+
+      // Update disabled filter indices in localStorage overlay
+      const channels = (stepObj as any).channels || [];
+      const stepKey = getStepKey(channels, stepIndex);
+      for (const [filterName, newIndex] of Object.entries(reorderResult.disabledIndices)) {
+        markFilterDisabled(filterName, stepKey, newIndex);
+      }
 
       // Validate
       const dspInstance = getDspInstance();
@@ -281,7 +556,17 @@
 
             <!-- Block content -->
             {#if block.kind === 'filter'}
-              <FilterBlock {block} on:reorderName={handleFilterNameReorder} />
+              <FilterBlock 
+                {block} 
+                expanded={selection?.kind === 'block' && selection.blockId === block.blockId}
+                expandedFilters={selectedBlockExpandedFilters}
+                on:reorderName={handleFilterNameReorder}
+                on:updateFilterParam={handleFilterParamUpdate}
+                on:enableFilter={handleFilterEnable}
+                on:disableFilter={handleFilterDisable}
+                on:toggleFilterExpanded={handleToggleFilterExpanded}
+                on:removeFilter={(e) => handleFilterRemove({ ...e, detail: { ...e.detail, blockId: block.blockId } })}
+              />
             {:else if block.kind === 'mixer'}
               <MixerBlock {block} />
             {:else if block.kind === 'processor'}

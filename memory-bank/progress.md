@@ -415,8 +415,34 @@
     - Pipeline editor state: `client/src/state/pipelineEditor.ts` (upload status tracking)
   - All 240 tests passing (client + server)
 
+- [x] **MVP-21: Filter Block Editor (Basic Parameters)** (2026-02-01)
+  - **Filter editing UI** (`client/src/components/pipeline/FilterBlock.svelte`):
+    - Per-filter expand/collapse (local state keyed by blockId)
+    - Inline editor with KnobDial components (24px size) for frequency/Q/gain
+    - Power button (⏻) for enable/disable, remove button (×)
+    - Collapsed rows show compact values (Hz, Q, dB without labels)
+    - Reserved 24px slot for expand button prevents layout shift when block selected
+  - **Disabled filters overlay** (`client/src/lib/disabledFiltersOverlay.ts`):
+    - Browser localStorage stores disabled filter metadata: `{ stepKey, filterName, index }`
+    - `stepKey` format: `"Filter:ch0,1:idx2"` (type:channels:stepIndex)
+    - Enable restores filter to original position in pipeline
+    - Overlay remaps when pipeline steps reordered (disabled filters "follow" their step)
+  - **Parameter editing** (`client/src/lib/pipelineFilterEdit.ts`):
+    - Edit frequency (20-20000 Hz), Q (0.1-10), gain (±24 dB for Peaking/Shelf)
+    - Changes update `dspStore.config.filters[filterName]` directly
+    - CamillaDSP validation before upload, snapshot/revert on failure
+    - Debounced upload (200ms) via `commitPipelineConfigChange()`
+  - **Stable identity across enable/disable:**
+    - `getBlockId()` signature changed to include disabled overlay reference
+    - blockId remains stable when filter enabled/disabled (no re-keying, no expand state loss)
+  - **Test coverage:**
+    - 28 tests in `pipelineFilterEdit.test.ts`
+    - 9 tests in `disabledFiltersOverlay.test.ts`
+    - Updated: `pipelineViewModel.test.ts`, `pipelineReorder.test.ts`, `pipelineUiIds.test.ts`
+    - All 286 tests passing (232 client + 54 server)
+
 ## Current Status
-**Phase:** MVP-20 Completed - Pipeline Block & Element Reordering
+**Phase:** MVP-21 Completed - Pipeline Filter Editor with Disabled Overlay
 
 ## Planned Milestones
 

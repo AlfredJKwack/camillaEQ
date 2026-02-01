@@ -2,8 +2,9 @@
  * Pipeline UI identity tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getBlockId, resetIdProvider } from '../pipelineUiIds';
+import { markFilterDisabled, markFilterEnabled, clearDisabledFilters } from '../disabledFiltersOverlay';
 import type { CamillaDSPConfig } from '../camillaDSP';
 
 describe('pipelineUiIds', () => {
@@ -23,15 +24,16 @@ describe('pipelineUiIds', () => {
     };
   });
 
-  it('generates stable IDs based on type, name, and index', () => {
+  it('generates stable IDs based on step signatures', () => {
     const step0 = mockConfig.pipeline[0];
     const step1 = mockConfig.pipeline[1];
 
     const id0 = getBlockId(step0, 0, mockConfig);
     const id1 = getBlockId(step1, 1, mockConfig);
 
-    expect(id0).toBe('Mixer:preamp:0');
-    expect(id1).toBe('Filter::1');
+    // IDs should be stable and based on content signature
+    expect(id0).toMatch(/^block_\d+_Mixer:preamp$/);
+    expect(id1).toMatch(/^block_\d+_Filter:0:HPF$/);
   });
 
   it('returns same ID when called multiple times with same step object', () => {
@@ -60,32 +62,26 @@ describe('pipelineUiIds', () => {
     const id0_after = getBlockId(step0, 1, mockConfig); // Now at index 1
     const id1_after = getBlockId(step1, 0, mockConfig); // Now at index 0
 
-    // IDs should be stable (based on initial index at load time)
+    // IDs should remain stable because signature is based on content, not position
     expect(id0_after).toBe(id0_before);
     expect(id1_after).toBe(id1_before);
   });
 
-  it('resets IDs when config reference changes', () => {
+  it('maintains stable IDs across config clones with same content', () => {
     const step = mockConfig.pipeline[0];
 
     // Get ID with first config
     const id1 = getBlockId(step, 0, mockConfig);
 
-    // Create new config (new reference)
-    const newConfig: CamillaDSPConfig = {
-      devices: { capture: { channels: 2 }, playback: { channels: 2 } },
-      filters: {},
-      mixers: {},
-      pipeline: [{ type: 'Mixer', name: 'different' }],
-    };
+    // Simulate config clone (different object reference, same content)
+    const clonedConfig: CamillaDSPConfig = JSON.parse(JSON.stringify(mockConfig));
+    const clonedStep = clonedConfig.pipeline[0];
 
-    const newStep = newConfig.pipeline[0];
+    // Get ID with cloned config
+    const id2 = getBlockId(clonedStep, 0, clonedConfig);
 
-    // Get ID with new config
-    const id2 = getBlockId(newStep, 0, newConfig);
-
-    // IDs should be regenerated
-    expect(id2).toBe('Mixer:different:0');
+    // IDs should be the same because content signature matches
+    expect(id1).toBe(id2);
   });
 
   it('handles steps without name property', () => {
@@ -93,6 +89,73 @@ describe('pipelineUiIds', () => {
 
     const id = getBlockId(filterStep, 1, mockConfig);
 
-    expect(id).toBe('Filter::1'); // Empty name string
+    // Should generate ID based on channels and names
+    expect(id).toMatch(/^block_\d+_Filter:0:HPF$/);
+  });
+
+  describe('stable blockId across enable/disable', () => {
+    beforeEach(() => {
+      clearDisabledFilters();
+      // Note: We intentionally do NOT reset the ID provider here,
+      // because we want to test that the same signature gets the same ID
+    });
+
+    afterEach(() => {
+      clearDisabledFilters();
+      resetIdProvider(); // Clean up after test
+    });
+
+    it('maintains same blockId when filter is disabled and re-enabled', () => {
+      // Setup: Filter step with multiple filters
+      mockConfig.pipeline = [
+        { type: 'Filter', channels: [0], names: ['FilterA', 'FilterB', 'FilterC'] },
+      ];
+
+      const step = mockConfig.pipeline[0];
+
+      // Get initial blockId
+      const idBefore = getBlockId(step, 0, mockConfig);
+      expect(idBefore).toMatch(/^block_\d+_Filter:0:FilterA,FilterB,FilterC$/);
+
+      // Disable FilterB (simulate what disableFilter() does)
+      markFilterDisabled('FilterB', 'Filter:ch0:idx0', 1);
+      const stepAfterDisable = { type: 'Filter', channels: [0], names: ['FilterA', 'FilterC'] };
+      mockConfig.pipeline = [stepAfterDisable];
+
+      // Get blockId after disable - should be SAME because signature includes disabled filters
+      const idAfterDisable = getBlockId(stepAfterDisable, 0, mockConfig);
+      expect(idAfterDisable).toBe(idBefore);
+
+      // Re-enable FilterB (simulate what enableFilter() does)
+      markFilterEnabled('FilterB');
+      const stepAfterEnable = { type: 'Filter', channels: [0], names: ['FilterA', 'FilterB', 'FilterC'] };
+      mockConfig.pipeline = [stepAfterEnable];
+
+      // Get blockId after re-enable - should STILL be same
+      const idAfterEnable = getBlockId(stepAfterEnable, 0, mockConfig);
+      expect(idAfterEnable).toBe(idBefore);
+    });
+
+    it('blockId changes when filter is actually removed (not just disabled)', () => {
+      // Setup: Filter step with multiple filters
+      mockConfig.pipeline = [
+        { type: 'Filter', channels: [0], names: ['FilterA', 'FilterB', 'FilterC'] },
+      ];
+
+      const step = mockConfig.pipeline[0];
+
+      // Get initial blockId
+      const idBefore = getBlockId(step, 0, mockConfig);
+
+      // Actually remove FilterB (not disabled, just removed)
+      const stepAfterRemoval = { type: 'Filter', channels: [0], names: ['FilterA', 'FilterC'] };
+      mockConfig.pipeline = [stepAfterRemoval];
+      resetIdProvider(); // Force new ID generation
+
+      // Get blockId after removal - should be DIFFERENT
+      const idAfterRemoval = getBlockId(stepAfterRemoval, 0, mockConfig);
+      expect(idAfterRemoval).not.toBe(idBefore);
+      expect(idAfterRemoval).toMatch(/^block_\d+_Filter:0:FilterA,FilterC$/);
+    });
   });
 });

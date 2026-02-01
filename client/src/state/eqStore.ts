@@ -16,6 +16,7 @@ import {
 import { debounceCancelable } from '../lib/debounce';
 import { getDspInstance, updateConfig as updateDspConfig } from './dspStore';
 import { putLatestState } from '../lib/api';
+import { clampFreqHz, clampGainDb, clampQ } from '../lib/eqParamClamp';
 
 // Upload debounce time (ms)
 const UPLOAD_DEBOUNCE_MS = 200;
@@ -150,31 +151,10 @@ export function commitUpload(): void {
 
 // Actions (mutations with proper clamping/rounding + debounced upload)
 
-/**
- * Clamp and round frequency to nearest Hz (0 decimals)
- */
-function clampFreq(freq: number): number {
-  return Math.round(Math.max(20, Math.min(20000, freq)));
-}
-
-/**
- * Clamp and round gain to 1 decimal
- */
-function clampGain(gain: number): number {
-  return Math.round(Math.max(-24, Math.min(24, gain)) * 10) / 10;
-}
-
-/**
- * Clamp Q to range [0.1, 10] with 1 decimal precision
- */
-function clampQ(q: number): number {
-  return Math.round(Math.max(0.1, Math.min(10, q)) * 10) / 10;
-}
-
 export function setBandFreq(index: number, freq: number) {
   bands.update((b) => {
     const updated = [...b];
-    updated[index] = { ...updated[index], freq: clampFreq(freq) };
+    updated[index] = { ...updated[index], freq: clampFreqHz(freq) };
     return updated;
   });
   debouncedUpload.call();
@@ -183,7 +163,7 @@ export function setBandFreq(index: number, freq: number) {
 export function setBandGain(index: number, gain: number) {
   bands.update((b) => {
     const updated = [...b];
-    updated[index] = { ...updated[index], gain: clampGain(gain) };
+    updated[index] = { ...updated[index], gain: clampGainDb(gain) };
     return updated;
   });
   debouncedUpload.call();
@@ -231,7 +211,7 @@ export function selectBand(index: number | null) {
 }
 
 export function setPreampGain(gain: number) {
-  preampGain.set(clampGain(gain));
+  preampGain.set(clampGainDb(gain));
   debouncedUpload.call();
 }
 

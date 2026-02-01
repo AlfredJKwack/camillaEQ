@@ -6,6 +6,22 @@
 import type { CamillaDSPConfig } from './camillaDSP';
 
 /**
+ * Filter item for reordering (includes disabled state)
+ */
+export interface FilterItem {
+  name: string;
+  disabled: boolean;
+}
+
+/**
+ * Result of reordering filters with disabled placeholders
+ */
+export interface ReorderWithDisabledResult {
+  enabledNames: string[]; // New order of enabled filter names for step.names
+  disabledIndices: Record<string, number>; // Updated indices for disabled filters
+}
+
+/**
  * Move an array element from one index to another
  * Returns a new array with the element moved
  */
@@ -32,6 +48,41 @@ export function reorderPipeline(
   const updatedConfig = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   updatedConfig.pipeline = arrayMove(updatedConfig.pipeline, fromIndex, toIndex);
   return updatedConfig;
+}
+
+/**
+ * Reorder filters including disabled placeholders
+ * This function handles reordering when the UI shows both enabled and disabled filters
+ * 
+ * @param filters Full list of filters (enabled + disabled) in UI display order
+ * @param fromIndex Index in the full list to move from
+ * @param toIndex Index in the full list to move to
+ * @returns New enabled names array and updated disabled filter indices
+ */
+export function reorderFiltersWithDisabled(
+  filters: FilterItem[],
+  fromIndex: number,
+  toIndex: number
+): ReorderWithDisabledResult {
+  // Apply arrayMove to the full list
+  const reordered = arrayMove(filters, fromIndex, toIndex);
+  
+  // Extract enabled names in new order
+  const enabledNames: string[] = [];
+  const disabledIndices: Record<string, number> = {};
+  
+  for (let i = 0; i < reordered.length; i++) {
+    const filter = reordered[i];
+    if (filter.disabled) {
+      // Track new index for disabled filter
+      disabledIndices[filter.name] = i;
+    } else {
+      // Add to enabled names
+      enabledNames.push(filter.name);
+    }
+  }
+  
+  return { enabledNames, disabledIndices };
 }
 
 /**
