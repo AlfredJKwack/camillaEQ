@@ -70,6 +70,8 @@ function mapEqBandTypeToCamilla(type: EqBand['type']): string {
  * Extract EQ bands from CamillaDSP config
  * Applies to ALL filter pipeline channels
  * Includes disabled filters (from overlay) to maintain stable band list
+ * 
+ * Now builds bands from ordered union across ALL Filter steps (not just channel 0)
  */
 export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqData {
   const bands: EqBand[] = [];
@@ -99,51 +101,47 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
-  // Use channel 0 as the reference for filter order
-  const channel0StepIndex = config.pipeline.findIndex((step, index) => {
-    const normalized = normalizePipelineStep(step);
-    return normalized && normalized.type === 'Filter' && normalized.channels?.includes(0);
-  });
-  
-  if (channel0StepIndex === -1) {
-    return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
-  }
-  
-  const channel0Step = filterSteps.find((step) => 
-    step.channels && step.channels.includes(0)
-  );
-  
-  if (!channel0Step) {
-    return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
-  }
+  // Build unified ordered filter name list from ALL Filter steps (union strategy)
+  // Dedupe by first occurrence in pipeline order
+  const refNames: string[] = [];
+  const seenNames = new Set<string>();
 
-  // Build full ordered name list by merging enabled names + disabled names from overlay
-  const enabledNames = channel0Step.names || [];
-  const stepKey = getStepKey(channel0Step.channels!, channel0StepIndex);
-  const disabledLocations = getDisabledFiltersForStep(stepKey);
-  
-  // Reconstruct full list with disabled filters inserted at their original indices
-  const fullNames: string[] = [...enabledNames];
-  for (const loc of disabledLocations) {
-    const insertIndex = Math.max(0, Math.min(fullNames.length, loc.index));
-    fullNames.splice(insertIndex, 0, loc.filterName);
-  }
-  
-  const refNames = fullNames;
-  
-  // Track which channels we're editing
-  for (const step of filterSteps) {
-    if (step.channels) {
-      for (const ch of step.channels) {
-        if (!channels.includes(ch)) {
-          channels.push(ch);
-        }
+  for (let stepIndex = 0; stepIndex < config.pipeline.length; stepIndex++) {
+    const step = normalizePipelineStep(config.pipeline[stepIndex]);
+    
+    if (!step || step.type !== 'Filter' || !step.channels) {
+      continue;
+    }
+
+    // Build full ordered name list for this step (enabled + disabled)
+    const enabledNames = step.names || [];
+    const stepKey = getStepKey(step.channels, stepIndex);
+    const disabledLocations = getDisabledFiltersForStep(stepKey);
+    
+    // Reconstruct full list with disabled filters inserted at their original indices
+    const fullNames: string[] = [...enabledNames];
+    for (const loc of disabledLocations) {
+      const insertIndex = Math.max(0, Math.min(fullNames.length, loc.index));
+      fullNames.splice(insertIndex, 0, loc.filterName);
+    }
+    
+    // Add to union (dedupe by first occurrence)
+    for (const name of fullNames) {
+      if (!seenNames.has(name)) {
+        refNames.push(name);
+        seenNames.add(name);
+      }
+    }
+    
+    // Track channels for this step
+    for (const ch of step.channels) {
+      if (!channels.includes(ch)) {
+        channels.push(ch);
       }
     }
   }
 
-  // Extract bands from filters (tracking pipeline position)
-  // Now includes disabled filters from overlay
+  // Extract bands from unified filter list
   for (let refIndex = 0; refIndex < refNames.length; refIndex++) {
     const filterName = refNames[refIndex];
     const filterDef = config.filters[filterName];
@@ -168,17 +166,21 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     }
 
     // Determine if filter is enabled
-    // A filter is enabled if present in AT LEAST ONE relevant Filter step
+    // A filter is enabled if present in AT LEAST ONE Filter step's enabled names
     let presentInAny = false;
+    let allRelevantStepsBypassed = true;
+    
     for (const step of filterSteps) {
       const stepNames = step.names || [];
       if (stepNames.includes(filterName)) {
         presentInAny = true;
-        break;
+        if (!step.bypassed) {
+          allRelevantStepsBypassed = false;
+        }
       }
     }
-    const pipelineBypassed = channel0Step.bypassed === true;
-    const enabled = presentInAny && !pipelineBypassed;
+    
+    const enabled = presentInAny && !allRelevantStepsBypassed;
 
     // Extract parameters with fallbacks
     const freq = Number(params.freq || params.Frequency || 1000);

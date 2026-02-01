@@ -9,6 +9,14 @@
     setPipelineUploadStatusCallback,
     type PipelineUploadStatus,
   } from '../state/pipelineEditor';
+  import {
+    insertPipelineStep,
+    removePipelineStep,
+    createNewFilterStep,
+    createNewMixerBlock,
+    createNewProcessorBlock,
+    cleanupOrphanDefinitions,
+  } from '../lib/pipelineBlockEdit';
 import {
   setBiquadFreq,
   setBiquadQ,
@@ -28,7 +36,7 @@ import {
 } from '../lib/pipelineMixerEdit';
 import { validateMixerRouting, type MixerValidationResult } from '../lib/mixerRoutingValidation';
 import type { CamillaDSPConfig } from '../lib/camillaDSP';
-import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder } from '../lib/disabledFiltersOverlay';
+import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder, removeDisabledLocationsForStep } from '../lib/disabledFiltersOverlay';
   import FilterBlock from '../components/pipeline/FilterBlock.svelte';
   import MixerBlock from '../components/pipeline/MixerBlock.svelte';
   import ProcessorBlock from '../components/pipeline/ProcessorBlock.svelte';
@@ -562,7 +570,8 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   }
 
   function handleMixerSetGain(event: CustomEvent<{ destIndex: number; sourceIndex: number; gain: number }>) {
-    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!selection || selection.kind !== 'block') return;
+    const block = blocks.find(b => b.blockId === selection.blockId && b.kind === 'mixer');
     if (!block || block.kind !== 'mixer') return;
 
     const { destIndex, sourceIndex, gain } = event.detail;
@@ -572,7 +581,8 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   }
 
   function handleMixerToggleSourceMute(event: CustomEvent<{ destIndex: number; sourceIndex: number }>) {
-    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!selection || selection.kind !== 'block') return;
+    const block = blocks.find(b => b.blockId === selection.blockId && b.kind === 'mixer');
     if (!block || block.kind !== 'mixer') return;
 
     const { destIndex, sourceIndex } = event.detail;
@@ -582,7 +592,8 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   }
 
   function handleMixerToggleSourceInvert(event: CustomEvent<{ destIndex: number; sourceIndex: number }>) {
-    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!selection || selection.kind !== 'block') return;
+    const block = blocks.find(b => b.blockId === selection.blockId && b.kind === 'mixer');
     if (!block || block.kind !== 'mixer') return;
 
     const { destIndex, sourceIndex } = event.detail;
@@ -592,7 +603,8 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   }
 
   function handleMixerSetDestMute(event: CustomEvent<{ destIndex: number; mute: boolean }>) {
-    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!selection || selection.kind !== 'block') return;
+    const block = blocks.find(b => b.blockId === selection.blockId && b.kind === 'mixer');
     if (!block || block.kind !== 'mixer') return;
 
     const { destIndex, mute } = event.detail;
@@ -602,7 +614,8 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   }
 
   function handleMixerAddSource(event: CustomEvent<{ destIndex: number; channel: number }>) {
-    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!selection || selection.kind !== 'block') return;
+    const block = blocks.find(b => b.blockId === selection.blockId && b.kind === 'mixer');
     if (!block || block.kind !== 'mixer') return;
 
     const { destIndex, channel } = event.detail;
@@ -612,7 +625,8 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   }
 
   function handleMixerRemoveSource(event: CustomEvent<{ destIndex: number; sourceIndex: number }>) {
-    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!selection || selection.kind !== 'block') return;
+    const block = blocks.find(b => b.blockId === selection.blockId && b.kind === 'mixer');
     if (!block || block.kind !== 'mixer') return;
 
     const { destIndex, sourceIndex } = event.detail;
@@ -630,6 +644,149 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
     if (!mixer) return null;
     return validateMixerRouting(mixer);
   })();
+
+  // MVP-23: Add/remove block handlers
+  function handleAddFilterBlock() {
+    if (!$dspConfig) return;
+    validationError = null;
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+    
+    try {
+      const newStep = createNewFilterStep($dspConfig);
+      const insertIndex = selection?.kind === 'block' 
+        ? blocks.findIndex(b => b.blockId === selection.blockId) + 1 
+        : blocks.length;
+      const updatedConfig = insertPipelineStep($dspConfig, insertIndex, newStep);
+      
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after adding filter block');
+        }
+      }
+      
+      updateConfig(updatedConfig);
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Add filter block error:', error);
+      validationError = error instanceof Error ? error.message : 'Failed to add filter block';
+      updateConfig(snapshot);
+    }
+  }
+
+  function handleAddMixerBlock() {
+    if (!$dspConfig) return;
+    validationError = null;
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+    
+    try {
+      const { mixerName, mixerDef, step } = createNewMixerBlock($dspConfig);
+      const insertIndex = selection?.kind === 'block'
+        ? blocks.findIndex(b => b.blockId === selection.blockId) + 1
+        : blocks.length;
+      
+      let updatedConfig = JSON.parse(JSON.stringify($dspConfig)) as typeof $dspConfig;
+      updatedConfig.mixers[mixerName] = mixerDef;
+      updatedConfig = insertPipelineStep(updatedConfig, insertIndex, step);
+      
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after adding mixer block');
+        }
+      }
+      
+      updateConfig(updatedConfig);
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Add mixer block error:', error);
+      validationError = error instanceof Error ? error.message : 'Failed to add mixer block';
+      updateConfig(snapshot);
+    }
+  }
+
+  function handleAddProcessorBlock() {
+    if (!$dspConfig) return;
+    
+    // Prompt for processor name
+    const baseName = window.prompt('Enter processor name:', 'processor');
+    if (!baseName) return; // User cancelled
+    
+    validationError = null;
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+    
+    try {
+      const { processorName, processorDef, step } = createNewProcessorBlock($dspConfig, 'Processor', baseName);
+      const insertIndex = selection?.kind === 'block'
+        ? blocks.findIndex(b => b.blockId === selection.blockId) + 1
+        : blocks.length;
+      
+      let updatedConfig = JSON.parse(JSON.stringify($dspConfig)) as typeof $dspConfig;
+      if (!updatedConfig.processors) {
+        updatedConfig.processors = {};
+      }
+      updatedConfig.processors[processorName] = processorDef;
+      updatedConfig = insertPipelineStep(updatedConfig, insertIndex, step);
+      
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after adding processor block');
+        }
+      }
+      
+      updateConfig(updatedConfig);
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Add processor block error:', error);
+      validationError = error instanceof Error ? error.message : 'Failed to add processor block';
+      updateConfig(snapshot);
+    }
+  }
+
+  function handleRemoveBlock() {
+    if (!selection || selection.kind !== 'block' || !$dspConfig) return;
+    validationError = null;
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+    
+    try {
+      const blockIndex = blocks.findIndex(b => b.blockId === selection.blockId);
+      if (blockIndex === -1) throw new Error('Block not found');
+      
+      // If removing a Filter block, cleanup its disabled filter overlay state
+      const block = blocks[blockIndex];
+      if (block.kind === 'filter') {
+        const stepObj = getStepByBlockId(block.blockId);
+        if (stepObj) {
+          const channels = (stepObj as any).channels || [];
+          const stepKey = getStepKey(channels, blockIndex);
+          removeDisabledLocationsForStep(stepKey);
+        }
+      }
+      
+      let updatedConfig = removePipelineStep($dspConfig, blockIndex);
+      updatedConfig = cleanupOrphanDefinitions(updatedConfig);
+      
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after removing block');
+        }
+      }
+      
+      updateConfig(updatedConfig);
+      commitPipelineConfigChange(updatedConfig);
+      deselectAll();
+    } catch (error) {
+      console.error('Remove block error:', error);
+      validationError = error instanceof Error ? error.message : 'Failed to remove block';
+      updateConfig(snapshot);
+    }
+  }
 </script>
 
 <div class="pipeline-page">
@@ -637,6 +794,39 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
     <h1>Pipeline Editor</h1>
     <p>Visual representation of the CamillaDSP audio processing pipeline</p>
   </div>
+
+  {#if validationError}
+    <div class="error-banner">
+      <span class="error-icon">⚠️</span>
+      <span class="error-message">{validationError}</span>
+    </div>
+  {/if}
+
+  {#if isConnected && $dspConfig}
+    <div class="toolbar">
+      <button class="toolbar-btn" on:click={handleAddFilterBlock} title="Add Filter Block">
+        <span class="btn-icon">+🎚️</span>
+        <span class="btn-label">Filter</span>
+      </button>
+      <button class="toolbar-btn" on:click={handleAddMixerBlock} title="Add Mixer Block">
+        <span class="btn-icon">+🔀</span>
+        <span class="btn-label">Mixer</span>
+      </button>
+      <button class="toolbar-btn" on:click={handleAddProcessorBlock} title="Add Processor Block">
+        <span class="btn-icon">+⚙️</span>
+        <span class="btn-label">Processor</span>
+      </button>
+      <button 
+        class="toolbar-btn remove-btn" 
+        on:click={handleRemoveBlock} 
+        disabled={!selection}
+        title="Remove Selected Block"
+      >
+        <span class="btn-icon">🗑️</span>
+        <span class="btn-label">Remove</span>
+      </button>
+    </div>
+  {/if}
 
   {#if !isConnected}
     <div class="empty-state">
@@ -917,5 +1107,81 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+  }
+
+  .toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .toolbar-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .toolbar-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .toolbar-btn.remove-btn {
+    margin-left: auto;
+    background: rgba(255, 80, 80, 0.1);
+    border-color: rgba(255, 80, 80, 0.3);
+  }
+
+  .toolbar-btn.remove-btn:hover:not(:disabled) {
+    background: rgba(255, 80, 80, 0.2);
+    border-color: rgba(255, 80, 80, 0.5);
+  }
+
+  .btn-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .btn-label {
+    font-weight: 500;
+  }
+
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: rgba(255, 80, 80, 0.1);
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 8px;
+    color: #ff9999;
+    font-size: 0.875rem;
+  }
+
+  .error-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .error-message {
+    flex: 1;
   }
 </style>

@@ -2533,47 +2533,59 @@ Enable editing of mixer routing, per-source gains, and inversion with validation
 Explicit add/remove actions for pipeline blocks with validation to maintain pipeline integrity.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-02-01)
 
-### Deliverables
+### As Built
 
-1. **Add actions (explicit buttons):**
-   - "Add Filter Block" button (+ icon, positioned at top or in toolbar)
-   - "Add Mixer Block" button
-   - "Add Processor Block" button (generic/unknown type)
-   - Click to add → new block inserted at selected position or end of pipeline
+**Add/remove toolbar** (`client/src/pages/PipelinePage.svelte`):
+- **4 toolbar buttons:**
+  - Add Filter Block (+ icon with 🎚️ emoji)
+  - Add Mixer Block (+ icon with 🔀 emoji)
+  - Add Processor Block (+ icon with ⚙️ emoji)
+  - Remove Selected Block (trash icon 🗑️, right-aligned, disabled when no selection)
+- Toolbar only visible when connected and config loaded
 
-2. **Add Filter Block flow:**
-   - Create new Filter pipeline step with empty names array
-   - Default: applies to channel 0 (or all channels, configurable)
-   - Opens editor to add filters to new block (or starts empty)
+**Add Filter Block flow:**
+- Creates new Filter step with `channels: [0]`, empty `names[]`
+- Inserts after selected block (or at end if no selection)
+- Uses `createNewFilterStep()` helper
+- Validates and uploads immediately
 
-3. **Add Mixer Block flow:**
-   - Create new Mixer definition with default routing (passthrough)
-   - Default: 2 in → 2 out (or match device config)
-   - Create pipeline step referencing new mixer
-   - Opens editor to configure routing
+**Add Mixer Block flow:**
+- Prompts for unique mixer name (auto-generated as `mixer_1`, `mixer_2`, etc.)
+- Creates 2→2 passthrough mixer definition
+- Inserts pipeline step after selected block (or at end)
+- Uses `createNewMixerBlock()` helper
+- Validates and uploads immediately
 
-4. **Add Processor Block flow:**
-   - Create new Processor step with user-specified name
-   - Prompt for processor type/name (text input)
-   - Parameters left empty (user must configure externally or via advanced editor)
+**Add Processor Block flow:**
+- Prompts user for processor name via `window.prompt()` (default: "processor")
+- Creates empty processor definition `{}`
+- Generates unique name if collision detected
+- Inserts pipeline step after selected block (or at end)
+- Uses `createNewProcessorBlock(config, 'Processor', baseName)` helper
+- User must configure processor externally (parameters left empty)
+- Validates and uploads immediately
 
-5. **Remove actions:**
-   - Remove button on selected block
-   - Confirmation dialog for destructive operations (filter blocks with filters, mixers with complex routing)
-   - Remove step from pipeline array
-   - Optionally remove orphaned filter/mixer definitions (if not referenced elsewhere)
+**Remove Block flow:**
+- Removes selected pipeline step
+- Calls `cleanupOrphanDefinitions()` to remove unused filters/mixers/processors
+- Validates and uploads immediately
+- Deselects after removal
 
-6. **Validation:**
-   - Prevent adding blocks that would exceed v1 limits (max 3 blocks, 20 filters per block)
-   - Later MVPs: remove limits or make configurable
-   - Validate pipeline integrity after add/remove
-   - Block invalid operations (e.g., removing last Filter block if EQ editor depends on it)
+**Validation:**
+- All operations validated via `dsp.validateConfig()` before upload
+- Snapshot/revert pattern on validation failure
+- Inline error banner displays validation errors
+- No confirmation dialogs (matches existing UX pattern)
 
-7. **Live upload:**
-   - Debounced upload after add/remove (200ms)
-   - Same validation + upload flow
+**Implementation files:**
+- **Mutations:** `client/src/lib/pipelineBlockEdit.ts` (helpers)
+- **UI:** `client/src/pages/PipelinePage.svelte` (toolbar + handlers)
+- **Cleanup:** `client/src/lib/disabledFiltersOverlay.ts` (`removeDisabledLocationsForStep()`)
+- **Tests:** `client/src/lib/__tests__/pipelineBlockEdit.test.ts` (17 tests), `client/src/pages/PipelinePage.test.ts` (8 tests)
+
+**All 240 client tests passing.**
 
 ### Test / Acceptance Criteria
 - ✅ Component tests:

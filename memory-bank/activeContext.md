@@ -1,10 +1,73 @@
 # Active Context
 
 ## Current Focus
-**MVP-22 completed** (2026-02-01) - Mixer Block Editor with inline routing controls, validation, and live editing. Documentation updated across all files.
+**MVP-23 completed** (2026-02-01) - Add/Remove Pipeline Blocks with support for all three block types (Filter, Mixer, Processor). Documentation updated across all files.
 
 ## Recently Completed
-**MVP-22: Mixer Block Editor** (2026-02-01)
+**MVP-23: Add/Remove Pipeline Blocks** (2026-02-01)
+
+### Overview
+Implemented full add/remove functionality for pipeline blocks with toolbar UI, validation, and orphan cleanup.
+
+### Implemented Features
+
+**1. Add/remove toolbar:**
+- 4 toolbar buttons: Add Filter (🎚️), Add Mixer (🔀), Add Processor (⚙️), Remove Selected (🗑️)
+- Toolbar only visible when connected and config loaded
+- Remove button right-aligned, disabled when no selection
+
+**2. Add Filter Block flow:**
+- Creates new Filter step with `channels: [0]`, empty `names[]`
+- Inserts after selected block (or at end if no selection)
+- Uses `createNewFilterStep()` helper
+- Validates and uploads immediately
+
+**3. Add Mixer Block flow:**
+- Creates 2→2 passthrough mixer with unique auto-generated name (mixer_1, mixer_2, etc.)
+- Inserts pipeline step after selected block (or at end)
+- Uses `createNewMixerBlock()` helper
+- Validates and uploads immediately
+
+**4. Add Processor Block flow:**
+- Prompts user for processor name via `window.prompt()` (default: "processor")
+- Creates empty processor definition `{}`
+- Generates unique name if collision detected
+- Inserts pipeline step after selected block (or at end)
+- Uses `createNewProcessorBlock(config, 'Processor', baseName)` helper
+- User must configure processor externally (parameters left empty)
+- Validates and uploads immediately
+
+**5. Remove Block flow:**
+- Removes selected pipeline step
+- Calls `cleanupOrphanDefinitions()` to remove unused filters/mixers/processors
+- Validates and uploads immediately
+- Deselects after removal
+
+**6. Validation:**
+- All operations validated via `dsp.validateConfig()` before upload
+- Snapshot/revert pattern on validation failure
+- Inline error banner displays validation errors
+- No confirmation dialogs (matches existing UX pattern)
+
+### Implementation Files
+- **Mutations:** `client/src/lib/pipelineBlockEdit.ts` (all block creation helpers + cleanup)
+- **UI:** `client/src/pages/PipelinePage.svelte` (toolbar + handlers)
+- **Cleanup:** `client/src/lib/disabledFiltersOverlay.ts` (`removeDisabledLocationsForStep()`)
+- **Tests:**
+  - `client/src/lib/__tests__/pipelineBlockEdit.test.ts` (17 tests)
+  - `client/src/pages/PipelinePage.test.ts` (8 tests)
+
+### Test Results
+- All 25 new/updated tests passing
+- All 240 client tests passing total
+
+### Documentation Updated
+- `docs/implementation-plan.md` - Marked MVP-23 complete with comprehensive "As Built" section
+- `README.md` - Updated project status, added MVP-23 feature summary
+- `memory-bank/progress.md` - Added MVP-23 milestone entry
+- `memory-bank/activeContext.md` - Updated current focus (this file)
+
+**Previous (MVP-22: Mixer Block Editor)** (2026-02-01)
 
 ### Overview
 Implemented full mixer block editor with inline routing controls, validation, and live editing on the Pipeline page.

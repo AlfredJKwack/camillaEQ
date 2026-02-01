@@ -52,6 +52,153 @@ describe('camillaEqMapping', () => {
       expect(result.preampGain).toBe(6.0);
     });
 
+    it('should extract bands from channel 1 when channel 0 is missing', () => {
+      const configWithoutChannel0: CamillaDSPConfig = {
+        ...mockConfig,
+        pipeline: [
+          { type: 'Mixer', name: 'preamp' },
+          { type: 'Filter', channels: [1], names: ['Filter01', 'Filter02'] },
+        ],
+      };
+
+      const result = extractEqBandsFromConfig(configWithoutChannel0);
+      
+      expect(result.bands).toHaveLength(2);
+      expect(result.filterNames).toEqual(['Filter01', 'Filter02']);
+      expect(result.channels).toEqual([1]);
+    });
+
+    it('should build union of filter names across multiple Filter steps', () => {
+      const configWithMultipleSteps: CamillaDSPConfig = {
+        ...mockConfig,
+        filters: {
+          FilterA: {
+            type: 'Biquad',
+            parameters: { type: 'Peaking', freq: 100, q: 1.0, gain: 3.0 },
+          },
+          FilterB: {
+            type: 'Biquad',
+            parameters: { type: 'Highpass', freq: 50, q: 0.7 },
+          },
+          FilterC: {
+            type: 'Biquad',
+            parameters: { type: 'Lowpass', freq: 8000, q: 0.7 },
+          },
+        },
+        pipeline: [
+          { type: 'Filter', channels: [1], names: ['FilterA', 'FilterB'] },
+          { type: 'Filter', channels: [0], names: ['FilterB', 'FilterC'] },
+        ],
+      };
+
+      const result = extractEqBandsFromConfig(configWithMultipleSteps);
+      
+      // Union order: FilterA (from step0), FilterB (from step0, dedupe), FilterC (from step1)
+      expect(result.bands).toHaveLength(3);
+      expect(result.filterNames).toEqual(['FilterA', 'FilterB', 'FilterC']);
+      expect(result.channels).toEqual([1, 0]);
+    });
+
+    it('should include disabled filters from overlay in union', () => {
+      // Mock localStorage for disabled filter state
+      const mockDisabledState = {
+        version: 2,
+        disabled: {
+          Filter02: [
+            {
+              stepKey: 'Filter:ch0:idx1',
+              index: 1,
+              filterName: 'Filter02',
+            },
+          ],
+        },
+      };
+      localStorage.setItem('camillaEQ.disabledFilters', JSON.stringify(mockDisabledState));
+
+      const configWithDisabled: CamillaDSPConfig = {
+        ...mockConfig,
+        pipeline: [
+          { type: 'Mixer', name: 'preamp' },
+          { type: 'Filter', channels: [0], names: ['Filter01'] }, // Filter02 removed from enabled names
+        ],
+      };
+
+      const result = extractEqBandsFromConfig(configWithDisabled);
+      
+      // Should include both Filter01 and Filter02 (disabled one reconstructed from overlay)
+      expect(result.bands).toHaveLength(2);
+      expect(result.filterNames).toEqual(['Filter01', 'Filter02']);
+      expect(result.bands[0].enabled).toBe(true); // Filter01 is enabled
+      expect(result.bands[1].enabled).toBe(false); // Filter02 is disabled
+
+      // Cleanup
+      localStorage.removeItem('camillaEQ.disabledFilters');
+    });
+
+    it('should mark band as disabled when not present in any step', () => {
+      const configWithPartialPresence: CamillaDSPConfig = {
+        ...mockConfig,
+        pipeline: [
+          { type: 'Filter', channels: [0], names: ['Filter01'] }, // Only Filter01
+          { type: 'Filter', channels: [1], names: ['Filter01'] }, // Only Filter01
+        ],
+      };
+
+      // Mock overlay: Filter02 was in step 0 but is now disabled
+      const mockDisabledState = {
+        version: 2,
+        disabled: {
+          Filter02: [
+            {
+              stepKey: 'Filter:ch0:idx0',
+              index: 1,
+              filterName: 'Filter02',
+            },
+          ],
+        },
+      };
+      localStorage.setItem('camillaEQ.disabledFilters', JSON.stringify(mockDisabledState));
+
+      const result = extractEqBandsFromConfig(configWithPartialPresence);
+      
+      expect(result.bands).toHaveLength(2);
+      expect(result.bands[0].enabled).toBe(true); // Filter01 present
+      expect(result.bands[1].enabled).toBe(false); // Filter02 not in any enabled names
+
+      // Cleanup
+      localStorage.removeItem('camillaEQ.disabledFilters');
+    });
+
+    it('should handle bypass flag correctly across multiple steps', () => {
+      const configWithBypassed: CamillaDSPConfig = {
+        ...mockConfig,
+        pipeline: [
+          { type: 'Filter', channels: [0], names: ['Filter01'], bypassed: true },
+          { type: 'Filter', channels: [1], names: ['Filter01'], bypassed: false },
+        ],
+      };
+
+      const result = extractEqBandsFromConfig(configWithBypassed);
+      
+      // Filter is present in step 1 (not bypassed), so should be enabled
+      expect(result.bands[0].enabled).toBe(true);
+    });
+
+    it('should mark band as disabled when all relevant steps are bypassed', () => {
+      const configWithAllBypassed: CamillaDSPConfig = {
+        ...mockConfig,
+        pipeline: [
+          { type: 'Filter', channels: [0], names: ['Filter01'], bypassed: true },
+          { type: 'Filter', channels: [1], names: ['Filter01'], bypassed: true },
+        ],
+      };
+
+      const result = extractEqBandsFromConfig(configWithAllBypassed);
+      
+      // All steps with Filter01 are bypassed
+      expect(result.bands[0].enabled).toBe(false);
+    });
+
     it('should default to 0 when no preamp mixer exists', () => {
       const configWithoutPreamp: CamillaDSPConfig = {
         ...mockConfig,

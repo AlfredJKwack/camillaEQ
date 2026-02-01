@@ -487,8 +487,48 @@
     - Tests: 17 mixer edit + 8 validation tests
   - All 292 tests passing (240 client + 52 server)
 
+- [x] **MVP-23: Add/Remove Pipeline Blocks** (2026-02-01)
+  - **Add/remove toolbar** (`client/src/pages/PipelinePage.svelte`):
+    - 4 toolbar buttons: Add Filter, Add Mixer, Add Processor, Remove Selected
+    - Toolbar only visible when connected and config loaded
+    - Remove button right-aligned, disabled when no selection
+  - **Add Filter Block flow:**
+    - Creates new Filter step with `channels: [0]`, empty `names[]`
+    - Inserts after selected block (or at end if no selection)
+    - Uses `createNewFilterStep()` helper
+    - Validates and uploads immediately
+  - **Add Mixer Block flow:**
+    - Creates 2→2 passthrough mixer with unique auto-generated name (mixer_1, mixer_2, etc.)
+    - Inserts pipeline step after selected block (or at end)
+    - Uses `createNewMixerBlock()` helper
+    - Validates and uploads immediately
+  - **Add Processor Block flow:**
+    - Prompts user for processor name via `window.prompt()` (default: "processor")
+    - Creates empty processor definition `{}`
+    - Generates unique name if collision detected
+    - Inserts pipeline step after selected block (or at end)
+    - Uses `createNewProcessorBlock(config, 'Processor', baseName)` helper
+    - User must configure processor externally (parameters left empty)
+    - Validates and uploads immediately
+  - **Remove Block flow:**
+    - Removes selected pipeline step
+    - Calls `cleanupOrphanDefinitions()` to remove unused filters/mixers/processors
+    - Validates and uploads immediately
+    - Deselects after removal
+  - **Validation:**
+    - All operations validated via `dsp.validateConfig()` before upload
+    - Snapshot/revert pattern on validation failure
+    - Inline error banner displays validation errors
+    - No confirmation dialogs (matches existing UX pattern)
+  - **Implementation files:**
+    - Mutations: `client/src/lib/pipelineBlockEdit.ts` (helpers)
+    - UI: `client/src/pages/PipelinePage.svelte` (toolbar + handlers)
+    - Cleanup: `client/src/lib/disabledFiltersOverlay.ts` (`removeDisabledLocationsForStep()`)
+    - Tests: `client/src/lib/__tests__/pipelineBlockEdit.test.ts` (17 tests), `client/src/pages/PipelinePage.test.ts` (8 tests)
+  - All 240 client tests passing
+
 ## Current Status
-**Phase:** MVP-21 Completed - Pipeline Filter Editor with Disabled Overlay
+**Phase:** MVP-23 Completed - Add/Remove Pipeline Blocks
 
 ## Planned Milestones
 

@@ -347,14 +347,22 @@ You can **edit mixer routing** directly in the Pipeline page:
 
 ## Project Status
 
-**Current Milestone:** MVP-22 Complete ✓ — Mixer Block Editor
+**Current Milestone:** MVP-23 Complete ✓ — Add/Remove Pipeline Blocks
 
-**New in MVP-22:**
+**New in MVP-23:**
+- **Add/remove toolbar** with 4 buttons: Add Filter, Add Mixer, Add Processor, Remove Selected
+- **Add Filter Block:** Creates empty Filter step for channel 0, inserts after selection
+- **Add Mixer Block:** Creates 2→2 passthrough mixer with unique auto-generated name
+- **Add Processor Block:** Prompts for name, creates empty processor definition
+- **Remove Block:** Removes pipeline step + cleans up orphaned filter/mixer/processor definitions
+- **Validation:** All operations validated via `dsp.validateConfig()` with snapshot/revert on failure
+- All 240 client tests passing
+
+**Previous (MVP-22):**
 - **Mixer block editor** with inline routing controls (gain/invert/mute per source)
 - **Routing validation:** Errors block upload (silent channel loss), warnings shown but non-blocking (summing, gain > 0 dB while summing)
 - **Live editing:** Debounced upload (200ms) with snapshot/revert on validation failure
 - **Test preset:** `mvp22-mixer-block-test.json` - 2ch passthrough mixer (device-safe)
-- All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
 
 **Previous (MVP-21 Follow-up):**
 - **Unified enablement semantics:** EQ and Pipeline editors now have consistent enable/disable behavior

@@ -128,4 +128,27 @@ describe('PipelinePage MVP-19 Implementation', () => {
     expect(source).toContain("block.kind === 'mixer'");
     expect(source).toContain("block.kind === 'processor'");
   });
+
+  it('MVP-23: implements add/remove toolbar with all block types', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'PipelinePage.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify toolbar with all three add buttons
+    expect(source).toContain('Filter</span>');
+    expect(source).toContain('Mixer</span>');
+    expect(source).toContain('Processor</span>');
+    expect(source).toContain('Remove</span>');
+    
+    // Verify handlers exist
+    expect(source).toContain('handleAddFilterBlock');
+    expect(source).toContain('handleAddMixerBlock');
+    expect(source).toContain('handleAddProcessorBlock');
+    expect(source).toContain('handleRemoveBlock');
+  });
 });

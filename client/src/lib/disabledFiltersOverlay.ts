@@ -200,6 +200,29 @@ export function getDisabledFilterLocations(filterName: string): DisabledFilterLo
 }
 
 /**
+ * Remove all disabled filter locations for a specific step
+ * Use this when removing a Filter pipeline step to clean up localStorage
+ * 
+ * @param stepKey The step key to remove (e.g., "Filter:ch0:idx2")
+ */
+export function removeDisabledLocationsForStep(stepKey: string): void {
+  const state = loadDisabledFilters();
+  const updated: Record<string, DisabledFilterLocation[]> = {};
+  
+  // Filter out locations that match the stepKey
+  for (const [filterName, locations] of Object.entries(state.disabled)) {
+    const filtered = locations.filter(loc => loc.stepKey !== stepKey);
+    if (filtered.length > 0) {
+      updated[filterName] = filtered;
+    }
+    // If all locations removed, don't include this filter in updated
+  }
+  
+  state.disabled = updated;
+  saveDisabledFilters(state);
+}
+
+/**
  * Remap disabled filter step indices after pipeline reorder
  * This keeps disabled filters attached to their correct Filter steps when steps are moved
  * 
