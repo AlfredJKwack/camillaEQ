@@ -11,7 +11,8 @@
     dspFailures,
     dspConfig,
     dspState,
-    exportDiagnostics 
+    exportDiagnostics,
+    refreshDspInfo
   } from '../state/dspStore';
 
   let server = localStorage.getItem('camillaDSP.server') || 'localhost';
@@ -20,6 +21,11 @@
   let autoReconnect = localStorage.getItem('camillaDSP.autoReconnect') === 'true';
   let isConnecting = false;
   let copyFeedback = '';
+  
+  // State for refresh and copy functionality
+  let refreshingConfigs = false;
+  let copyFeedbackControl = '';
+  let copyFeedbackSpectrum = '';
 
   // Copy diagnostics to clipboard
   async function handleCopyDiagnostics() {
@@ -53,6 +59,51 @@
     if (!$dspConfig) return false;
     const device = $dspConfig.devices[type]?.device;
     return device === deviceId;
+  }
+
+  // Refresh DSP info (configs)
+  async function handleRefreshConfigs() {
+    refreshingConfigs = true;
+    try {
+      await refreshDspInfo();
+    } finally {
+      refreshingConfigs = false;
+    }
+  }
+
+  // Copy YAML to clipboard
+  async function copyYaml(yaml: string | undefined, which: 'control' | 'spectrum') {
+    if (!yaml) return;
+    
+    try {
+      await navigator.clipboard.writeText(yaml);
+      
+      if (which === 'control') {
+        copyFeedbackControl = 'Copied!';
+        setTimeout(() => {
+          copyFeedbackControl = '';
+        }, 2000);
+      } else {
+        copyFeedbackSpectrum = 'Copied!';
+        setTimeout(() => {
+          copyFeedbackSpectrum = '';
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Failed to copy YAML:', error);
+      
+      if (which === 'control') {
+        copyFeedbackControl = 'Failed';
+        setTimeout(() => {
+          copyFeedbackControl = '';
+        }, 2000);
+      } else {
+        copyFeedbackSpectrum = 'Failed';
+        setTimeout(() => {
+          copyFeedbackSpectrum = '';
+        }, 2000);
+      }
+    }
   }
 
   // Save auto-reconnect preference when toggled
@@ -255,7 +306,16 @@
   <!-- Current Configuration -->
   {#if $connectionState === 'connected' && $dspConfigs}
     <div class="info-section">
-      <h2>Current Configuration</h2>
+      <div class="config-header">
+        <h2>Current Configuration</h2>
+        <button 
+          class="btn-refresh-configs" 
+          on:click={handleRefreshConfigs}
+          disabled={refreshingConfigs}
+        >
+          {refreshingConfigs ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
 
       <div class="config-panels">
         <!-- Control Port Config -->
@@ -272,7 +332,29 @@
             </div>
           {/if}
           {#if $dspConfigs.control.yaml}
-            <pre class="config-yaml">{$dspConfigs.control.yaml}</pre>
+            <div class="yaml-container">
+              <pre class="config-yaml">{$dspConfigs.control.yaml}</pre>
+              <button 
+                class="btn-copy-yaml" 
+                on:click={() => copyYaml($dspConfigs.control.yaml, 'control')}
+                title="Copy YAML to clipboard"
+                aria-label="Copy YAML to clipboard"
+              >
+                <svg width="32" height="32" viewBox="0 0 55.832 55.832" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9.166,41.832H6.669C2.991,41.832,0,38.84,0,35.163V11.835c0-3.678,2.992-6.669,6.669-6.669h34.328
+                    c3.678,0,6.669,2.992,6.669,6.669v3.164c0,0.552-0.448,1-1,1H14.835c-2.575,0-4.669,2.095-4.669,4.669v20.164
+                    C10.166,41.385,9.718,41.832,9.166,41.832z M6.669,7.166C4.094,7.166,2,9.261,2,11.835v23.328c0,2.575,2.095,4.669,4.669,4.669
+                    h1.497V20.669c0-3.678,2.992-6.669,6.669-6.669h30.831v-2.164c0-2.575-2.096-4.669-4.669-4.669H6.669V7.166z"/>
+                  <path d="M49.163,50.666H14.835c-3.678,0-6.669-2.992-6.669-6.669V20.669c0-3.678,2.992-6.669,6.669-6.669h34.328
+                    c3.678,0,6.669,2.992,6.669,6.669v23.328C55.832,47.674,52.84,50.666,49.163,50.666z M14.835,15.999
+                    c-2.575,0-4.669,2.095-4.669,4.669v23.328c0,2.575,2.095,4.669,4.669,4.669h34.328c2.575,0,4.669-2.095,4.669-4.669V20.669
+                    c0-2.575-2.096-4.669-4.669-4.669L14.835,15.999L14.835,15.999z"/>
+                </svg>
+                {#if copyFeedbackControl}
+                  <span class="copy-feedback-badge">{copyFeedbackControl}</span>
+                {/if}
+              </button>
+            </div>
           {:else}
             <p class="empty-message">No configuration available</p>
           {/if}
@@ -292,7 +374,29 @@
             </div>
           {/if}
           {#if $dspConfigs.spectrum.yaml}
-            <pre class="config-yaml">{$dspConfigs.spectrum.yaml}</pre>
+            <div class="yaml-container">
+              <pre class="config-yaml">{$dspConfigs.spectrum.yaml}</pre>
+              <button 
+                class="btn-copy-yaml" 
+                on:click={() => copyYaml($dspConfigs.spectrum.yaml, 'spectrum')}
+                title="Copy YAML to clipboard"
+                aria-label="Copy YAML to clipboard"
+              >
+                <svg width="32" height="32" viewBox="0 0 55.832 55.832" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9.166,41.832H6.669C2.991,41.832,0,38.84,0,35.163V11.835c0-3.678,2.992-6.669,6.669-6.669h34.328
+                    c3.678,0,6.669,2.992,6.669,6.669v3.164c0,0.552-0.448,1-1,1H14.835c-2.575,0-4.669,2.095-4.669,4.669v20.164
+                    C10.166,41.385,9.718,41.832,9.166,41.832z M6.669,7.166C4.094,7.166,2,9.261,2,11.835v23.328c0,2.575,2.095,4.669,4.669,4.669
+                    h1.497V20.669c0-3.678,2.992-6.669,6.669-6.669h30.831v-2.164c0-2.575-2.096-4.669-4.669-4.669H6.669V7.166z"/>
+                  <path d="M49.163,50.666H14.835c-3.678,0-6.669-2.992-6.669-6.669V20.669c0-3.678,2.992-6.669,6.669-6.669h34.328
+                    c3.678,0,6.669,2.992,6.669,6.669v23.328C55.832,47.674,52.84,50.666,49.163,50.666z M14.835,15.999
+                    c-2.575,0-4.669,2.095-4.669,4.669v23.328c0,2.575,2.095,4.669,4.669,4.669h34.328c2.575,0,4.669-2.095,4.669-4.669V20.669
+                    c0-2.575-2.096-4.669-4.669-4.669L14.835,15.999L14.835,15.999z"/>
+                </svg>
+                {#if copyFeedbackSpectrum}
+                  <span class="copy-feedback-badge">{copyFeedbackSpectrum}</span>
+                {/if}
+              </button>
+            </div>
           {:else}
             <p class="empty-message">No configuration available</p>
           {/if}
@@ -646,6 +750,42 @@
     font-style: italic;
   }
 
+  /* Config Header */
+  .config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+  }
+
+  .config-header h2 {
+    margin-bottom: 0;
+  }
+
+  .btn-refresh-configs {
+    padding: 0.5rem 1rem;
+    background: rgba(120, 160, 255, 0.15);
+    border: 1px solid rgba(120, 160, 255, 0.3);
+    border-radius: 4px;
+    color: rgb(120, 160, 255);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .btn-refresh-configs:hover:not(:disabled) {
+    background: rgba(120, 160, 255, 0.25);
+    border-color: rgba(120, 160, 255, 0.4);
+  }
+
+  .btn-refresh-configs:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Config Panels */
   .config-panels {
     display: grid;
@@ -669,6 +809,11 @@
     color: var(--ui-text, rgba(255, 255, 255, 0.88));
   }
 
+  .yaml-container {
+    position: relative;
+    margin-top: 0.75rem;
+  }
+
   .config-yaml {
     max-height: 400px;
     overflow-y: auto;
@@ -682,7 +827,52 @@
     white-space: pre-wrap;
     word-wrap: break-word;
     line-height: 1.4;
-    margin-top: 0.75rem;
+    margin: 0;
+  }
+
+  .btn-copy-yaml {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: none;
+    color: rgb(120, 160, 255);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    opacity: 0.7;
+  }
+
+  .btn-copy-yaml>svg:hover {
+    opacity: 1;
+    background: rgba(120, 160, 255, 0.15);
+    border-radius: 4px;
+  }
+
+  .btn-copy-yaml svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+    display: block;
+  }
+
+  .copy-feedback-badge {
+    position: absolute;
+    bottom: -1.5rem;
+    right: 0;
+    padding: 0.25rem 0.5rem;
+    background: rgba(120, 255, 190, 0.2);
+    border: 1px solid rgba(120, 255, 190, 0.4);
+    border-radius: 3px;
+    color: rgb(120, 255, 190);
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
   }
 
   /* Failures Section */
