@@ -24,12 +24,28 @@ export interface ConfigMetadata {
 }
 
 /**
- * Pipeline config format (canonical on-disk format for MVP-9)
+ * Pipeline config format (canonical on-disk format for MVP-9+)
+ * 
+ * Legacy format (MVP-9):
+ * - configName, accessKey, filterArray
+ * 
+ * Extended format (MVP-21+):
+ * - configName, accessKey, filterArray (can be empty [])
+ * - filters, mixers, processors, pipeline (optional)
+ * - title, description (optional)
  */
 export interface PipelineConfig {
   configName: string;
   accessKey?: string;
   filterArray: Array<Record<string, any>>;
+  
+  // Extended format for full pipeline support
+  title?: string;
+  description?: string;
+  filters?: Record<string, any>;
+  mixers?: Record<string, any>;
+  processors?: Record<string, any>;
+  pipeline?: any[];
 }
 
 /**
@@ -131,11 +147,19 @@ export class ConfigsLibrary {
       const content = await fs.readFile(filePath, 'utf-8');
       const data = JSON.parse(content) as PipelineConfig;
       
-      // Validate structure
-      if (!data.configName || !data.filterArray) {
+      // Validate structure (strict type checks)
+      if (typeof data.configName !== 'string' || data.configName.trim().length === 0) {
         throw new AppError(
           ErrorCode.ERR_CONFIG_INVALID_JSON,
-          'Config is missing required fields (configName, filterArray)',
+          'Config is missing required field: configName (must be non-empty string)',
+          400
+        );
+      }
+      
+      if (!Array.isArray(data.filterArray)) {
+        throw new AppError(
+          ErrorCode.ERR_CONFIG_INVALID_JSON,
+          'Config is missing required field: filterArray (must be array)',
           400
         );
       }
@@ -159,11 +183,19 @@ export class ConfigsLibrary {
    * Save a config with the given ID
    */
   async saveConfig(id: string, config: PipelineConfig): Promise<void> {
-    // Validate input
-    if (!config.configName || !config.filterArray) {
+    // Validate input (strict type checks)
+    if (typeof config.configName !== 'string' || config.configName.trim().length === 0) {
       throw new AppError(
         ErrorCode.ERR_BAD_REQUEST,
-        'Config must include configName and filterArray',
+        'Config must include configName (non-empty string)',
+        400
+      );
+    }
+    
+    if (!Array.isArray(config.filterArray)) {
+      throw new AppError(
+        ErrorCode.ERR_BAD_REQUEST,
+        'Config must include filterArray (array)',
         400
       );
     }

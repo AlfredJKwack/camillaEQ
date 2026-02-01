@@ -255,7 +255,7 @@ All endpoints return JSON. Error responses follow a consistent structure.
 **URL Parameters:**
 - `id` - Config identifier (kebab-case, e.g., `harman-target`)
 
-**Response:**
+**Response (legacy EQ format):**
 ```json
 {
   "configName": "Harman Target",
@@ -276,6 +276,52 @@ All endpoints return JSON. Error responses follow a consistent structure.
   ]
 }
 ```
+
+**Response (extended format with full pipeline):**
+```json
+{
+  "configName": "MVP-22 Mixer Block Test",
+  "title": "Optional title",
+  "description": "Optional description",
+  "filterArray": [
+    {
+      "type": "filter",
+      "id": "bass_shelf",
+      "freq": 100,
+      "gain": 3,
+      "q": 0.7,
+      "filterType": "lowshelf"
+    }
+  ],
+  "filters": {
+    "bass_shelf": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Lowshelf",
+        "freq": 100,
+        "q": 0.7,
+        "gain": 3
+      }
+    }
+  },
+  "mixers": {
+    "stereo_passthrough": {
+      "channels": { "in": 2, "out": 2 },
+      "mapping": [...]
+    }
+  },
+  "pipeline": [
+    { "type": "Mixer", "name": "stereo_passthrough" },
+    { "type": "Filter", "channels": [0, 1], "names": ["bass_shelf"] }
+  ]
+}
+```
+
+**Notes:**
+- Both formats are supported for backwards compatibility
+- Extended format includes optional fields: `title`, `description`, `filters`, `mixers`, `processors`, `pipeline`
+- `devices` are **never persisted** - always sourced from current DSP or template config
+- If `pipeline` is present and non-empty, extended fields are used; otherwise `filterArray` is converted
 
 **Status Codes:**
 - `200 OK` - Config loaded successfully

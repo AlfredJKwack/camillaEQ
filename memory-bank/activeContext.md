@@ -1,10 +1,62 @@
 # Active Context
 
 ## Current Focus
-**MVP-21 Follow-up completed** (2026-02-01) - Unified Enablement Semantics with global EQ mute vs per-block Pipeline disable, overlay schema v2, and pipeline membership-based enabled computation. All documentation updated.
+**MVP-22 completed** (2026-02-01) - Mixer Block Editor with inline routing controls, validation, and live editing. Documentation updated across all files.
 
 ## Recently Completed
-**MVP-21 Follow-up: Unified Enablement Semantics** (2026-02-01)
+**MVP-22: Mixer Block Editor** (2026-02-01)
+
+### Overview
+Implemented full mixer block editor with inline routing controls, validation, and live editing on the Pipeline page.
+
+### Implemented Features
+
+**1. Mixer block editor UI:**
+- Expandable mixer blocks with inline routing editor
+- Per-destination channel display with list of source channels
+- Per-source controls: gain knob (-150 to +50 dB), invert toggle, mute toggle
+- Destination-level mute toggle
+- Inline validation warnings/errors per destination
+- Compact summary view when collapsed
+
+**2. Routing validation:**
+- **Error (blocks upload):** Destination has 0 unmuted sources (unless dest itself muted)
+- **Warning (non-blocking):** Destination sums >1 unmuted source
+- **Warning (non-blocking):** Summing with any source gain > 0 dB (risk of clipping)
+- Validation runs continuously as user edits
+- Results displayed inline on affected destination
+
+**3. Gain editing:**
+- Per-source gain: -150 to +50 dB (CamillaDSP range)
+- KnobDial component (24px) for gain adjustment
+- Default: 0 dB (unity gain)
+- Live updates with debounced upload (200ms)
+
+**4. Test config:**
+- `server/data/configs/mvp22-mixer-block-test.json` - 2ch passthrough mixer
+- Changed from 4→2 downmix to 2ch-safe for device compatibility
+- Reason: Presets don't store `devices`, so mixer must match common 2ch capture/playback
+
+### Implementation Files
+- **UI:** `client/src/components/pipeline/MixerBlock.svelte`
+- **State mutations:** `client/src/lib/pipelineMixerEdit.ts`
+- **Validation:** `client/src/lib/mixerRoutingValidation.ts`
+- **Tests:**
+  - `client/src/lib/__tests__/pipelineMixerEdit.test.ts` (17 tests)
+  - `client/src/lib/__tests__/mixerRoutingValidation.test.ts` (8 tests)
+
+### Test Results
+- All 25 new tests passing (17 mixer edit + 8 validation)
+- All 292 tests passing total (240 client + 52 server, 2 intentionally skipped)
+
+### Documentation Updated
+- `docs/implementation-plan.md` - Marked MVP-22 complete with "As Built" section
+- `README.md` - Added "Mixer Editing (MVP-22)" section with usage instructions
+- `docs/rest-api.md` - Updated `/api/configs/:id` to document extended preset format
+- `memory-bank/progress.md` - Added MVP-22 milestone entry
+- `memory-bank/activeContext.md` - Updated current focus
+
+**Previous (MVP-21 Follow-up: Unified Enablement Semantics)** (2026-02-01)
 
 ### Overview
 Unified the enablement semantics across EQ and Pipeline editors to resolve confusion between global mute and per-block disable operations. Changed enabled computation from overlay check to pipeline membership scan.

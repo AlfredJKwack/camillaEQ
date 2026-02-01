@@ -20,10 +20,27 @@ export class ApiError extends Error {
 
 /**
  * Preset config structure (library format)
+ * 
+ * Legacy format:
+ * - configName, accessKey, filterArray
+ * 
+ * Extended format:
+ * - configName, accessKey, filterArray (can be empty [])
+ * - filters, mixers, processors, pipeline (optional)
+ * - title, description (optional)
  */
 export interface PresetConfig {
   configName: string;
+  accessKey?: string;
   filterArray: Array<Record<string, any>>;
+  
+  // Extended format fields
+  title?: string;
+  description?: string;
+  filters?: Record<string, any>;
+  mixers?: Record<string, any>;
+  processors?: Record<string, any>;
+  pipeline?: any[];
 }
 
 /**

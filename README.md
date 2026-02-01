@@ -315,20 +315,53 @@ You can **reorder filters within the same Filter block** using drag-and-drop:
 
 **Note:** Moving filters **between different Filter blocks** is not yet supported. Moving entire pipeline blocks is also deferred to a future milestone.
 
+### Mixer Editing (MVP-22)
+
+You can **edit mixer routing** directly in the Pipeline page:
+
+1. **Expand a mixer block** by clicking on it when selected
+2. **Per-destination controls:**
+   - Each destination channel lists its source channels
+   - Per-source gain knob: -150 to +50 dB (default 0 dB = unity gain)
+   - Per-source invert toggle: phase inversion
+   - Per-source mute toggle: silence that source
+   - Destination mute toggle: mute entire output channel
+
+3. **Inline validation:**
+   - **Error (blocks upload):** Destination has no unmuted sources (silent channel loss)
+     - Exception: muted destinations don't need sources
+   - **Warning (does not block):** Destination sums >1 unmuted source
+   - **Warning (does not block):** Summing with any source gain > 0 dB (risk of clipping)
+
+4. **Live editing:**
+   - Changes upload automatically with 200ms debounce
+   - Invalid routing shows inline error and blocks upload
+   - Warnings remain visible but allow upload to proceed
+
+**Best practices:**
+- When summing multiple sources, use negative gain (e.g., -6 dB) to prevent clipping
+- Monitor validation warnings to ensure proper routing
+- Mute unused destination channels to save processing
+
 ---
 
 ## Project Status
 
-**Current Milestone:** MVP-21 Follow-up Complete ✓ — Unified Enablement Semantics
+**Current Milestone:** MVP-22 Complete ✓ — Mixer Block Editor
 
-**New in MVP-21 Follow-up:**
+**New in MVP-22:**
+- **Mixer block editor** with inline routing controls (gain/invert/mute per source)
+- **Routing validation:** Errors block upload (silent channel loss), warnings shown but non-blocking (summing, gain > 0 dB while summing)
+- **Live editing:** Debounced upload (200ms) with snapshot/revert on validation failure
+- **Test preset:** `mvp22-mixer-block-test.json` - 2ch passthrough mixer (device-safe)
+- All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
+
+**Previous (MVP-21 Follow-up):**
 - **Unified enablement semantics:** EQ and Pipeline editors now have consistent enable/disable behavior
 - **Global EQ mute:** Removes/restores filter across all Filter steps in pipeline
 - **Per-block Pipeline disable:** Affects only the selected Filter block
 - **Enabled computation:** Changed from overlay check to pipeline membership scan (present in any step = enabled)
 - **Overlay schema v2:** Multi-step aware with array of locations per filter
-- **Step-scoped enable:** `markFilterEnabledForStep()` removes only specified step's overlay entry
-- All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
 
 **Previous (MVP-21):**
 - **Inline filter parameter editing** in Pipeline page Filter blocks

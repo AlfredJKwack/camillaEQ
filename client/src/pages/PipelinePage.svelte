@@ -18,6 +18,16 @@ import {
   removeFilterFromStep,
   removeFilterDefinitionIfOrphaned,
 } from '../lib/pipelineFilterEdit';
+import {
+  setMixerSourceGain,
+  toggleMixerSourceMute,
+  toggleMixerSourceInverted,
+  setMixerDestMute,
+  addMixerSource,
+  removeMixerSource,
+} from '../lib/pipelineMixerEdit';
+import { validateMixerRouting, type MixerValidationResult } from '../lib/mixerRoutingValidation';
+import type { CamillaDSPConfig } from '../lib/camillaDSP';
 import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder } from '../lib/disabledFiltersOverlay';
   import FilterBlock from '../components/pipeline/FilterBlock.svelte';
   import MixerBlock from '../components/pipeline/MixerBlock.svelte';
@@ -502,6 +512,124 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
       updateConfig(snapshot);
     }
   }
+
+  // MVP-22: Mixer edit handlers
+  function handleMixerEdit(mixerName: string, mutationFn: (config: CamillaDSPConfig) => CamillaDSPConfig) {
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig)) as CamillaDSPConfig;
+
+    try {
+      // Apply mutation
+      const updatedConfig = mutationFn($dspConfig);
+
+      // Validate mixer routing
+      const mixer = updatedConfig.mixers[mixerName];
+      if (mixer) {
+        const mixerValidation = validateMixerRouting(mixer);
+        if (!mixerValidation.valid) {
+          // Extract error messages
+          const errors = mixerValidation.perDest.flatMap(d => d.errors).filter(Boolean);
+          throw new Error(`Mixer routing error: ${errors.join('; ')}`);
+        }
+      }
+
+      // Validate config
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after mixer edit');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Mixer edit error:', error);
+      validationError = error instanceof Error ? error.message : 'Mixer edit failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  function handleMixerSetGain(event: CustomEvent<{ destIndex: number; sourceIndex: number; gain: number }>) {
+    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!block || block.kind !== 'mixer') return;
+
+    const { destIndex, sourceIndex, gain } = event.detail;
+    handleMixerEdit(block.name, (config) => 
+      setMixerSourceGain(config, block.name, destIndex, sourceIndex, gain)
+    );
+  }
+
+  function handleMixerToggleSourceMute(event: CustomEvent<{ destIndex: number; sourceIndex: number }>) {
+    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!block || block.kind !== 'mixer') return;
+
+    const { destIndex, sourceIndex } = event.detail;
+    handleMixerEdit(block.name, (config) => 
+      toggleMixerSourceMute(config, block.name, destIndex, sourceIndex)
+    );
+  }
+
+  function handleMixerToggleSourceInvert(event: CustomEvent<{ destIndex: number; sourceIndex: number }>) {
+    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!block || block.kind !== 'mixer') return;
+
+    const { destIndex, sourceIndex } = event.detail;
+    handleMixerEdit(block.name, (config) => 
+      toggleMixerSourceInverted(config, block.name, destIndex, sourceIndex)
+    );
+  }
+
+  function handleMixerSetDestMute(event: CustomEvent<{ destIndex: number; mute: boolean }>) {
+    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!block || block.kind !== 'mixer') return;
+
+    const { destIndex, mute } = event.detail;
+    handleMixerEdit(block.name, (config) => 
+      setMixerDestMute(config, block.name, destIndex, mute)
+    );
+  }
+
+  function handleMixerAddSource(event: CustomEvent<{ destIndex: number; channel: number }>) {
+    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!block || block.kind !== 'mixer') return;
+
+    const { destIndex, channel } = event.detail;
+    handleMixerEdit(block.name, (config) => 
+      addMixerSource(config, block.name, destIndex, channel)
+    );
+  }
+
+  function handleMixerRemoveSource(event: CustomEvent<{ destIndex: number; sourceIndex: number }>) {
+    const block = blocks.find(b => selection?.kind === 'block' && b.blockId === selection.blockId && b.kind === 'mixer');
+    if (!block || block.kind !== 'mixer') return;
+
+    const { destIndex, sourceIndex } = event.detail;
+    handleMixerEdit(block.name, (config) => 
+      removeMixerSource(config, block.name, destIndex, sourceIndex)
+    );
+  }
+
+  // Compute mixer validation results for selected mixer block
+  $: selectedMixerValidation = (() => {
+    if (!selection || selection.kind !== 'block' || !$dspConfig) return null;
+    const block = blocks.find(b => b.blockId === selection.blockId);
+    if (!block || block.kind !== 'mixer') return null;
+    const mixer = $dspConfig.mixers[block.name];
+    if (!mixer) return null;
+    return validateMixerRouting(mixer);
+  })();
 </script>
 
 <div class="pipeline-page">
@@ -571,7 +699,18 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
                 on:removeFilter={(e) => handleFilterRemove({ ...e, detail: { ...e.detail, blockId: block.blockId } })}
               />
             {:else if block.kind === 'mixer'}
-              <MixerBlock {block} />
+              <MixerBlock 
+                {block}
+                expanded={selection?.kind === 'block' && selection.blockId === block.blockId}
+                mixer={$dspConfig?.mixers[block.name] || null}
+                validation={selectedMixerValidation}
+                on:setGain={handleMixerSetGain}
+                on:toggleSourceMute={handleMixerToggleSourceMute}
+                on:toggleSourceInvert={handleMixerToggleSourceInvert}
+                on:setDestMute={handleMixerSetDestMute}
+                on:addSource={handleMixerAddSource}
+                on:removeSource={handleMixerRemoveSource}
+              />
             {:else if block.kind === 'processor'}
               <ProcessorBlock {block} />
             {/if}

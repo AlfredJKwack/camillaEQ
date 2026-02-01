@@ -450,7 +450,7 @@
     - Migrated to `Record<string, DisabledFilterLocation[]>` - array of locations per filter
     - Each location: `{ stepKey, index, filterName }`
     - Migration: v1 → v2 wraps single location into array
-    - Added `markFilterEnabledForStep()` - per-block enable (removes only specified step's entry)
+    - Added `markFilterEnabledForStep()` - per-block enable (removes only specified step's overlay entry)
   - **EQ enabled computation:**
     - Changed from overlay check to pipeline membership scan
     - `extractEqBandsFromConfig()` checks if filter present in any Filter step
@@ -463,6 +463,29 @@
   - **Test updates:**
     - Obsolete tests removed/skipped: `setFilterBypassed`, `toggleBandEnabled` unit tests
     - All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
+
+- [x] **MVP-22: Mixer Block Editor** (2026-02-01)
+  - **Mixer block editor UI** (`client/src/components/pipeline/MixerBlock.svelte`):
+    - Expandable mixer blocks with inline routing editor
+    - Per-destination channel display with source list
+    - Per-source controls: gain knob (-150 to +50 dB), invert toggle, mute toggle
+    - Destination-level mute toggle
+    - Inline validation warnings/errors per destination
+  - **Routing validation** (`client/src/lib/mixerRoutingValidation.ts`):
+    - Error (blocks upload): Destination has 0 unmuted sources (unless dest muted)
+    - Warning (non-blocking): Destination sums >1 unmuted source
+    - Warning (non-blocking): Summing with any source gain > 0 dB
+  - **Gain editing** (`client/src/lib/pipelineMixerEdit.ts`):
+    - KnobDial component (24px) for gain adjustment
+    - Default: 0 dB (unity gain)
+    - Live updates with debounced upload (200ms)
+  - **Test config:** `mvp22-mixer-block-test.json` - 2ch passthrough (device-safe)
+  - **Implementation files:**
+    - UI: `client/src/components/pipeline/MixerBlock.svelte`
+    - State: `client/src/lib/pipelineMixerEdit.ts`
+    - Validation: `client/src/lib/mixerRoutingValidation.ts`
+    - Tests: 17 mixer edit + 8 validation tests
+  - All 292 tests passing (240 client + 52 server)
 
 ## Current Status
 **Phase:** MVP-21 Completed - Pipeline Filter Editor with Disabled Overlay

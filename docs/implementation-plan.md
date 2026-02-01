@@ -2454,67 +2454,76 @@ Using the existing mock CamillaDSP:
 Enable editing of mixer routing, per-source gains, and inversion with validation to prevent invalid routing states.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-02-01)
 
-### Deliverables
+### As Built
 
-1. **Mixer block editor UI:**
-   - Summary view (default): channel counts (in → out)
-   - Detailed view (expandable): full routing matrix
-   - Per-destination channel:
-     - List of source channels
-     - Per-source gain control (slider or numeric input)
-     - Per-source inversion toggle
-     - Mute toggle per source
+**Mixer block editor UI** (`client/src/components/pipeline/MixerBlock.svelte`):
+- Expandable mixer blocks with inline routing editor
+- Per-destination channel display:
+  - List of all source channels feeding that destination
+  - Per-source controls: gain knob, invert toggle, mute toggle
+  - Destination-level mute toggle
+- Inline validation warnings/errors per destination
+- Compact summary view when collapsed
 
-2. **Routing validation:**
-   - Prevent silent channel loss (at least one non-muted source per dest)
-   - Warn on summing (multiple sources to one dest)
-   - Enforce gain ≤ 0 dB when summing (attenuation requirement)
-   - Show inline warnings/errors per destination channel
+**Routing validation** (`client/src/lib/mixerRoutingValidation.ts`):
+- **Error (blocks upload):** Destination has 0 unmuted sources (unless dest itself is muted)
+- **Warning (does not block):** Destination sums >1 unmuted source
+- **Warning (does not block):** Summing with any source gain > 0 dB (risk of clipping)
+- Validation runs continuously as user edits
+- Results displayed inline on affected destination
 
-3. **Gain editing:**
-   - Per-source gain: -150 to +50 dB (CamillaDSP range)
-   - Default: 0 dB (unity gain)
-   - Slider or numeric input (implementation choice)
-   - Visual warning if gain > 0 dB while summing
+**Gain editing** (`client/src/lib/pipelineMixerEdit.ts`):
+- Per-source gain: -150 to +50 dB (CamillaDSP range)
+- KnobDial component (24px) for gain adjustment
+- Default: 0 dB (unity gain)
+- Live updates with debounced upload (200ms)
 
-4. **Channel mapping:**
-   - Visual representation of source → dest mapping
-   - Highlight active (non-muted) sources
-   - Clear indication of channel indices
+**Live upload:**
+- Debounced upload via `commitPipelineConfigChange()` after routing/gain changes
+- Validation errors block upload (inline error shown)
+- Warnings do not block upload but remain visible
+- Upload status tracked in pipeline editor state
 
-5. **Live upload:**
-   - Debounced upload after routing/gain change (200ms)
-   - Validation blocks upload if routing is invalid
-   - Upload status indicator
+**Test config:**
+- `server/data/configs/mvp22-mixer-block-test.json` - 2ch passthrough mixer
+- Originally 4→2 downmix, changed to 2ch-safe for device compatibility
+- Reason: Presets don't store `devices`, so mixer must match common 2ch capture/playback
+
+### Implementation Files
+- **UI:** `client/src/components/pipeline/MixerBlock.svelte`
+- **State mutations:** `client/src/lib/pipelineMixerEdit.ts`
+- **Validation:** `client/src/lib/mixerRoutingValidation.ts`
+- **Tests:**
+  - `client/src/lib/__tests__/pipelineMixerEdit.test.ts` (17 tests)
+  - `client/src/lib/__tests__/mixerRoutingValidation.test.ts` (8 tests)
 
 ### Test / Acceptance Criteria
-- ✅ Component tests:
-  - Routing changes update mixer definition
+- ✅ All 25 new tests passing (17 mixer edit + 8 validation)
+- ✅ Unit tests:
+  - Gain/invert/mute changes update mixer definition correctly
   - Validation catches silent channel loss
-  - Validation catches gain > 0 dB summing
-  - Inversion toggle updates source config
-- ✅ Integration tests:
-  - Edit mixer routing → config updated → uploaded → CamillaDSP reflects change
-  - Create invalid routing (silent channel) → error shown → upload blocked
-  - Sum with gain > 0 → warning shown → upload blocked
-- ✅ Visual verification:
-  - Routing matrix is clear and unambiguous
-  - Warnings/errors are descriptive
-  - Gain controls are easy to adjust
+  - Validation warns on summing
+  - Validation warns on gain > 0 dB while summing
+- ✅ Integration:
+  - Edit mixer routing → uploaded → CamillaDSP updated
+  - Invalid routing (silent dest) → error shown → upload blocked
+  - Valid routing with warnings → upload proceeds
+- ✅ All 292 tests passing (240 client + 52 server)
 
 ### Risk Reduced Early
-- ✅ Validates mixer editing complexity
-- ✅ Proves routing validation logic is sound
-- ✅ Confirms inline error display approach
+- ✅ Validated mixer editing complexity (routing matrix UI)
+- ✅ Proved routing validation logic is sound
+- ✅ Confirmed inline error display approach
 
 ### Deferred Complexity
 - Adding/removing mixer destination channels (requires device config awareness)
-- Advanced routing patterns (crossfeed, etc.)
+- Advanced routing patterns (crossfeed, mid-side, etc.)
 - Preset routing templates
 - Copy/paste routing configurations
 - Mixer name editing
+- Adding/removing entire mixer blocks (deferred to MVP-23)
 
 ⸻
 

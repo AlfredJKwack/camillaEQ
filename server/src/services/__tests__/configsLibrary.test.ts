@@ -111,6 +111,28 @@ describe('ConfigsLibrary', () => {
       expect(configs).toHaveLength(1);
       expect(configs[0].configName).toBe('Fallback Name');
     });
+
+    it('should list extended format configs', async () => {
+      const extendedConfig: PipelineConfig = {
+        configName: 'Extended Format',
+        filterArray: [],
+        filters: { test: { type: 'Biquad', parameters: {} } },
+        mixers: { test: { channels: { in: 2, out: 2 }, mapping: [] } },
+        pipeline: [{ type: 'Mixer', name: 'test' }],
+        title: 'Test Title',
+        description: 'Test Description',
+      };
+
+      await fs.writeFile(
+        join(TEST_CONFIGS_DIR, 'Extended Format.json'),
+        JSON.stringify(extendedConfig, null, 2)
+      );
+
+      const configs = await configsLibrary.listConfigs();
+
+      expect(configs).toHaveLength(1);
+      expect(configs[0].configName).toBe('Extended Format');
+    });
   });
 
   describe('getConfig', () => {
@@ -157,6 +179,33 @@ describe('ConfigsLibrary', () => {
         code: ErrorCode.ERR_CONFIG_INVALID_JSON,
         statusCode: 400,
       });
+    });
+
+    it('should get extended format config with all fields', async () => {
+      const extendedConfig: PipelineConfig = {
+        configName: 'Extended Config',
+        filterArray: [],
+        filters: { test: { type: 'Biquad', parameters: { type: 'Peaking', freq: 1000, q: 1, gain: 3 } } },
+        mixers: { test: { channels: { in: 2, out: 2 }, mapping: [] } },
+        pipeline: [{ type: 'Mixer', name: 'test' }],
+        title: 'Test Title',
+        description: 'Test Description',
+      };
+
+      await fs.writeFile(
+        join(TEST_CONFIGS_DIR, 'Extended Config.json'),
+        JSON.stringify(extendedConfig, null, 2)
+      );
+
+      const result = await configsLibrary.getConfig('extended-config');
+
+      expect(result.configName).toBe('Extended Config');
+      expect(result.filterArray).toEqual([]);
+      expect(result.filters).toBeDefined();
+      expect(result.mixers).toBeDefined();
+      expect(result.pipeline).toBeDefined();
+      expect(result.title).toBe('Test Title');
+      expect(result.description).toBe('Test Description');
     });
   });
 
