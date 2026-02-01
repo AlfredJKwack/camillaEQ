@@ -401,13 +401,20 @@
 
   // Token interaction handlers
   function handleTokenPointerDown(event: PointerEvent, bandIndex: number) {
+    // MVP-21: Block interaction with disabled bands
+    const band = $bands[bandIndex];
+    if (!band.enabled) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    
     event.preventDefault();
     event.stopPropagation();
     
     const target = event.currentTarget as SVGElement;
     target.setPointerCapture(event.pointerId);
     
-    const band = $bands[bandIndex];
     dragState = {
       bandIndex,
       startX: event.clientX,
@@ -488,9 +495,15 @@
   }
 
   function handleTokenWheel(event: WheelEvent, bandIndex: number) {
+    // MVP-21: Block interaction with disabled bands
+    const band = $bands[bandIndex];
+    if (!band.enabled) {
+      event.preventDefault();
+      return;
+    }
+    
     event.preventDefault();
     
-    const band = $bands[bandIndex];
     const delta = event.deltaY > 0 ? -0.1 : 0.1; // Wheel up = increase Q
     setBandQ(bandIndex, band.q + delta);
   }
@@ -525,11 +538,26 @@
 
   // Fader interaction
   function handleFaderDoubleClick(event: MouseEvent, bandIndex: number) {
+    // MVP-21: Block interaction with disabled bands
+    const band = $bands[bandIndex];
+    if (!band.enabled) {
+      event.preventDefault();
+      return;
+    }
+    
     event.preventDefault();
     setBandGain(bandIndex, 0);
   }
 
   function handleFaderPointerDown(event: PointerEvent, bandIndex: number) {
+    // MVP-21: Block interaction with disabled bands
+    const band = $bands[bandIndex];
+    if (!band.enabled) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    
     event.preventDefault();
     event.stopPropagation(); // Prevent band selection from triggering
     
@@ -577,6 +605,13 @@
 
   // Filter type picker handlers
   function handleFilterIconClick(event: MouseEvent, bandIndex: number) {
+    // MVP-21: Block interaction with disabled bands
+    const band = $bands[bandIndex];
+    if (!band.enabled) {
+      event.stopPropagation();
+      return;
+    }
+    
     event.stopPropagation();
     
     const target = event.currentTarget as HTMLElement;
@@ -1267,21 +1302,21 @@
                 <span class="mute-indicator"></span>
               </button>
 
-              <div class="knob-wrapper">
+              <div class="knob-wrapper" class:disabled={!band.enabled}>
                 <KnobDial 
                   value={band.freq} 
                   mode="frequency" 
                   size={19} 
-                  on:change={(e) => setBandFreq(i, e.detail.value)}
+                  on:change={(e) => band.enabled && setBandFreq(i, e.detail.value)}
                 />
               </div>
 
-              <div class="knob-wrapper">
+              <div class="knob-wrapper" class:disabled={!band.enabled}>
                 <KnobDial 
                   value={band.q} 
                   mode="q" 
                   size={19}
-                  on:change={(e) => setBandQ(i, e.detail.value)}
+                  on:change={(e) => band.enabled && setBandQ(i, e.detail.value)}
                 />
               </div>
             </div>
@@ -1713,6 +1748,10 @@
   .band-column[data-enabled='false'] {
     opacity: 0.5;
   }
+  
+  .band-column[data-enabled='false'] .fader-track {
+    pointer-events: none;
+  }
 
   .band-column[data-selected='true'] {
     border-color: color-mix(in oklab, var(--band-color) 44%, var(--ui-border));
@@ -1735,6 +1774,10 @@
     border: 0;
     padding: 0;
     color: inherit;
+  }
+  
+  .band-column[data-enabled='false'] .filter-type-icon {
+    pointer-events: none;
   }
 
   .order-icon {
@@ -1852,6 +1895,11 @@
     justify-content: center;
     width: 100%;
     height: auto;
+  }
+  
+  .knob-wrapper.disabled {
+    pointer-events: none;
+    opacity: 0.5;
   }
 
   .knob-label {

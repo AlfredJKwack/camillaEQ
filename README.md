@@ -319,9 +319,18 @@ You can **reorder filters within the same Filter block** using drag-and-drop:
 
 ## Project Status
 
-**Current Milestone:** MVP-21 Complete ✓ — Pipeline filter editor with disabled overlay
+**Current Milestone:** MVP-21 Follow-up Complete ✓ — Unified Enablement Semantics
 
-**New in MVP-21:**
+**New in MVP-21 Follow-up:**
+- **Unified enablement semantics:** EQ and Pipeline editors now have consistent enable/disable behavior
+- **Global EQ mute:** Removes/restores filter across all Filter steps in pipeline
+- **Per-block Pipeline disable:** Affects only the selected Filter block
+- **Enabled computation:** Changed from overlay check to pipeline membership scan (present in any step = enabled)
+- **Overlay schema v2:** Multi-step aware with array of locations per filter
+- **Step-scoped enable:** `markFilterEnabledForStep()` removes only specified step's overlay entry
+- All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
+
+**Previous (MVP-21):**
 - **Inline filter parameter editing** in Pipeline page Filter blocks
 - **Enable/disable filters** with power button (⏻) - removes from pipeline, stores in localStorage overlay
 - **Remove filters** with × button - cleans up orphaned definitions

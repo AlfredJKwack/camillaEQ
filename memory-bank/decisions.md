@@ -215,6 +215,44 @@ MVP-16 adds temporal averaging (STA/LTA/Peak) and fractional-octave smoothing to
 
 ---
 
+## ADR-008: Unified Enablement Semantics
+**Date:** 2026-02-01  
+**Status:** Accepted
+
+### Context
+After implementing MVP-21 (filter editor with disable overlay), we discovered semantic ambiguity:
+- EQ editor "mute" button appeared to be per-band operation
+- Pipeline editor "disable" button was per-block operation
+- Both modified the same filters but with different scopes
+- Enabled state computation relied on overlay presence, not pipeline membership
+
+This created confusion: disabling a filter in one Pipeline block showed it as "muted" in the EQ editor, even though it was still present (and audible) in other Filter blocks.
+
+### Decision
+Implement **unified enablement semantics** with clear global vs per-block boundaries:
+
+1. **Enabled computation:** Filter is enabled if present in **at least one** relevant Filter step (not all)
+2. **EQ editor mute:** Global operation (removes/restores filter across ALL Filter steps)
+3. **Pipeline editor enable/disable:** Per-block operation (affects ONLY the selected Filter step)
+4. **Enabled determination:** Changed from overlay check to pipeline membership scan
+
+**Implementation:**
+- Overlay schema v2: `Record<string, DisabledFilterLocation[]>` (array of locations per filter)
+- New helper: `markFilterEnabledForStep()` for per-block enable
+- New module: `filterEnablement.ts` with global enable/disable helpers
+- Changed: `extractEqBandsFromConfig()` scans pipeline for membership (not overlay)
+
+### Consequences
+- **Positive:** Clear separation between global and per-block operations
+- **Positive:** Enabled state accurately reflects audio processing (pipeline membership)
+- **Positive:** EQ mute behaves as expected (complete silence)
+- **Positive:** Pipeline editor allows per-block control for advanced routing
+- **Positive:** User mental model: EQ editor = global tone shaping, Pipeline editor = per-block routing
+- **Negative:** Two tests skipped (obsolete after behavior change to pipeline scan)
+- **Negative:** More complex overlay schema (array of locations vs single location)
+
+---
+
 ## ADR Template for Future Decisions
 
 ```markdown

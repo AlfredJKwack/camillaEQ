@@ -441,6 +441,29 @@
     - Updated: `pipelineViewModel.test.ts`, `pipelineReorder.test.ts`, `pipelineUiIds.test.ts`
     - All 286 tests passing (232 client + 54 server)
 
+- [x] **MVP-21 Follow-up: Unified Enablement Semantics** (2026-02-01)
+  - **Unified enablement semantics:**
+    - Filter enabled if present in **at least one** relevant Filter step (not all)
+    - EQ mute: **global** operation (removes/restores across all Filter steps)
+    - Pipeline disable: **per-block** operation (affects only selected Filter step)
+  - **Overlay schema v2 (multi-step aware):**
+    - Migrated to `Record<string, DisabledFilterLocation[]>` - array of locations per filter
+    - Each location: `{ stepKey, index, filterName }`
+    - Migration: v1 → v2 wraps single location into array
+    - Added `markFilterEnabledForStep()` - per-block enable (removes only specified step's entry)
+  - **EQ enabled computation:**
+    - Changed from overlay check to pipeline membership scan
+    - `extractEqBandsFromConfig()` checks if filter present in any Filter step
+    - Band shows as enabled if present in at least one step (not bypassed)
+  - **Implementation files:**
+    - `client/src/lib/disabledFiltersOverlay.ts` - Schema v2 + step-scoped enable
+    - `client/src/lib/pipelineFilterEdit.ts` - `enableFilter()` uses `markFilterEnabledForStep()`
+    - `client/src/lib/camillaEqMapping.ts` - Pipeline membership scan for enabled computation
+    - `client/src/lib/filterEnablement.ts` - Global enable/disable helpers (for EQ mute)
+  - **Test updates:**
+    - Obsolete tests removed/skipped: `setFilterBypassed`, `toggleBandEnabled` unit tests
+    - All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
+
 ## Current Status
 **Phase:** MVP-21 Completed - Pipeline Filter Editor with Disabled Overlay
 

@@ -18,7 +18,7 @@ import {
   removeFilterFromStep,
   removeFilterDefinitionIfOrphaned,
 } from '../lib/pipelineFilterEdit';
-import { getDisabledFilterLocation, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder } from '../lib/disabledFiltersOverlay';
+import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder } from '../lib/disabledFiltersOverlay';
   import FilterBlock from '../components/pipeline/FilterBlock.svelte';
   import MixerBlock from '../components/pipeline/MixerBlock.svelte';
   import ProcessorBlock from '../components/pipeline/ProcessorBlock.svelte';
@@ -255,14 +255,7 @@ import { getDisabledFilterLocation, getStepKey, markFilterDisabled, remapDisable
     const snapshot = JSON.parse(JSON.stringify($dspConfig));
 
     try {
-      // Get original location from overlay
-      const location = getDisabledFilterLocation(filterName);
-      if (!location) {
-        throw new Error(`Filter "${filterName}" not found in disabled overlay`);
-      }
-
-      // Find step index by searching for matching stepKey
-      // (stepKey is derived from channels + original index, we need to find current index)
+      // Find step index by blockId
       const stepObj = getStepByBlockId(blockId);
       if (!stepObj) {
         throw new Error('Pipeline step not found');
@@ -273,7 +266,17 @@ import { getDisabledFilterLocation, getStepKey, markFilterDisabled, remapDisable
         throw new Error('Pipeline step not found in config');
       }
 
-      // Re-enable filter at original position
+      // Get step-specific location from overlay (per-block behavior)
+      const channels = (stepObj as any).channels || [];
+      const stepKey = getStepKey(channels, stepIndex);
+      const locations = getDisabledFilterLocations(filterName);
+      const location = locations.find(loc => loc.stepKey === stepKey);
+      
+      if (!location) {
+        throw new Error(`Filter "${filterName}" not found in disabled overlay for this step`);
+      }
+
+      // Re-enable filter at original position in THIS step only
       const updatedConfig = enableFilter($dspConfig, stepIndex, filterName, location.index);
 
       // Validate

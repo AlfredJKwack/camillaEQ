@@ -17,6 +17,7 @@ import { debounceCancelable } from '../lib/debounce';
 import { getDspInstance, updateConfig as updateDspConfig } from './dspStore';
 import { putLatestState } from '../lib/api';
 import { clampFreqHz, clampGainDb, clampQ } from '../lib/eqParamClamp';
+import { disableFilterEverywhere, enableFilterEverywhere } from '../lib/filterEnablement';
 
 // Upload debounce time (ms)
 const UPLOAD_DEBOUNCE_MS = 200;
@@ -198,12 +199,54 @@ export function setBandType(index: number, type: EqBand['type']) {
 }
 
 export function toggleBandEnabled(index: number) {
-  bands.update((b) => {
-    const updated = [...b];
-    updated[index] = { ...updated[index], enabled: !updated[index].enabled };
-    return updated;
-  });
-  debouncedUpload.call();
+  const dspInstance = getDspInstance();
+  if (!dspInstance || !lastConfig || !extractedData) {
+    console.error('Cannot toggle band: no DSP instance or config');
+    return;
+  }
+
+  // Get filter name for this band
+  const filterName = extractedData.filterNames[index];
+  if (!filterName) {
+    console.error(`No filter name found for band index ${index}`);
+    return;
+  }
+
+  // Get current enabled state
+  const currentBands = get(bands);
+  const isCurrentlyEnabled = currentBands[index]?.enabled ?? false;
+
+  try {
+    // Toggle by disabling/enabling everywhere in pipeline
+    let updatedConfig: CamillaDSPConfig;
+    
+    if (isCurrentlyEnabled) {
+      // Disable: remove from pipeline steps, add to overlay
+      updatedConfig = disableFilterEverywhere(lastConfig, filterName);
+    } else {
+      // Enable: restore to pipeline steps, remove from overlay
+      updatedConfig = enableFilterEverywhere(lastConfig, filterName);
+    }
+
+    // Update instance config
+    dspInstance.config = updatedConfig;
+    lastConfig = updatedConfig;
+
+    // Re-extract bands to reflect new enabled state
+    const extracted = extractEqBandsFromConfig(updatedConfig);
+    extractedData = extracted;
+    bands.set(extracted.bands);
+    bandOrderNumbers.set(extracted.orderNumbers);
+
+    // Trigger upload
+    debouncedUpload.call();
+  } catch (error) {
+    console.error('Error toggling band enabled state:', error);
+    uploadStatus.set({
+      state: 'error',
+      message: error instanceof Error ? error.message : 'Failed to toggle band',
+    });
+  }
 }
 
 export function selectBand(index: number | null) {

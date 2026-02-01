@@ -1,7 +1,7 @@
 # Current Architecture (as-built)
 
 **Last updated:** 2026-02-01  
-**Status:** MVP-21 Complete (Pipeline Filter Editor with Disabled Overlay)
+**Status:** MVP-21 Follow-up Complete (Unified Enablement Semantics)
 
 This document describes the actual implementation as it exists in the codebase.
 
@@ -156,12 +156,29 @@ This document describes the actual implementation as it exists in the codebase.
 - Collapsed rows show compact parameter values (Hz, Q, dB)
 - Reserved slot prevents layout shift when expand button appears
 
-**Disabled filters overlay (MVP-21):**
-- Browser localStorage stores disabled filter metadata: `{ stepKey, filterName, index }`
+**Disabled filters overlay (MVP-21, updated MVP-21 Follow-up):**
+- Browser localStorage stores disabled filter metadata with schema v2
+- Schema v2: `Record<string, DisabledFilterLocation[]>` - array of locations per filter (multi-step aware)
+- Each location: `{ stepKey, filterName, index }`
 - `stepKey` format: `"Filter:ch0,1:idx2"` (type:channels:stepIndex)
 - Enable restores filter to original position in pipeline
+- **Step-scoped enable:** `markFilterEnabledForStep()` removes only specified step's overlay entry (per-block behavior)
 - Overlay remaps when pipeline steps reordered (disabled filters "follow" their step)
 - Implementation: `client/src/lib/disabledFiltersOverlay.ts`
+
+**Unified enablement semantics (MVP-21 Follow-up):**
+- **Enabled computation:** A filter is enabled if present in **at least one** relevant Filter step
+- **Relevant Filter steps:** All `step.type === 'Filter'` steps containing EQ biquad filter set
+- **Global vs per-block behavior:**
+  - **EQ editor mute:** Global operation (removes/restores filter across all Filter steps)
+  - **Pipeline editor enable/disable:** Per-block operation (affects only selected Filter step)
+- **EQ enabled determination:** Changed from overlay check to pipeline membership scan
+  - `extractEqBandsFromConfig()` checks if filter present in any Filter step
+  - Band shows as enabled if present in at least one step (not bypassed)
+- **Implementation files:**
+  - `client/src/lib/filterEnablement.ts` - Global enable/disable helpers (for EQ mute)
+  - `client/src/lib/pipelineFilterEdit.ts` - Per-block enable uses `markFilterEnabledForStep()`
+  - `client/src/lib/camillaEqMapping.ts` - Pipeline membership scan for enabled computation
 
 **Row reordering (MVP-20):**
 - Drag-and-drop filter reordering within Filter blocks

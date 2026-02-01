@@ -7,7 +7,6 @@ import {
   setBiquadFreq,
   setBiquadQ,
   setBiquadGain,
-  setFilterBypassed,
   removeFilterFromStep,
   removeFilterDefinitionIfOrphaned,
 } from '../pipelineFilterEdit';
@@ -128,29 +127,6 @@ describe('pipelineFilterEdit', () => {
     it('should throw for non-gain-capable filter types', () => {
       const config = createTestConfig();
       expect(() => setBiquadGain(config, 'EQ2', 5.0)).toThrow();
-    });
-  });
-
-  describe('setFilterBypassed', () => {
-    it('should set filter to bypassed', () => {
-      const config = createTestConfig();
-      const updated = setFilterBypassed(config, 'EQ1', true);
-      
-      expect(updated.filters['EQ1'].parameters.bypassed).toBe(true);
-    });
-
-    it('should remove bypassed parameter when set to false', () => {
-      const config = createTestConfig();
-      config.filters['EQ1'].parameters.bypassed = true;
-      
-      const updated = setFilterBypassed(config, 'EQ1', false);
-      
-      expect(updated.filters['EQ1'].parameters.bypassed).toBeUndefined();
-    });
-
-    it('should throw if filter does not exist', () => {
-      const config = createTestConfig();
-      expect(() => setFilterBypassed(config, 'NonExistent', true)).toThrow();
     });
   });
 

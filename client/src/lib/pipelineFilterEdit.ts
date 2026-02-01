@@ -8,7 +8,7 @@ import { clampFreqHz, clampGainDb, clampQ } from './eqParamClamp';
 import { isGainCapable } from './camillaTypes';
 import {
   markFilterDisabled,
-  markFilterEnabled,
+  markFilterEnabledForStep,
   getStepKey,
   getDisabledFiltersForStep,
 } from './disabledFiltersOverlay';
@@ -123,7 +123,7 @@ export function disableFilter(
 }
 
 /**
- * Enable filter (add back to pipeline at original position, remove from overlay)
+ * Enable filter (add back to pipeline at original position, remove from overlay for this step only)
  */
 export function enableFilter(
   config: CamillaDSPConfig,
@@ -145,8 +145,10 @@ export function enableFilter(
   names.splice(clampedIndex, 0, filterName);
   (step as any).names = names;
   
-  // Remove from overlay
-  markFilterEnabled(filterName);
+  // Remove from overlay for THIS step only (per-block behavior)
+  const channels = (step as any).channels || [];
+  const stepKey = getStepKey(channels, stepIndex);
+  markFilterEnabledForStep(filterName, stepKey);
   
   return updated;
 }

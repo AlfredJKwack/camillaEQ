@@ -6,7 +6,7 @@
 import type { EqBand } from '../dsp/filterResponse';
 import type { CamillaDSPConfig, FilterDefinition } from './camillaDSP';
 import { normalizePipelineStep, isGainCapable, type PipelineStepNormalized } from './camillaTypes';
-import { isFilterDisabled } from './disabledFiltersOverlay';
+import { isFilterDisabled, getStepKey, getDisabledFiltersForStep } from './disabledFiltersOverlay';
 
 export interface ExtractedEqData {
   bands: EqBand[];
@@ -69,6 +69,7 @@ function mapEqBandTypeToCamilla(type: EqBand['type']): string {
 /**
  * Extract EQ bands from CamillaDSP config
  * Applies to ALL filter pipeline channels
+ * Includes disabled filters (from overlay) to maintain stable band list
  */
 export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqData {
   const bands: EqBand[] = [];
@@ -99,6 +100,15 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   }
 
   // Use channel 0 as the reference for filter order
+  const channel0StepIndex = config.pipeline.findIndex((step, index) => {
+    const normalized = normalizePipelineStep(step);
+    return normalized && normalized.type === 'Filter' && normalized.channels?.includes(0);
+  });
+  
+  if (channel0StepIndex === -1) {
+    return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
+  }
+  
   const channel0Step = filterSteps.find((step) => 
     step.channels && step.channels.includes(0)
   );
@@ -107,7 +117,19 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
-  const refNames = channel0Step.names || [];
+  // Build full ordered name list by merging enabled names + disabled names from overlay
+  const enabledNames = channel0Step.names || [];
+  const stepKey = getStepKey(channel0Step.channels!, channel0StepIndex);
+  const disabledLocations = getDisabledFiltersForStep(stepKey);
+  
+  // Reconstruct full list with disabled filters inserted at their original indices
+  const fullNames: string[] = [...enabledNames];
+  for (const loc of disabledLocations) {
+    const insertIndex = Math.max(0, Math.min(fullNames.length, loc.index));
+    fullNames.splice(insertIndex, 0, loc.filterName);
+  }
+  
+  const refNames = fullNames;
   
   // Track which channels we're editing
   for (const step of filterSteps) {
@@ -121,6 +143,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   }
 
   // Extract bands from filters (tracking pipeline position)
+  // Now includes disabled filters from overlay
   for (let refIndex = 0; refIndex < refNames.length; refIndex++) {
     const filterName = refNames[refIndex];
     const filterDef = config.filters[filterName];
@@ -145,10 +168,17 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     }
 
     // Determine if filter is enabled
-    // Check disabled overlay (UI state) and pipeline-level bypass
-    const isDisabled = isFilterDisabled(filterName);
+    // A filter is enabled if present in AT LEAST ONE relevant Filter step
+    let presentInAny = false;
+    for (const step of filterSteps) {
+      const stepNames = step.names || [];
+      if (stepNames.includes(filterName)) {
+        presentInAny = true;
+        break;
+      }
+    }
     const pipelineBypassed = channel0Step.bypassed === true;
-    const enabled = !isDisabled && !pipelineBypassed;
+    const enabled = presentInAny && !pipelineBypassed;
 
     // Extract parameters with fallbacks
     const freq = Number(params.freq || params.Frequency || 1000);
