@@ -10,6 +10,7 @@ import {
   isKnownProcessorType, 
   getFilterUiKind, 
   isEditableFilterKind,
+  isKnownEditableFilter,
   getFilterSummary,
   getFilterNotEditableReason,
   type FilterUiKind
@@ -207,7 +208,7 @@ function buildFilterInfo(
   config: CamillaDSPConfig,
   disabled: boolean
 ): FilterInfo {
-  const filterDef = config.filters[name];
+  const filterDef = config.filters?.[name];
   const exists = !!filterDef;
   
   let iconType: string | null = null;
@@ -231,26 +232,31 @@ function buildFilterInfo(
     
     // Determine UI rendering category
     uiKind = getFilterUiKind(filterDef);
-    editable = isEditableFilterKind(uiKind);
     summary = getFilterSummary(filterDef);
+    
+    // Use comprehensive editability check (validates biquad subtypes, etc.)
+    editable = isEditableFilterKind(uiKind) && 
+               (uiKind !== 'biquad' || isKnownEditableFilter(filterDef));
     
     if (!editable) {
       unknownReason = getFilterNotEditableReason(filterDef);
     }
     
     // Extract bypassed flag (works for all filter types)
-    bypassed = filterDef.parameters?.bypassed || false;
+    bypassed = (filterDef.parameters as any)?.bypassed || false;
     filterType = filterDef.type;
     
     if (filterDef.type === 'Biquad') {
+      const params = filterDef.parameters as any;
+      
       // Extract biquad subtype for icon
-      iconType = filterDef.parameters?.type || null;
+      iconType = params?.type || null;
       
       // MVP-21: Extract parameters
-      biquadType = filterDef.parameters?.type;
-      freq = filterDef.parameters?.freq;
-      q = filterDef.parameters?.q;
-      gain = filterDef.parameters?.gain;
+      biquadType = params?.type;
+      freq = params?.freq;
+      q = params?.q;
+      gain = params?.gain;
       
       // Determine if this type supports gain
       const type = biquadType?.toLowerCase() || '';
@@ -289,7 +295,7 @@ function buildMixerBlockVm(
 ): MixerBlockVm {
   const name = step.name || '';
   const bypassed = step.bypassed || false;
-  const mixerDef = config.mixers[name];
+  const mixerDef = config.mixers?.[name];
   const exists = !!mixerDef;
   
   let channelsInOut: { in: number; out: number } | undefined;

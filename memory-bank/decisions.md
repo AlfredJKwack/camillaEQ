@@ -253,6 +253,49 @@ Implement **unified enablement semantics** with clear global vs per-block bounda
 
 ---
 
+## ADR-009: Canonical Schema as Single Source of Truth
+**Date:** 2026-02-02  
+**Status:** Accepted
+
+### Context
+Before MVP-24, CamillaDSP types were defined in multiple locations:
+- `client/src/lib/camillaDSP.ts` had local interface definitions
+- `client/src/lib/camillaEqMapping.ts` imported some types but not others
+- `docs/reference/camillaDSP-canonical-schema.ts` existed as reference but wasn't used
+
+This led to:
+- Type drift between modules (e.g., `FilterDefinition` vs `Filter`)
+- Incomplete type coverage (missing processor types, device variants)
+- Confusion about which definition was authoritative
+
+### Decision
+Adopt **`client/src/lib/camillaSchema.ts`** as the single source of truth for all CamillaDSP types.
+
+**Implementation approach:**
+1. Copy complete type definitions from reference schema to `camillaSchema.ts`
+2. Re-export all types from `camillaDSP.ts` to minimize churn in consuming code
+3. Remove duplicate type definitions from `camillaDSP.ts`
+4. Update all imports to use re-exported types
+5. Add optional chaining throughout codebase for schema-compliant nullable fields
+
+**Type narrowing strategy:**
+- Canonical schema uses discriminated unions (e.g., `Filter` = `BiquadFilter | GainFilter | ...`)
+- View-model code casts to `any` when accessing union-specific properties
+- Rationale: Preserves type safety at API boundaries while allowing practical access patterns
+
+### Consequences
+- **Positive:** Single source of truth eliminates drift
+- **Positive:** Complete type coverage for all 9 filters, 2 processors, pipeline steps
+- **Positive:** Stronger typing catches errors at compile time
+- **Positive:** Easier to update types when CamillaDSP protocol changes
+- **Negative:** Some view-model code requires `as any` casts for union narrowing
+- **Negative:** Optional chaining verbose in places (`config.filters?.`, `config.pipeline?.`)
+- **Negative:** Initial migration required touching many files (one-time cost)
+
+**Validation:** All 292 tests passing after migration confirms no behavioral regressions.
+
+---
+
 ## ADR Template for Future Decisions
 
 ```markdown

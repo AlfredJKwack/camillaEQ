@@ -22,6 +22,42 @@ export function isKnownProcessorType(type: string | undefined): type is KnownPro
 }
 
 /**
+ * Known biquad subtypes that we support in the UI
+ * (Normalized to lowercase for case-insensitive matching)
+ */
+const KNOWN_BIQUAD_SUBTYPES: Set<string> = new Set([
+  'peaking',
+  'highpass',
+  'lowpass',
+  'highshelf',
+  'lowshelf',
+  'notch',
+  'bandpass',
+  'allpass',
+]);
+
+/**
+ * Normalize a biquad subtype string for comparison
+ * Accepts both CamillaDSP style (Highpass) and PascalCase variants (HighShelf)
+ * Returns normalized lowercase string, or null if input is invalid
+ */
+function normalizeBiquadSubtype(input: unknown): string | null {
+  if (typeof input !== 'string' || !input) {
+    return null;
+  }
+  // Normalize: lowercase, no underscores/spaces
+  return input.toLowerCase().replace(/[_\s]/g, '');
+}
+
+/**
+ * Check if a biquad subtype is known and supported
+ */
+function isKnownBiquadSubtype(subtype: unknown): boolean {
+  const normalized = normalizeBiquadSubtype(subtype);
+  return normalized !== null && KNOWN_BIQUAD_SUBTYPES.has(normalized);
+}
+
+/**
  * Filter UI rendering categories
  */
 export type FilterUiKind =
@@ -178,19 +214,48 @@ export function getFilterSummary(filterDef: any): string[] {
  * Get human-readable reason why a filter is not editable
  */
 export function getFilterNotEditableReason(filterDef: any): string {
+  // Handle missing/null filter definition
+  if (!filterDef) {
+    return 'Filter definition missing';
+  }
+  
+  const filterType = filterDef.type;
+  
+  // Handle missing filter type
+  if (!filterType) {
+    return `Unknown filter type: ${filterType || 'undefined'}`;
+  }
+  
+  // Handle Biquad filters specifically
+  if (filterType === 'Biquad') {
+    const biquadSubtype = filterDef.parameters?.type;
+    
+    if (!biquadSubtype) {
+      return 'Biquad type not specified';
+    }
+    
+    if (!isKnownBiquadSubtype(biquadSubtype)) {
+      return `Unsupported Biquad subtype: ${biquadSubtype}`;
+    }
+    
+    // Biquad is valid but still not editable for some other reason
+    return 'Filter type not editable';
+  }
+  
+  // Handle non-Biquad filters
   const kind = getFilterUiKind(filterDef);
   
   switch (kind) {
     case 'conv':
-      return 'Convolution filters are complex and read-only';
+      return `Unsupported filter type: ${filterType} - Convolution filters are complex and read-only`;
     case 'dither':
-      return 'Dither filters are read-only (too many subtypes)';
+      return `Unsupported filter type: ${filterType} - Dither filters are read-only (too many subtypes)`;
     case 'diffeq':
-      return 'Differential equation filters are read-only';
+      return `Unsupported filter type: ${filterType} - Differential equation filters are read-only`;
     case 'unknown':
-      return `Unknown filter type: ${filterDef?.type || 'undefined'}`;
+      return `Unknown filter type: ${filterType}`;
     default:
-      return 'Filter type not editable';
+      return `Unsupported filter type: ${filterType}`;
   }
 }
 
@@ -209,10 +274,35 @@ function formatNumber(value: any, showSign: boolean = false): string {
 }
 
 /**
- * Legacy function for backwards compatibility
- * Use getFilterUiKind + isEditableFilterKind instead
+ * Check if a filter is editable in the UI
+ * Validates that the filter definition is well-formed and of a supported type
  */
 export function isKnownEditableFilter(filterDef: any): boolean {
+  // Handle missing/null filter
+  if (!filterDef || typeof filterDef !== 'object') {
+    return false;
+  }
+  
+  const filterType = filterDef.type;
+  
+  // Handle missing filter type
+  if (!filterType) {
+    return false;
+  }
+  
+  // For Biquad filters, enforce subtype validation
+  if (filterType === 'Biquad') {
+    const biquadSubtype = filterDef.parameters?.type;
+    
+    // Biquad must have a valid, known subtype
+    if (!biquadSubtype || !isKnownBiquadSubtype(biquadSubtype)) {
+      return false;
+    }
+    
+    return true; // Valid biquad with known subtype
+  }
+  
+  // For non-Biquad filters, use kind-based check
   const kind = getFilterUiKind(filterDef);
   return isEditableFilterKind(kind);
 }

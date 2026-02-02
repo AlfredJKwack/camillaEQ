@@ -5,51 +5,44 @@
  */
 
 import { SocketRequestQueue } from './requestQueue';
+import type { PipelineStep } from './camillaSchema';
+
+// Re-export canonical schema types
+export type {
+  CamillaDSPConfig,
+  Filter,
+  Mixer,
+  Processor,
+  PipelineStep,
+  PipelineStepFilter,
+  PipelineStepMixer,
+  PipelineStepProcessor,
+  Devices,
+} from './camillaSchema';
 
 export interface CamillaDSPOptions {
   controlTimeoutMs?: number;
   spectrumTimeoutMs?: number;
 }
 
-export interface CamillaDSPConfig {
+// GUI-ready config type (normalized: required blocks always present)
+export type GuiReadyCamillaDSPConfig = {
+  title?: string;
+  description?: string;
   devices: {
-    capture: { channels: number; [k: string]: any };
-    playback: { channels: number; [k: string]: any };
+    samplerate: number;
+    chunksize: number;
+    capture: Record<string, any>;
+    playback: Record<string, any>;
     [k: string]: any;
   };
-  filters: Record<string, FilterDefinition>;
-  mixers: Record<string, MixerDefinition>;
-  pipeline: PipelineStep[];
-  processors?: Record<string, any>;
-}
+  filters: Record<string, any>;
+  mixers: Record<string, any>;
+  processors: Record<string, any>;
+  pipeline: any[];
+};
 
-export interface FilterDefinition {
-  type: string;
-  description?: string;
-  parameters: Record<string, any>;
-}
-
-export interface MixerDefinition {
-  description?: string;
-  channels: { in: number; out: number };
-  mapping: Array<{
-    dest: number;
-    sources: Array<{
-      channel: number;
-      gain: number;
-      inverted: boolean;
-      mute: boolean;
-      scale: 'dB' | 'linear' | string;
-    }>;
-    mute: boolean;
-  }>;
-}
-
-export type PipelineStep =
-  | { type: 'Mixer'; name: string; description?: string; bypassed?: boolean }
-  | { type: 'Filter'; channels: number[]; names: string[]; description?: string; bypassed?: boolean }
-  | { type: string; [k: string]: any };
-
+// Runtime-specific types (not part of canonical DSP config)
 interface DSPResponse {
   result: 'Ok' | 'Error' | string;
   value: any;
@@ -84,7 +77,7 @@ export class CamillaDSP {
   
   public connected: boolean = false;
   public spectrumConnected: boolean = false;
-  public config: CamillaDSPConfig | null = null;
+  public config: GuiReadyCamillaDSPConfig | null = null;
 
   /**
    * Check if control socket is open and ready
@@ -691,11 +684,21 @@ export class CamillaDSP {
   /**
    * Get default/normalized config
    * Preserves all data from CamillaDSP, only fills missing required fields
+   * Returns GUI-ready config where filters/mixers/processors/pipeline are always present
    */
-  private getDefaultConfig(config: Partial<CamillaDSPConfig>): CamillaDSPConfig {
+  private getDefaultConfig(config: any): GuiReadyCamillaDSPConfig {
     return {
+      // Preserve title/description if present
+      title: config.title,
+      description: config.description,
+      
       // Preserve devices or use default
-      devices: config.devices || { capture: { channels: 2 }, playback: { channels: 2 } },
+      devices: config.devices || {
+        samplerate: 48000,
+        chunksize: 1024,
+        capture: { channels: 2 },
+        playback: { channels: 2 },
+      },
       
       // Preserve filters, mixers, pipeline as-is (even if empty)
       filters: config.filters || {},

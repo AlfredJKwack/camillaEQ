@@ -741,5 +741,7 @@
     margin: 0;
     max-height: 300px;
     overflow-y: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;    
   }
 </style>

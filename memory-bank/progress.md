@@ -529,31 +529,42 @@
 
 - [x] **MVP-24: Canonical Schema + Enhanced Filter Rendering** (2026-02-02)
   - **Canonical schema integration:**
-    - Copied complete CamillaDSP type definitions to `client/src/lib/camillaSchema.ts`
-    - Serves as reference for all 9 Filter types and 2 Processor types
-    - Preserves all parameter variants with accurate `PrcFmt` types
+    - Adopted `client/src/lib/camillaSchema.ts` as **single source of truth** for CamillaDSP types
+    - Covers all 9 Filter types, 2 Processor types, pipeline steps, mixers, devices
+    - Preserves all parameter variants with accurate `PrcFmt` discriminated unions
+    - `client/src/lib/camillaDSP.ts` re-exports schema types to minimize churn in consuming code
+  - **Type drift eliminated:**
+    - Removed local type definitions in `camillaDSP.ts` that duplicated/diverged from schema
+    - All components now reference canonical types via re-exports
+    - Optional chaining added throughout codebase for schema-compliant nullable fields
   - **Enhanced filter type system** (`client/src/lib/knownTypes.ts`):
-    - `getFilterUiKind()` - Classifies filters (Biquad/Gain/Delay/Volume/Loudness/Limiter/Conv/Dither/DiffEq)
-    - `isEditableFilterKind()` - Determines editability (Biquad/Gain/Delay/Volume/Loudness/Limiter editable, Conv/Dither/DiffEq read-only)
-    - `getFilterSummary()` - Human-readable summaries for all filter types
+    - `getFilterUiKind()` - Classifies filters into 9 rendering categories
+    - `isEditableFilterKind()` - Determines editability boundaries (6 editable, 3 read-only)
+    - `isKnownEditableFilter()` - Validates filter definition + supports biquad subtype checking
+    - `getFilterSummary()` - Human-readable summaries for **all** filter types
     - `getFilterNotEditableReason()` - Explains why complex types are read-only
   - **View model updates** (`client/src/lib/pipelineViewModel.ts`):
-    - Extended `FilterInfo` with `uiKind` and `summary` fields
-    - All filters classified with appropriate metadata
+    - Extended `FilterInfo` with `uiKind`, `summary`, `editable`, `unknownReason` fields
+    - All filters classified and validated against canonical schema
+    - Uses `isKnownEditableFilter()` for proper biquad subtype validation
   - **UI rendering** (`client/src/components/pipeline/FilterBlock.svelte`):
-    - All filter types show parameter summaries when collapsed
-    - Editable filters: existing Biquad editor (freq/Q/gain knobs)
+    - **All** filter types show parameter summaries when collapsed
+    - Editable filters: inline editor with freq/Q/gain knobs
     - Read-only filters: info message + JSON view when expanded
     - Unknown filters: warning + JSON display
-  - **Processor display** (`client/src/components/pipeline/ProcessorBlock.svelte`):
-    - Compressor and NoiseGate show detailed parameter lists when expanded
+  - **Processor editing** (`client/src/components/pipeline/ProcessorBlock.svelte`):
+    - **Full parameter editing** for Compressor and NoiseGate (KnobDials + numeric inputs)
+    - Bypass toggle edits pipeline step `bypassed` state
     - Purple border indicates supported processor types
     - Falls back to JSON for unknown processor types
-  - All 240 client tests passing
-  - **Remaining work:** Processor editing UI not implemented (display-only)
+    - Mutation helpers in `pipelineProcessorEdit.ts` with minimal clamping
+  - **Test status:** All 292 tests passing (240 client + 52 server)
+  - **Type consolidation complete:** Schema is canonical, no duplicate definitions remain
 
 ## Current Status (2026-02-02)
 **Phase:** MVP-24 Completed - Canonical Schema + Enhanced Filter Rendering
+
+**Type consolidation complete:** All CamillaDSP types now sourced from `client/src/lib/camillaSchema.ts`. No duplicate definitions remain.
 
 ## Planned Milestones
 

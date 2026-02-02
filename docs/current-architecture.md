@@ -1,7 +1,7 @@
 # Current Architecture (as-built)
 
-**Last updated:** 2026-02-01  
-**Status:** MVP-21 Follow-up Complete (Unified Enablement Semantics)
+**Last updated:** 2026-02-02  
+**Status:** MVP-24 Complete (Canonical Schema + Enhanced Filter Rendering)
 
 This document describes the actual implementation as it exists in the codebase.
 
@@ -309,12 +309,14 @@ pages/
   ConnectPage.svelte  - Connection parameters + DSP diagnostics
   EqPage.svelte       - Interactive EQ editor
   PresetsPage.svelte  - Config library UI
-  PipelinePage.svelte - Pipeline viewer (read-only)
+  PipelinePage.svelte - Pipeline viewer + editor (MVP-19 through MVP-24)
 lib/
-  camillaDSP.ts       - WebSocket client + protocol
+  camillaSchema.ts    - Canonical CamillaDSP type definitions (single source of truth)
+  camillaDSP.ts       - WebSocket client + protocol (re-exports camillaSchema types)
   camillaEqMapping.ts - EqBand ↔ CamillaDSP config conversion
   pipelineConfigMapping.ts - Pipeline-config ↔ CamillaDSP config (extended format support)
   pipelineViewModel.ts - Converts CamillaDSP config to render-friendly view models
+  knownTypes.ts       - Filter/processor type classification and validation
   router.ts           - Hash-based routing
   debounce.ts         - Cancelable debounce utility
 state/

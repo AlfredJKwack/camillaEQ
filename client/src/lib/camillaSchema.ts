@@ -56,9 +56,26 @@ export interface Devices {
   worker_threads?: number;
 }
 
+// Pragmatic supporting types
+//
+// These are referenced by the canonical schema but are not currently modeled
+// exhaustively in the UI. Keep them permissive so we can round-trip unknown
+// fields from CamillaDSP without losing information.
+export type Resampler = Record<string, any>;
+
+// File formats vary by backend; keep open-ended.
+export type FileFormat = string;
+
 // Abstract device definitions
-export type CaptureDevice = /* One of many platform-specific variants, see below */;
-export type PlaybackDevice = /* Same as above, platform-specific */;
+//
+// Pragmatic typing: we don’t currently need exhaustive device unions in the UI.
+// CamillaDSP device blocks are backend-specific and vary significantly (Alsa/CoreAudio/Wasapi/etc.).
+//
+// We keep these as open records to:
+// - allow round-tripping configs without losing unknown fields
+// - unblock using this schema as the canonical config definition across the app
+export type CaptureDevice = Record<string, any>;
+export type PlaybackDevice = Record<string, any>;
 
 // 2. Mixer Block
 export interface Mixer {
@@ -147,8 +164,7 @@ export type BiquadParameters =
   | { type: "Bandpass"; variant: NotchWidth }
   | { type: "Notch"; variant: NotchWidth }
   | { type: "GeneralNotch"; params: GeneralNotchParams }
-  | { type: "LinkwitzTransform"; freq_act: PrcFmt; q_act: PrcFmt; freq_target: PrcFmt; q_target: PrcFmt 
-};
+  | { type: "LinkwitzTransform"; freq_act: PrcFmt; q_act: PrcFmt; freq_target: PrcFmt; q_target: PrcFmt };
 
 export type PeakingWidth =
   | { variant: "Q"; freq: PrcFmt; q: PrcFmt; gain: PrcFmt }

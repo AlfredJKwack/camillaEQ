@@ -4,7 +4,7 @@
  */
 
 import type { EqBand } from '../dsp/filterResponse';
-import type { CamillaDSPConfig, FilterDefinition } from './camillaDSP';
+import type { CamillaDSPConfig, Filter } from './camillaDSP';
 import { normalizePipelineStep, isGainCapable, type PipelineStepNormalized } from './camillaTypes';
 import { isFilterDisabled, getStepKey, getDisabledFiltersForStep } from './disabledFiltersOverlay';
 
@@ -91,7 +91,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   }
 
   // Find all Filter pipeline steps and normalize them
-  const filterSteps: PipelineStepNormalized[] = config.pipeline
+  const filterSteps: PipelineStepNormalized[] = (config.pipeline || [])
     .map(normalizePipelineStep)
     .filter((step): step is PipelineStepNormalized => 
       step !== null && step.type === 'Filter'
@@ -106,8 +106,8 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   const refNames: string[] = [];
   const seenNames = new Set<string>();
 
-  for (let stepIndex = 0; stepIndex < config.pipeline.length; stepIndex++) {
-    const step = normalizePipelineStep(config.pipeline[stepIndex]);
+  for (let stepIndex = 0; stepIndex < (config.pipeline || []).length; stepIndex++) {
+    const step = normalizePipelineStep(config.pipeline![stepIndex]);
     
     if (!step || step.type !== 'Filter' || !step.channels) {
       continue;
@@ -144,7 +144,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   // Extract bands from unified filter list
   for (let refIndex = 0; refIndex < refNames.length; refIndex++) {
     const filterName = refNames[refIndex];
-    const filterDef = config.filters[filterName];
+    const filterDef = config.filters?.[filterName];
     
     if (!filterDef) {
       console.warn(`Filter "${filterName}" referenced in pipeline but not found in config.filters`);
@@ -156,7 +156,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
       continue;
     }
 
-    const params = filterDef.parameters;
+    const params = filterDef.parameters as any;
     const camillaType = params.type;
     const bandType = mapCamillaBiquadType(camillaType);
 
@@ -242,7 +242,7 @@ export function applyEqBandsToConfig(
     };
     
     // Ensure preamp is in pipeline at start
-    const normalizedPipeline = updatedConfig.pipeline.map(normalizePipelineStep);
+    const normalizedPipeline = (updatedConfig.pipeline || []).map(normalizePipelineStep);
     const hasPreampStep = normalizedPipeline.some(
       (step) => step && step.type === 'Mixer' && step.name === 'preamp'
     );
@@ -250,7 +250,7 @@ export function applyEqBandsToConfig(
     if (!hasPreampStep) {
       updatedConfig.pipeline = [
         { type: 'Mixer', name: 'preamp' },
-        ...updatedConfig.pipeline,
+        ...(updatedConfig.pipeline || []),
       ];
     }
   } else {
@@ -266,12 +266,12 @@ export function applyEqBandsToConfig(
     const band = bands[i];
     const filterName = filterNames[i];
 
-    if (!updatedConfig.filters[filterName]) {
+    if (!updatedConfig.filters?.[filterName]) {
       console.warn(`Filter "${filterName}" not found in config, skipping`);
       continue;
     }
 
-    const filterDef = updatedConfig.filters[filterName];
+    const filterDef = updatedConfig.filters![filterName];
 
     // Ensure it's still a Biquad
     if (filterDef.type !== 'Biquad') {
@@ -280,7 +280,7 @@ export function applyEqBandsToConfig(
     }
 
     // Update parameters
-    const params = filterDef.parameters;
+    const params = filterDef.parameters as any;
     
     // Map type back to CamillaDSP format
     params.type = mapEqBandTypeToCamilla(band.type);
@@ -314,7 +314,7 @@ export function applyEqBandsToConfig(
  * Validate that a config can be used for EQ editing
  */
 export function validateConfigForEq(config: CamillaDSPConfig): { valid: boolean; error?: string } {
-  const filterSteps = config.pipeline.filter((step) => step.type === 'Filter');
+  const filterSteps = (config.pipeline || []).filter((step) => step.type === 'Filter');
 
   if (filterSteps.length === 0) {
     return { valid: false, error: 'No Filter steps in pipeline' };
@@ -328,7 +328,7 @@ export function validateConfigForEq(config: CamillaDSPConfig): { valid: boolean;
   for (const step of normalizedSteps) {
     const names = step.names || [];
     for (const filterName of names) {
-      if (!config.filters[filterName]) {
+      if (!config.filters?.[filterName]) {
         return { valid: false, error: `Filter "${filterName}" referenced but not found` };
       }
     }
