@@ -2616,18 +2616,101 @@ Explicit add/remove actions for pipeline blocks with validation to maintain pipe
 
 ⸻
 
-## MVP-24 — Processor/Unknown Block Support
+## MVP-24 — Canonical Schema + Enhanced Filter Rendering
 
 ### Goal
-View and manipulate Processor and unknown pipeline step types to enable construction of arbitrary CamillaDSP pipelines.
+Integrate canonical CamillaDSP schema and extend filter/processor rendering to support all config types with appropriate read-only/editable boundaries.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-02-02)
+
+### As Built
+
+**Canonical schema integration:**
+- Copied complete CamillaDSP type definitions to `client/src/lib/camillaSchema.ts`
+- Serves as reference for all 9 Filter types and 2 Processor types
+- Preserves all parameter variants with accurate `PrcFmt` types
+- NoiseGate uses `attenuation` parameter (canonical schema confirmed)
+
+**Enhanced filter type system** (`client/src/lib/knownTypes.ts`):
+- `getFilterUiKind()` - Classifies filters into rendering categories (Biquad/Gain/Delay/Volume/Loudness/Limiter/Conv/Dither/DiffEq)
+- `isEditableFilterKind()` - Determines editability: Biquad/Gain/Delay/Volume/Loudness/Limiter = editable, Conv/Dither/DiffEq = read-only
+- `getFilterSummary()` - Generates human-readable summaries for **all** filter types:
+  - Biquad: "Peaking 1000 Hz, Q 1.0, +3.0 dB"
+  - Conv: "Wav: impulse.wav, Ch 0"
+  - Gain: "+3.0 dB"
+  - Volume: "Fader: Aux1"
+  - Etc.
+- `getFilterNotEditableReason()` - Explains why complex types are read-only
+- `isKnownProcessorType()` - Identifies Compressor and NoiseGate as supported types
+
+**View model updates** (`client/src/lib/pipelineViewModel.ts`):
+- Extended `FilterInfo` with `uiKind` and `summary` fields
+- All filters classified and rendered with appropriate metadata
+- `ProcessorBlockVm` extended with `supported` flag, `processorType`, and `definition` fields
+- Processor blocks now distinguish between supported (Compressor/NoiseGate) and unknown types
+
+**UI rendering** (`client/src/components/pipeline/FilterBlock.svelte`):
+- **All filter types now show parameter summaries** when collapsed
+- Editable filters: existing Biquad editor (freq/Q/gain knobs)
+- Read-only filters: info message + JSON view when expanded
+- Unknown filters: warning + JSON display
+
+**Processor editing** (`client/src/components/pipeline/ProcessorBlock.svelte`):
+- ✅ **Full parameter editing for Compressor and NoiseGate**
+- Expanded mode shows edit controls with KnobDials:
+  - **Compressor:** threshold, attack, release, factor, makeup_gain (optional), channels
+  - **NoiseGate:** threshold, attenuation, attack, release, channels
+- Bypass toggle edits pipeline step `bypassed` state
+- KnobDial ranges:
+  - Threshold: -80 to 0 dB (Compressor), -100 to 0 dB (NoiseGate)
+  - Attenuation: -120 to 0 dB
+  - Attack/Release: 0 to 0.5 s (attack), 0 to 2.0 s (release)
+  - Factor: 1 to 20
+  - Makeup gain: -24 to +24 dB
+- Channels editable via numeric input (integer ≥ 1)
+- Purple border indicates supported processor types
+- Falls back to JSON view for unknown processor types
+- JSON details collapsible for advanced inspection
+
+**Processor mutation helpers** (`client/src/lib/pipelineProcessorEdit.ts`):
+- `setProcessorStepBypassed()` - Updates pipeline step bypass state
+- `setCompressorParam()` - Edits Compressor parameters with minimal safety clamping
+- `setNoiseGateParam()` - Edits NoiseGate parameters with minimal safety clamping
+- All functions return new config (immutable pattern)
+- Parameter clamping:
+  - attack/release ≥ 0
+  - factor ≥ 1
+  - channels ≥ 1 (floored to integer)
+  - threshold/attenuation/makeup_gain: unconstrained (power user flexibility)
+
+**Integration** (`client/src/pages/PipelinePage.svelte`):
+- Event handlers wire ProcessorBlock events to mutation helpers
+- `handleProcessorParamUpdate()` - Applies parameter changes with validation
+- `handleSetProcessorBypassed()` - Toggles bypass state with validation
+- Snapshot/revert pattern on validation failure
+- Debounced upload (200ms) via `commitPipelineConfigChange()`
+- Inline error display for validation failures
+
+### Test Results
+✅ All 292 tests passing (240 client + 52 server)
+- 28 new tests in `pipelineProcessorEdit.test.ts`:
+  - Parameter editing with clamping
+  - Bypass toggle
+  - Type checking and validation
+  - Immutability verification
+- All existing tests remain passing
+
+### Implementation Notes
+- **Channels parameter:** Editable but requires user caution (mismatched channel counts can break configs)
+- **NoiseGate attenuation:** Canonical parameter confirmed via schema update (not `hold`)
+- **Pipeline step bypass:** Distinct from any definition-level bypass concept
+- **KnobDial integration:** Reused existing component with custom min/max ranges per parameter
 
 ### Deliverables
 
 1. **Processor block display:**
-   - Show processor type (e.g., "Processor", "Compressor", "Limiter")
+   - Show processor type (e.g., "Compressor", "Noisegate")
    - Show processor name
    - Show parameters (if present) as key-value pairs (read-only or basic editing)
    - Bypass state indicator

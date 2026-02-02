@@ -176,25 +176,23 @@
                 <span class="disabled-badge">Disabled</span>
               {/if}
               
-              <!-- Compact parameter values (when collapsed) -->
-              {#if filter.exists && filter.filterType === 'Biquad' && !expandedFilters.has(filter.name)}
+              <!-- Compact parameter values (when collapsed) - MVP-24+: All filter types -->
+              {#if filter.exists && !expandedFilters.has(filter.name) && filter.summary.length > 0}
                 <div class="filter-values">
-                  <span class="value">{(filter.freq ?? 1000).toFixed(0)} Hz</span>
-                  <span class="value">Q {(filter.q ?? 1.0).toFixed(1)}</span>
-                  {#if filter.supportsGain}
-                    <span class="value">{(filter.gain ?? 0).toFixed(1)} dB</span>
-                  {/if}
+                  {#each filter.summary as summaryItem}
+                    <span class="value">{summaryItem}</span>
+                  {/each}
                 </div>
               {/if}
               
-              <!-- MVP-21: Reserved slot for expand button (prevents layout shift) -->
-              {#if filter.exists && filter.filterType === 'Biquad'}
+              <!-- MVP-21/24: Reserved slot for expand button (all existing filters) -->
+              {#if filter.exists}
                 <div class="filter-expand-slot">
                   {#if expanded}
                     <button 
                       class="filter-expand-btn"
                       on:click={() => handleFilterExpandToggle(filter.name)}
-                      title={expandedFilters.has(filter.name) ? 'Collapse' : 'Edit parameters'}
+                      title={expandedFilters.has(filter.name) ? 'Collapse' : (filter.editable ? 'Edit parameters' : 'View definition')}
                     >
                       {expandedFilters.has(filter.name) ? '−' : '+'}
                     </button>
@@ -206,110 +204,124 @@
               {/if}
             </div>
             
-            <!-- MVP-21: Per-filter editor (shown when expanded) -->
-            {#if expanded && expandedFilters.has(filter.name) && filter.exists && filter.filterType === 'Biquad'}
-              <div class="filter-editor">
-                <div class="editor-controls">
-                  <!-- Column 1: Power button -->
-                  <div class="editor-col power-col">
-                    <button 
-                      class="power-btn"
-                      class:enabled={!filter.disabled}
-                      on:click={() => {
-                        if (filter.disabled) {
-                          dispatch('enableFilter', { blockId: block.blockId, filterName: filter.name });
-                        } else {
-                          dispatch('disableFilter', { blockId: block.blockId, filterName: filter.name });
-                        }
-                      }}
-                      title={filter.disabled ? 'Enable filter' : 'Disable filter'}
-                      aria-label={filter.disabled ? 'Enable filter' : 'Disable filter'}
-                    >
-                      ⏻
-                    </button>
-                  </div>
-                  
-                  <!-- Column 2: Knobs (stretches) -->
-                  <div class="editor-col knobs-col" class:disabled={filter.disabled}>
-                    <!-- Frequency knob -->
-                    <div class="editor-control">
-                      <span class="control-label">Freq</span>
-                      <KnobDial 
-                        value={filter.freq ?? 1000} 
-                        mode="frequency" 
-                        size={24}
-                        on:change={(e) => {
-                          if (!filter.disabled) {
-                            dispatch('updateFilterParam', { 
-                              filterName: filter.name, 
-                              param: 'freq', 
-                              value: e.detail.value 
-                            });
+            <!-- MVP-21/24: Per-filter editor (shown when expanded) -->
+            {#if expanded && expandedFilters.has(filter.name) && filter.exists}
+              {#if filter.editable}
+                <!-- Known editable filter: Show parameter controls -->
+                <div class="filter-editor">
+                  <div class="editor-controls">
+                    <!-- Column 1: Power button -->
+                    <div class="editor-col power-col">
+                      <button 
+                        class="power-btn"
+                        class:enabled={!filter.disabled}
+                        on:click={() => {
+                          if (filter.disabled) {
+                            dispatch('enableFilter', { blockId: block.blockId, filterName: filter.name });
+                          } else {
+                            dispatch('disableFilter', { blockId: block.blockId, filterName: filter.name });
                           }
                         }}
-                      />
-                      <span class="control-value">{(filter.freq ?? 1000).toFixed(0)} Hz</span>
+                        title={filter.disabled ? 'Enable filter' : 'Disable filter'}
+                        aria-label={filter.disabled ? 'Enable filter' : 'Disable filter'}
+                      >
+                        ⏻
+                      </button>
                     </div>
                     
-                    <!-- Q knob -->
-                    <div class="editor-control">
-                      <span class="control-label">Q</span>
-                      <KnobDial 
-                        value={filter.q ?? 1.0} 
-                        mode="q" 
-                        size={24}
-                        on:change={(e) => {
-                          if (!filter.disabled) {
-                            dispatch('updateFilterParam', { 
-                              filterName: filter.name, 
-                              param: 'q', 
-                              value: e.detail.value 
-                            });
-                          }
-                        }}
-                      />
-                      <span class="control-value">{(filter.q ?? 1.0).toFixed(1)}</span>
-                    </div>
-                    
-                    <!-- Gain knob (only for gain-capable types) -->
-                    {#if filter.supportsGain}
+                    <!-- Column 2: Knobs (stretches) -->
+                    <div class="editor-col knobs-col" class:disabled={filter.disabled}>
+                      <!-- Frequency knob -->
                       <div class="editor-control">
-                        <span class="control-label">Gain</span>
+                        <span class="control-label">Freq</span>
                         <KnobDial 
-                          value={filter.gain ?? 0} 
-                          min={-24}
-                          max={24}
-                          scale="linear"
+                          value={filter.freq ?? 1000} 
+                          mode="frequency" 
                           size={24}
                           on:change={(e) => {
                             if (!filter.disabled) {
                               dispatch('updateFilterParam', { 
                                 filterName: filter.name, 
-                                param: 'gain', 
+                                param: 'freq', 
                                 value: e.detail.value 
                               });
                             }
                           }}
                         />
-                        <span class="control-value">{(filter.gain ?? 0).toFixed(1)} dB</span>
+                        <span class="control-value">{(filter.freq ?? 1000).toFixed(0)} Hz</span>
                       </div>
-                    {/if}
-                  </div>
-                  
-                  <!-- Column 3: Remove button -->
-                  <div class="editor-col actions-col">
-                    {#if !filter.disabled}
-                      <button 
-                        class="remove-filter-btn"
-                        on:click={() => dispatch('removeFilter', { filterName: filter.name })}
-                        title="Remove this filter"
-                      >
-                        ×
-                      </button>
-                    {/if}
+                      
+                      <!-- Q knob -->
+                      <div class="editor-control">
+                        <span class="control-label">Q</span>
+                        <KnobDial 
+                          value={filter.q ?? 1.0} 
+                          mode="q" 
+                          size={24}
+                          on:change={(e) => {
+                            if (!filter.disabled) {
+                              dispatch('updateFilterParam', { 
+                                filterName: filter.name, 
+                                param: 'q', 
+                                value: e.detail.value 
+                              });
+                            }
+                          }}
+                        />
+                        <span class="control-value">{(filter.q ?? 1.0).toFixed(1)}</span>
+                      </div>
+                      
+                      <!-- Gain knob (only for gain-capable types) -->
+                      {#if filter.supportsGain}
+                        <div class="editor-control">
+                          <span class="control-label">Gain</span>
+                          <KnobDial 
+                            value={filter.gain ?? 0} 
+                            min={-24}
+                            max={24}
+                            scale="linear"
+                            size={24}
+                            on:change={(e) => {
+                              if (!filter.disabled) {
+                                dispatch('updateFilterParam', { 
+                                  filterName: filter.name, 
+                                  param: 'gain', 
+                                  value: e.detail.value 
+                                });
+                              }
+                            }}
+                          />
+                          <span class="control-value">{(filter.gain ?? 0).toFixed(1)} dB</span>
+                        </div>
+                      {/if}
+                    </div>
+                    
+                    <!-- Column 3: Remove button -->
+                    <div class="editor-col actions-col">
+                      {#if !filter.disabled}
+                        <button 
+                          class="remove-filter-btn"
+                          on:click={() => dispatch('removeFilter', { filterName: filter.name })}
+                          title="Remove this filter"
+                        >
+                          ×
+                        </button>
+                      {/if}
+                    </div>
                   </div>
                 </div>
-              </div>
+              {:else}
+                <!-- Unknown/unsupported filter: Show JSON view -->
+                <div class="filter-json-view">
+                  <div class="json-info">
+                    <span class="info-icon">ℹ</span>
+                    {filter.unknownReason || 'Filter type not editable'}
+                  </div>
+                  <div class="json-container">
+                    <pre class="json-display">{JSON.stringify(filter.definition, null, 2)}</pre>
+                  </div>
+                </div>
+              {/if}
             {/if}
           </div>
         {/each}
@@ -684,5 +696,50 @@
   .remove-filter-btn:hover {
     background: rgba(255, 80, 80, 0.25);
     border-color: rgba(255, 80, 80, 0.5);
+  }
+  
+  /* MVP-24: JSON view for unknown filters */
+  .filter-json-view {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+  }
+  
+  .json-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    margin-bottom: 0.75rem;
+    background: rgba(170, 170, 170, 0.1);
+    border: 1px solid rgba(170, 170, 170, 0.3);
+    border-radius: 4px;
+    font-size: 0.875rem;
+    color: var(--ui-text-muted);
+  }
+  
+  .info-icon {
+    font-size: 1rem;
+  }
+  
+  .json-container {
+    margin-top: 0.5rem;
+  }
+  
+  .json-display {
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--ui-text-muted);
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
   }
 </style>

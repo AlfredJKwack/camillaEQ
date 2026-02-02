@@ -130,8 +130,8 @@ This document describes the actual implementation as it exists in the codebase.
 4. Send `PUT /api/configs/:id` with JSON body
 5. Refresh preset list
 
-### Pipeline Editor (MVP-19, MVP-20, MVP-21)
-**Interactive pipeline editor** with filter editing and reordering:
+### Pipeline Editor (MVP-19 through MVP-24)
+**Interactive pipeline editor** with full filter/mixer/processor support:
 
 1. User navigates to `/pipeline` page
 2. `PipelinePage.svelte` reads `dspStore.config.pipeline` (reactive)

@@ -34,6 +34,11 @@ import {
   addMixerSource,
   removeMixerSource,
 } from '../lib/pipelineMixerEdit';
+import {
+  setProcessorStepBypassed,
+  setCompressorParam,
+  setNoiseGateParam,
+} from '../lib/pipelineProcessorEdit';
 import { validateMixerRouting, type MixerValidationResult } from '../lib/mixerRoutingValidation';
 import type { CamillaDSPConfig } from '../lib/camillaDSP';
 import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder, removeDisabledLocationsForStep } from '../lib/disabledFiltersOverlay';
@@ -645,6 +650,108 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
     return validateMixerRouting(mixer);
   })();
 
+  // MVP-24: Processor parameter update handler
+  function handleProcessorParamUpdate(event: CustomEvent<{ processorName: string; param: string; value: number }>) {
+    const { processorName, param, value } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Determine processor type
+      const processor = $dspConfig.processors?.[processorName];
+      if (!processor) {
+        throw new Error(`Processor "${processorName}" not found`);
+      }
+
+      // Apply parameter update based on processor type
+      let updatedConfig = $dspConfig;
+      if (processor.type === 'Compressor') {
+        updatedConfig = setCompressorParam(updatedConfig, processorName, param as any, value);
+      } else if (processor.type === 'NoiseGate') {
+        updatedConfig = setNoiseGateParam(updatedConfig, processorName, param as any, value);
+      } else {
+        throw new Error(`Unsupported processor type: ${processor.type}`);
+      }
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after processor parameter update');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Processor parameter update error:', error);
+      validationError = error instanceof Error ? error.message : 'Processor parameter update failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  // MVP-24: Processor bypass toggle handler
+  function handleSetProcessorBypassed(event: CustomEvent<{ blockId: string; bypassed: boolean }>) {
+    const { blockId, bypassed } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Apply bypass state change
+      const updatedConfig = setProcessorStepBypassed($dspConfig, stepIndex, bypassed);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after processor bypass toggle');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Processor bypass toggle error:', error);
+      validationError = error instanceof Error ? error.message : 'Processor bypass toggle failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
   // MVP-23: Add/remove block handlers
   function handleAddFilterBlock() {
     if (!$dspConfig) return;
@@ -902,7 +1009,12 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
                 on:removeSource={handleMixerRemoveSource}
               />
             {:else if block.kind === 'processor'}
-              <ProcessorBlock {block} />
+              <ProcessorBlock 
+                {block}
+                expanded={selection?.kind === 'block' && selection.blockId === block.blockId}
+                on:updateProcessorParam={handleProcessorParamUpdate}
+                on:setProcessorBypassed={handleSetProcessorBypassed}
+              />
             {/if}
           </div>
 

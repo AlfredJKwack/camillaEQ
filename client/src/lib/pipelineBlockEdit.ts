@@ -151,13 +151,14 @@ function generateUniqueProcessorName(config: CamillaDSPConfig, baseName: string)
 
 /**
  * Create a new Processor block (definition + pipeline step)
+ * MVP-24: Now creates valid definitions for Compressor/NoiseGate
  * @param config The config
- * @param type The processor type (e.g. 'Processor', 'Limiter', 'Compressor')
+ * @param processorType The processor definition type (e.g. 'Compressor', 'NoiseGate')
  * @param baseName The base name for the processor (will be made unique)
  */
 export function createNewProcessorBlock(
   config: CamillaDSPConfig,
-  type: string,
+  processorType: string,
   baseName: string
 ): {
   processorName: string;
@@ -166,14 +167,44 @@ export function createNewProcessorBlock(
 } {
   const processorName = generateUniqueProcessorName(config, baseName);
   
-  // Create minimal processor definition (empty object)
-  // User must configure externally
-  const processorDef = {};
+  // MVP-24: Create valid processor definitions with required fields
+  let processorDef: any;
+  
+  if (processorType === 'Compressor') {
+    processorDef = {
+      type: 'Compressor',
+      parameters: {
+        channels: 2,
+        threshold: -20.0,
+        factor: 2.0,
+        attack: 0.01,
+        release: 0.1,
+        makeup_gain: 0.0,
+      },
+    };
+  } else if (processorType === 'NoiseGate') {
+    processorDef = {
+      type: 'NoiseGate',
+      parameters: {
+        channels: 2,
+        threshold: -50.0,
+        attenuation: -60.0,
+        attack: 0.01,
+        release: 0.1,
+      },
+    };
+  } else {
+    // Unknown processor type: create minimal definition with type field
+    processorDef = {
+      type: processorType,
+      parameters: {},
+    };
+  }
   
   const step: PipelineStep = {
-    type,
+    type: 'Processor',
     name: processorName,
-    description: type,
+    description: processorType,
     bypassed: false,
   };
   

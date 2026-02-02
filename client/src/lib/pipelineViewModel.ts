@@ -6,6 +6,14 @@
 import type { CamillaDSPConfig } from './camillaDSP';
 import { normalizePipelineStep, type PipelineStepNormalized } from './camillaTypes';
 import { getDisabledFiltersForStep, getStepKey } from './disabledFiltersOverlay';
+import { 
+  isKnownProcessorType, 
+  getFilterUiKind, 
+  isEditableFilterKind,
+  getFilterSummary,
+  getFilterNotEditableReason,
+  type FilterUiKind
+} from './knownTypes';
 
 /**
  * Filter info for display in FilterBlock
@@ -16,13 +24,19 @@ export interface FilterInfo {
   exists: boolean; // Whether filter is defined in config.filters
   disabled: boolean; // Whether filter is disabled (UI overlay state)
   bypassed: boolean; // Whether filter is bypassed (from filter definition)
-  // MVP-21: Parameter data for editing (only populated for Biquad filters)
-  filterType?: string; // e.g. 'Biquad'
+  // MVP-21/24: Parameter data for editing (only populated for Biquad filters)
+  filterType?: string; // e.g. 'Biquad', 'Gain', 'Delay'
   biquadType?: string; // e.g. 'Peaking', 'Highpass'
   freq?: number;
   q?: number;
   gain?: number;
   supportsGain: boolean; // Whether this filter type can have gain
+  // MVP-24+: Enhanced type support
+  uiKind: FilterUiKind; // UI rendering category
+  summary: string[]; // Human-readable summary for compact display
+  editable: boolean; // Whether we can show parameter editor (vs JSON only)
+  definition?: any; // Raw filter definition for JSON display
+  unknownReason?: string; // Why filter is not editable
 }
 
 /**
@@ -52,14 +66,21 @@ export interface MixerBlockVm {
 
 /**
  * View model for Processor/Unknown pipeline step
+ * MVP-24: Extended to support known processor types (Compressor/NoiseGate)
  */
 export interface ProcessorBlockVm {
   kind: 'processor';
   stepIndex: number;
   blockId: string; // Stable UI identity
-  typeLabel: string; // e.g. "Processor", "Limiter", etc.
+  typeLabel: string; // e.g. "Processor", "Compressor", "NoiseGate", "Processor (Unknown)"
   name?: string;
   bypassed: boolean;
+  // MVP-24: Processor definition support
+  exists: boolean; // Whether processor name exists in config.processors
+  processorType?: string; // definition.type (e.g. 'Compressor', 'NoiseGate')
+  definition?: any; // Raw processor definition for JSON display
+  supported: boolean; // True only for Compressor/NoiseGate
+  rawStep?: any; // Raw pipeline step for unknown/odd step types
 }
 
 /**
@@ -100,7 +121,8 @@ export function buildPipelineViewModel(
     } else if (step.type === 'Mixer') {
       blocks.push(buildMixerBlockVm(step, i, blockId, config));
     } else {
-      blocks.push(buildProcessorBlockVm(step, i, blockId));
+      // MVP-24: Enhanced processor support
+      blocks.push(buildProcessorBlockVm(step, i, blockId, config, stepObj));
     }
   }
   
@@ -178,7 +200,7 @@ function buildFilterBlockVm(
 }
 
 /**
- * Build FilterInfo for a single filter
+ * Build FilterInfo for a single filter (MVP-24+: with enhanced type support)
  */
 function buildFilterInfo(
   name: string,
@@ -191,29 +213,49 @@ function buildFilterInfo(
   let iconType: string | null = null;
   let bypassed = false;
   
-  // MVP-21: Extract parameter data for editing
+  // MVP-21/24+: Extract parameter data for editing
   let filterType: string | undefined;
   let biquadType: string | undefined;
   let freq: number | undefined;
   let q: number | undefined;
   let gain: number | undefined;
   let supportsGain = false;
+  let uiKind: FilterUiKind = 'unknown';
+  let summary: string[] = [];
+  let editable = false;
+  let definition: any = undefined;
+  let unknownReason: string | undefined;
   
-  if (exists && filterDef.type === 'Biquad') {
-    // Extract biquad subtype for icon
-    iconType = filterDef.parameters?.type || null;
+  if (exists) {
+    definition = filterDef;
+    
+    // Determine UI rendering category
+    uiKind = getFilterUiKind(filterDef);
+    editable = isEditableFilterKind(uiKind);
+    summary = getFilterSummary(filterDef);
+    
+    if (!editable) {
+      unknownReason = getFilterNotEditableReason(filterDef);
+    }
+    
+    // Extract bypassed flag (works for all filter types)
     bypassed = filterDef.parameters?.bypassed || false;
-    
-    // MVP-21: Extract parameters
     filterType = filterDef.type;
-    biquadType = filterDef.parameters?.type;
-    freq = filterDef.parameters?.freq;
-    q = filterDef.parameters?.q;
-    gain = filterDef.parameters?.gain;
     
-    // Determine if this type supports gain
-    const type = biquadType?.toLowerCase() || '';
-    supportsGain = type === 'peaking' || type === 'highshelf' || type === 'lowshelf' || type === 'notch';
+    if (filterDef.type === 'Biquad') {
+      // Extract biquad subtype for icon
+      iconType = filterDef.parameters?.type || null;
+      
+      // MVP-21: Extract parameters
+      biquadType = filterDef.parameters?.type;
+      freq = filterDef.parameters?.freq;
+      q = filterDef.parameters?.q;
+      gain = filterDef.parameters?.gain;
+      
+      // Determine if this type supports gain
+      const type = biquadType?.toLowerCase() || '';
+      supportsGain = type === 'peaking' || type === 'highshelf' || type === 'lowshelf' || type === 'notch';
+    }
   }
   
   return {
@@ -228,6 +270,11 @@ function buildFilterInfo(
     q,
     gain,
     supportsGain,
+    uiKind,
+    summary,
+    editable,
+    definition,
+    unknownReason,
   };
 }
 
@@ -267,15 +314,51 @@ function buildMixerBlockVm(
 
 /**
  * Build ProcessorBlockVm from normalized Processor/Unknown step
+ * MVP-24: Now looks up processor definition and checks if supported
  */
 function buildProcessorBlockVm(
   step: PipelineStepNormalized,
   stepIndex: number,
-  blockId: string
+  blockId: string,
+  config: CamillaDSPConfig,
+  rawStep: any
 ): ProcessorBlockVm {
-  const typeLabel = step.type || 'Unknown';
   const name = step.name;
   const bypassed = step.bypassed || false;
+  
+  // Default values for unknown/unsupported processors
+  let typeLabel: string = step.type || 'Unknown';
+  let exists = false;
+  let processorType: string | undefined;
+  let definition: any = undefined;
+  let supported = false;
+  
+  // Check if this is a proper Processor step with a name
+  if (step.type === 'Processor' && name) {
+    // Look up processor definition
+    const processorDef = config.processors?.[name];
+    exists = !!processorDef;
+    
+    if (exists && processorDef) {
+      definition = processorDef;
+      processorType = processorDef.type;
+      
+      // Check if this is a known, supported processor type
+      if (isKnownProcessorType(processorType)) {
+        supported = true;
+        typeLabel = processorType; // Use actual type as label (Compressor/NoiseGate)
+      } else {
+        // Processor exists but type is unknown
+        typeLabel = processorType ? `Processor (${processorType})` : 'Processor (Unknown)';
+      }
+    } else {
+      // Processor step references missing definition
+      typeLabel = 'Processor (Missing)';
+    }
+  } else {
+    // Unknown pipeline step type (not Filter, Mixer, or Processor)
+    typeLabel = step.type || 'Unknown Step';
+  }
   
   return {
     kind: 'processor',
@@ -284,5 +367,10 @@ function buildProcessorBlockVm(
     typeLabel,
     name,
     bypassed,
+    exists,
+    processorType,
+    definition,
+    supported,
+    rawStep,
   };
 }

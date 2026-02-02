@@ -108,20 +108,49 @@ describe('pipelineBlockEdit', () => {
     it('creates processor with unique name', () => {
       const config = {
         ...baseConfig,
-        processors: { proc: {} },
+        processors: { compressor: {} },
       };
 
-      const result = createNewProcessorBlock(config, 'Processor', 'proc');
-      expect(result.processorName).toBe('proc_1');
+      const result = createNewProcessorBlock(config, 'Compressor', 'compressor');
+      expect(result.processorName).toBe('compressor_1');
     });
 
-    it('creates processor definition and step', () => {
-      const result = createNewProcessorBlock(baseConfig, 'Processor', 'test');
+    it('creates valid Compressor definition (MVP-24)', () => {
+      const result = createNewProcessorBlock(baseConfig, 'Compressor', 'comp');
+
+      expect(result.processorName).toBe('comp');
+      expect(result.processorDef.type).toBe('Compressor');
+      expect(result.processorDef.parameters).toBeDefined();
+      expect(result.processorDef.parameters.threshold).toBe(-20.0);
+      expect(result.processorDef.parameters.factor).toBe(2.0);
+      expect(result.processorDef.parameters.attack).toBe(0.01);
+      expect(result.processorDef.parameters.release).toBe(0.1);
+      expect(result.step.type).toBe('Processor');
+      expect('name' in result.step && result.step.name).toBe('comp');
+    });
+
+    it('creates valid NoiseGate definition (MVP-24)', () => {
+      const result = createNewProcessorBlock(baseConfig, 'NoiseGate', 'gate');
+
+      expect(result.processorName).toBe('gate');
+      expect(result.processorDef.type).toBe('NoiseGate');
+      expect(result.processorDef.parameters).toBeDefined();
+      expect(result.processorDef.parameters.threshold).toBe(-50.0);
+      expect(result.processorDef.parameters.attenuation).toBe(-60.0);
+      expect(result.processorDef.parameters.attack).toBe(0.01);
+      expect(result.processorDef.parameters.release).toBe(0.1);
+      expect(result.step.type).toBe('Processor');
+      expect('name' in result.step && result.step.name).toBe('gate');
+    });
+
+    it('creates minimal definition for unknown processor types', () => {
+      const result = createNewProcessorBlock(baseConfig, 'UnknownType', 'test');
 
       expect(result.processorName).toBe('test');
-      expect(result.processorDef).toEqual({});
+      expect(result.processorDef.type).toBe('UnknownType');
+      expect(result.processorDef.parameters).toEqual({});
       expect(result.step.type).toBe('Processor');
-      expect((result.step as any).name).toBe('test');
+      expect('name' in result.step && result.step.name).toBe('test');
     });
   });
 

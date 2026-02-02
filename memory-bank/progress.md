@@ -527,8 +527,33 @@
     - Tests: `client/src/lib/__tests__/pipelineBlockEdit.test.ts` (17 tests), `client/src/pages/PipelinePage.test.ts` (8 tests)
   - All 240 client tests passing
 
-## Current Status
-**Phase:** MVP-23 Completed - Add/Remove Pipeline Blocks
+- [x] **MVP-24: Canonical Schema + Enhanced Filter Rendering** (2026-02-02)
+  - **Canonical schema integration:**
+    - Copied complete CamillaDSP type definitions to `client/src/lib/camillaSchema.ts`
+    - Serves as reference for all 9 Filter types and 2 Processor types
+    - Preserves all parameter variants with accurate `PrcFmt` types
+  - **Enhanced filter type system** (`client/src/lib/knownTypes.ts`):
+    - `getFilterUiKind()` - Classifies filters (Biquad/Gain/Delay/Volume/Loudness/Limiter/Conv/Dither/DiffEq)
+    - `isEditableFilterKind()` - Determines editability (Biquad/Gain/Delay/Volume/Loudness/Limiter editable, Conv/Dither/DiffEq read-only)
+    - `getFilterSummary()` - Human-readable summaries for all filter types
+    - `getFilterNotEditableReason()` - Explains why complex types are read-only
+  - **View model updates** (`client/src/lib/pipelineViewModel.ts`):
+    - Extended `FilterInfo` with `uiKind` and `summary` fields
+    - All filters classified with appropriate metadata
+  - **UI rendering** (`client/src/components/pipeline/FilterBlock.svelte`):
+    - All filter types show parameter summaries when collapsed
+    - Editable filters: existing Biquad editor (freq/Q/gain knobs)
+    - Read-only filters: info message + JSON view when expanded
+    - Unknown filters: warning + JSON display
+  - **Processor display** (`client/src/components/pipeline/ProcessorBlock.svelte`):
+    - Compressor and NoiseGate show detailed parameter lists when expanded
+    - Purple border indicates supported processor types
+    - Falls back to JSON for unknown processor types
+  - All 240 client tests passing
+  - **Remaining work:** Processor editing UI not implemented (display-only)
+
+## Current Status (2026-02-02)
+**Phase:** MVP-24 Completed - Canonical Schema + Enhanced Filter Rendering
 
 ## Planned Milestones
 
