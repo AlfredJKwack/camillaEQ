@@ -3,6 +3,9 @@
 
   // Position to display (1-20)
   export let position: number = 1;
+  
+  // Optional title (defaults to "Band N" if not provided)
+  export let title: string = '';
 
   // Clamp position to valid range
   $: clampedPosition = Math.max(1, Math.min(20, position));
@@ -17,11 +20,11 @@
     return svgRaw.replace(regex, '$1inline$2');
   })();
 
-  // Give each one a name
-  $: bandName = `Band ${clampedPosition}`;
+  // Use provided title or default to "Band N"
+  $: displayTitle = title || `Band ${clampedPosition}`;
 </script>
 
-<div class="band-order-icon" title="{bandName}">
+<div class="band-order-icon" title="{displayTitle}">
   {@html svgWithDisplay}
 </div>
 

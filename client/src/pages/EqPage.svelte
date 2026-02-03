@@ -8,6 +8,7 @@
   import type { EqBand } from '../dsp/filterResponse';
   import {
     bands,
+    filterNames,
     bandOrderNumbers,
     selectedBandIndex,
     sumCurvePath,
@@ -1268,7 +1269,7 @@
               </button>
 
               <div class="order-icon">
-                <BandOrderIcon position={$bandOrderNumbers[i] ?? (i + 1)} />
+                <BandOrderIcon position={$bandOrderNumbers[i] ?? (i + 1)} title={$filterNames[i]} />
               </div>
             </div>
 

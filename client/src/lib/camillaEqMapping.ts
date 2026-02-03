@@ -101,7 +101,8 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     return { bands: [], filterNames: [], channels: [], preampGain, orderNumbers: [] };
   }
 
-  // Build unified ordered filter name list from ALL Filter steps (union strategy)
+  // Build unified ordered filter name list from ALL non-bypassed Filter steps (union strategy)
+  // MVP-27: Skip bypassed Filter steps entirely
   // Dedupe by first occurrence in pipeline order
   const refNames: string[] = [];
   const seenNames = new Set<string>();
@@ -110,6 +111,11 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     const step = normalizePipelineStep(config.pipeline![stepIndex]);
     
     if (!step || step.type !== 'Filter' || !step.channels) {
+      continue;
+    }
+
+    // MVP-27: Skip bypassed Filter steps
+    if (step.bypassed) {
       continue;
     }
 

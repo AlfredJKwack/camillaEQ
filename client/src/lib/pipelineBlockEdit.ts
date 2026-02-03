@@ -3,7 +3,7 @@
  * Pure functions for adding and removing entire pipeline steps
  */
 
-import type { CamillaDSPConfig, PipelineStep } from './camillaDSP';
+import type { CamillaDSPConfig, PipelineStep} from './camillaDSP';
 import { normalizePipelineStep } from './camillaTypes';
 
 /**
@@ -18,6 +18,11 @@ export function insertPipelineStep(
   step: PipelineStep
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
+  
+  // Ensure pipeline exists
+  if (!updated.pipeline) {
+    updated.pipeline = [];
+  }
   
   // Clamp index to valid range
   const clampedIndex = Math.max(0, Math.min(updated.pipeline.length, index));
@@ -38,7 +43,7 @@ export function removePipelineStep(
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   
-  if (stepIndex < 0 || stepIndex >= updated.pipeline.length) {
+  if (!updated.pipeline || stepIndex < 0 || stepIndex >= updated.pipeline.length) {
     throw new Error(`Invalid step index: ${stepIndex}`);
   }
   
@@ -48,18 +53,70 @@ export function removePipelineStep(
 }
 
 /**
- * Create a new Filter pipeline step
- * Uses channel 0 by default (first available channel)
- * @param config The config (used to determine available channels)
+ * Set bypass state for a pipeline step
+ * @param config The config to modify
+ * @param stepIndex Index of the step to modify
+ * @param bypassed New bypass state
  */
-export function createNewFilterStep(config: CamillaDSPConfig): PipelineStep {
-  // Use first available channel (channel 0)
-  // Could be extended to check devices.capture.channels if needed
-  const channels = [0];
+export function setPipelineStepBypassed(
+  config: CamillaDSPConfig,
+  stepIndex: number,
+  bypassed: boolean
+): CamillaDSPConfig {
+  const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
+  
+  if (!updated.pipeline || stepIndex < 0 || stepIndex >= updated.pipeline.length) {
+    throw new Error(`Invalid step index: ${stepIndex}`);
+  }
+  
+  (updated.pipeline[stepIndex] as any).bypassed = bypassed;
+  
+  return updated;
+}
+
+/**
+ * Set channels for a Filter pipeline step
+ * @param config The config to modify
+ * @param stepIndex Index of the Filter step
+ * @param channels Array of channel numbers
+ */
+export function setFilterStepChannels(
+  config: CamillaDSPConfig,
+  stepIndex: number,
+  channels: number[]
+): CamillaDSPConfig {
+  const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
+  
+  if (!updated.pipeline || stepIndex < 0 || stepIndex >= updated.pipeline.length) {
+    throw new Error(`Invalid step index: ${stepIndex}`);
+  }
+  
+  const step = updated.pipeline[stepIndex];
+  if (step.type !== 'Filter') {
+    throw new Error('Step is not a Filter step');
+  }
+  
+  // Sort channels for stable stepKey generation
+  (step as any).channels = [...channels].sort((a, b) => a - b);
+  
+  return updated;
+}
+
+/**
+ * Create a new Filter pipeline step
+ * @param config The config (used to validate channels)
+ * @param channels Array of channel numbers (defaults to [0])
+ */
+export function createNewFilterStep(config: CamillaDSPConfig, channels?: number[]): PipelineStep {
+  // Use provided channels or default to [0]
+  const stepChannels = channels && channels.length > 0 ? channels : [0];
+  
+  // Sort for consistency
+  const sortedChannels = [...stepChannels].sort((a, b) => a - b);
   
   return {
     type: 'Filter',
-    channels,
+    channels: sortedChannels,
     names: [],
     description: 'Filter Block',
     bypassed: false,
@@ -70,7 +127,7 @@ export function createNewFilterStep(config: CamillaDSPConfig): PipelineStep {
  * Generate a unique mixer name that doesn't collide with existing mixers
  */
 function generateUniqueMixerName(config: CamillaDSPConfig): string {
-  const existingNames = Object.keys(config.mixers);
+  const existingNames = Object.keys(config.mixers || {});
   let counter = 1;
   let name = `mixer_${counter}`;
   
@@ -221,31 +278,37 @@ export function cleanupOrphanDefinitions(config: CamillaDSPConfig): CamillaDSPCo
   
   // Track referenced mixers
   const referencedMixers = new Set<string>();
-  for (const step of updated.pipeline) {
-    const normalized = normalizePipelineStep(step);
-    if (normalized && normalized.type === 'Mixer' && normalized.name) {
-      referencedMixers.add(normalized.name);
+  if (updated.pipeline) {
+    for (const step of updated.pipeline) {
+      const normalized = normalizePipelineStep(step);
+      if (normalized && normalized.type === 'Mixer' && normalized.name) {
+        referencedMixers.add(normalized.name);
+      }
     }
   }
   
   // Remove orphaned mixers
-  for (const mixerName of Object.keys(updated.mixers)) {
-    if (!referencedMixers.has(mixerName)) {
-      delete updated.mixers[mixerName];
+  if (updated.mixers) {
+    for (const mixerName of Object.keys(updated.mixers)) {
+      if (!referencedMixers.has(mixerName)) {
+        delete updated.mixers[mixerName];
+      }
     }
   }
   
   // Track referenced processors
   const referencedProcessors = new Set<string>();
-  for (const step of updated.pipeline) {
-    const normalized = normalizePipelineStep(step);
-    if (
-      normalized &&
-      normalized.type !== 'Filter' &&
-      normalized.type !== 'Mixer' &&
-      normalized.name
-    ) {
-      referencedProcessors.add(normalized.name);
+  if (updated.pipeline) {
+    for (const step of updated.pipeline) {
+      const normalized = normalizePipelineStep(step);
+      if (
+        normalized &&
+        normalized.type !== 'Filter' &&
+        normalized.type !== 'Mixer' &&
+        normalized.name
+      ) {
+        referencedProcessors.add(normalized.name);
+      }
     }
   }
   
@@ -260,21 +323,39 @@ export function cleanupOrphanDefinitions(config: CamillaDSPConfig): CamillaDSPCo
   
   // Track referenced filters (across all Filter steps)
   const referencedFilters = new Set<string>();
-  for (const step of updated.pipeline) {
-    const normalized = normalizePipelineStep(step);
-    if (normalized && normalized.type === 'Filter' && normalized.names) {
-      for (const filterName of normalized.names) {
-        referencedFilters.add(filterName);
+  if (updated.pipeline) {
+    for (const step of updated.pipeline) {
+      const normalized = normalizePipelineStep(step);
+      if (normalized && normalized.type === 'Filter' && normalized.names) {
+        for (const filterName of normalized.names) {
+          referencedFilters.add(filterName);
+        }
       }
     }
   }
   
   // Remove orphaned filters
-  for (const filterName of Object.keys(updated.filters)) {
-    if (!referencedFilters.has(filterName)) {
-      delete updated.filters[filterName];
+  if (updated.filters) {
+    for (const filterName of Object.keys(updated.filters)) {
+      if (!referencedFilters.has(filterName)) {
+        delete updated.filters[filterName];
+      }
     }
   }
   
   return updated;
+}
+
+/**
+ * Get available channels from config
+ * Returns array of channel numbers [0, 1, ...n-1]
+ */
+export function getAvailableChannels(config: CamillaDSPConfig): number[] {
+  // Try playback channels first, then capture, default to 2
+  const numChannels = 
+    (config.devices?.playback as any)?.channels ?? 
+    (config.devices?.capture as any)?.channels ?? 
+    2;
+  
+  return Array.from({ length: numChannels }, (_, i) => i);
 }

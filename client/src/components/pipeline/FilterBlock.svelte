@@ -7,6 +7,7 @@
   export let block: FilterBlockVm;
   export let expanded: boolean = false;
   export let expandedFilters: Set<string> = new Set(); // Now passed from parent
+  export let availableChannels: number[] = []; // Available channels from config
 
   const dispatch = createEventDispatcher<{
     reorderName: { blockId: string; fromIndex: number; toIndex: number };
@@ -15,10 +16,46 @@
     disableFilter: { blockId: string; filterName: string };
     toggleFilterExpanded: { blockId: string; filterName: string };
     removeFilter: { filterName: string };
+    setBlockBypassed: { blockId: string; bypassed: boolean };
+    setBlockChannels: { blockId: string; channels: number[] };
+    addFilter: { blockId: string; biquadType: string };
   }>();
   
   function handleFilterExpandToggle(filterName: string) {
     dispatch('toggleFilterExpanded', { blockId: block.blockId, filterName });
+  }
+  
+  // MVP-27: Block-level controls
+  let selectedBiquadType = 'Peaking'; // Default filter type for add
+  const biquadTypes = ['Peaking', 'Highpass', 'Lowpass', 'Highshelf', 'Lowshelf', 'Bandpass', 'Notch'];
+  let addFilterDropdownOpen = false;
+  
+  function handleBypassToggle() {
+    dispatch('setBlockBypassed', { blockId: block.blockId, bypassed: !block.bypassed });
+  }
+  
+  function handleChannelToggle(channel: number) {
+    const currentChannels = new Set(block.channels);
+    if (currentChannels.has(channel)) {
+      currentChannels.delete(channel);
+    } else {
+      currentChannels.add(channel);
+    }
+    const newChannels = Array.from(currentChannels).sort((a, b) => a - b);
+    dispatch('setBlockChannels', { blockId: block.blockId, channels: newChannels });
+  }
+  
+  function handleAddFilter() {
+    dispatch('addFilter', { blockId: block.blockId, biquadType: selectedBiquadType });
+  }
+  
+  function toggleAddFilterDropdown() {
+    addFilterDropdownOpen = !addFilterDropdownOpen;
+  }
+  
+  function selectBiquadType(type: string) {
+    selectedBiquadType = type;
+    addFilterDropdownOpen = false;
   }
 
   // Row drag state
@@ -133,6 +170,83 @@
   </div>
 
   <div class="block-body">
+
+    <!-- MVP-27: Block-level controls (moved to TOP when expanded) -->
+    {#if expanded}
+      <div class="block-controls">
+        <div class="control-section">
+          <div class="control-header">Block Settings</div>
+          
+          <!-- Bypass toggle (modern switch) -->
+          <div class="control-row">
+            <span class="control-label-text">Bypass</span>
+            <label class="toggle-switch">
+              <input 
+                type="checkbox" 
+                checked={block.bypassed} 
+                on:change={handleBypassToggle}
+              />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          
+          <!-- Channel selection (pill toggles) -->
+          <div class="control-row">
+            <span class="control-label-text">Channels:</span>
+            <div class="channel-pills">
+              {#each availableChannels as ch}
+                <button
+                  class="channel-pill"
+                  class:active={block.channels.includes(ch)}
+                  on:click={() => handleChannelToggle(ch)}
+                  aria-pressed={block.channels.includes(ch)}
+                >
+                  {ch}
+                </button>
+              {/each}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Add filter (custom dropdown with icons) -->
+        <div class="control-section">
+          <div class="control-header">Add Filter</div>
+          <div class="add-filter-container">
+            {#if !addFilterDropdownOpen}
+              <button class="add-filter-trigger" on:click={toggleAddFilterDropdown}>
+                <span class="trigger-icon">
+                  <FilterIcon type={selectedBiquadType} />
+                </span>
+                <span class="trigger-label">{selectedBiquadType}</span>
+                <span class="trigger-caret">▼</span>
+              </button>
+              <button class="add-filter-btn" on:click={handleAddFilter}>
+                + Add
+              </button>
+            {:else}
+              <div class="add-filter-dropdown">
+                {#each biquadTypes as type}
+                  <button
+                    class="filter-type-option"
+                    class:selected={type === selectedBiquadType}
+                    on:click={() => selectBiquadType(type)}
+                  >
+                    <span class="option-icon">
+                      <FilterIcon type={type} />
+                    </span>
+                    <span class="option-label">{type}</span>
+                  </button>
+                {/each}
+                <button class="filter-type-option cancel" on:click={toggleAddFilterDropdown}>
+                  Cancel
+                </button>
+              </div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/if}    
+    
     {#if block.filters.length === 0}
       <div class="empty-message">No filters</div>
     {:else}
@@ -148,60 +262,63 @@
             class="filter-row-wrapper"
             class:is-dragging={rowDragState?.filterName === filter.name}
           >
-            <!-- Row grab handle -->
-            <button
-              class="row-grab-handle"
-              on:pointerdown={(e) => handleRowGrabPointerDown(e, filter.name, i)}
-              on:pointermove={handleRowGrabPointerMove}
-              on:pointerup={handleRowGrabPointerUp}
-              title="Drag to reorder filter"
-            >
-              ☰
-            </button>
+            <!-- Row line (handle + row content) -->
+            <div class="filter-row-line">
+              <!-- Row grab handle -->
+              <button
+                class="row-grab-handle"
+                on:pointerdown={(e) => handleRowGrabPointerDown(e, filter.name, i)}
+                on:pointermove={handleRowGrabPointerMove}
+                on:pointerup={handleRowGrabPointerUp}
+                title="Drag to reorder filter"
+              >
+                ☰
+              </button>
 
-            <!-- Filter row content -->
-            <div class="filter-row" class:missing={!filter.exists} class:disabled={filter.disabled}>
-              <div class="filter-icon">
-                {#if filter.iconType}
-                  <FilterIcon type={filter.iconType} />
-                {:else}
-                  <span class="no-icon">•</span>
-                {/if}
-              </div>
-              <div class="filter-name">{filter.name}</div>
-              {#if !filter.exists}
-                <span class="warning-badge">Missing</span>
-              {/if}
-              {#if filter.disabled}
-                <span class="disabled-badge">Disabled</span>
-              {/if}
-              
-              <!-- Compact parameter values (when collapsed) - MVP-24+: All filter types -->
-              {#if filter.exists && !expandedFilters.has(filter.name) && filter.summary.length > 0}
-                <div class="filter-values">
-                  {#each filter.summary as summaryItem}
-                    <span class="value">{summaryItem}</span>
-                  {/each}
-                </div>
-              {/if}
-              
-              <!-- MVP-21/24: Reserved slot for expand button (all existing filters) -->
-              {#if filter.exists}
-                <div class="filter-expand-slot">
-                  {#if expanded}
-                    <button 
-                      class="filter-expand-btn"
-                      on:click={() => handleFilterExpandToggle(filter.name)}
-                      title={expandedFilters.has(filter.name) ? 'Collapse' : (filter.editable ? 'Edit parameters' : 'View definition')}
-                    >
-                      {expandedFilters.has(filter.name) ? '−' : '+'}
-                    </button>
+              <!-- Filter row content -->
+              <div class="filter-row" class:missing={!filter.exists} class:disabled={filter.disabled}>
+                <div class="filter-icon">
+                  {#if filter.iconType}
+                    <FilterIcon type={filter.iconType} />
                   {:else}
-                    <!-- Invisible placeholder to reserve space -->
-                    <span class="filter-expand-placeholder" aria-hidden="true"></span>
+                    <span class="no-icon">•</span>
                   {/if}
                 </div>
-              {/if}
+                <div class="filter-name">{filter.name}</div>
+                {#if !filter.exists}
+                  <span class="warning-badge">Missing</span>
+                {/if}
+                {#if filter.disabled}
+                  <span class="disabled-badge">Disabled</span>
+                {/if}
+                
+                <!-- Compact parameter values (when collapsed) - MVP-24+: All filter types -->
+                {#if filter.exists && !expandedFilters.has(filter.name) && filter.summary.length > 0}
+                  <div class="filter-values">
+                    {#each filter.summary as summaryItem}
+                      <span class="value">{summaryItem}</span>
+                    {/each}
+                  </div>
+                {/if}
+                
+                <!-- MVP-21/24: Reserved slot for expand button (all existing filters) -->
+                {#if filter.exists}
+                  <div class="filter-expand-slot">
+                    {#if expanded}
+                      <button 
+                        class="filter-expand-btn"
+                        on:click={() => handleFilterExpandToggle(filter.name)}
+                        title={expandedFilters.has(filter.name) ? 'Collapse' : (filter.editable ? 'Edit parameters' : 'View definition')}
+                      >
+                        {expandedFilters.has(filter.name) ? '▴' : '▾'}
+                      </button>
+                    {:else}
+                      <!-- Invisible placeholder to reserve space -->
+                      <span class="filter-expand-placeholder" aria-hidden="true"></span>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
             </div>
             
             <!-- MVP-21/24: Per-filter editor (shown when expanded) -->
@@ -332,6 +449,7 @@
         {/if}
       </div>
     {/if}
+    
   </div>
 </div>
 
@@ -416,13 +534,19 @@
 
   .filter-row-wrapper {
     display: flex;
-    align-items: stretch;
-    gap: 0.375rem;
+    flex-direction: column;
+    gap: 0;
     transition: all 0.15s ease;
   }
 
   .filter-row-wrapper.is-dragging {
     opacity: 0.5;
+  }
+
+  .filter-row-line {
+    display: flex;
+    align-items: stretch;
+    gap: 0.375rem;
   }
 
   .row-grab-handle {
@@ -587,6 +711,7 @@
   
   .filter-editor {
     margin-top: 0.5rem;
+    margin-left: calc(24px + 0.375rem); /* Align with filter row content */
     padding: 0.75rem;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -701,6 +826,7 @@
   /* MVP-24: JSON view for unknown filters */
   .filter-json-view {
     margin-top: 0.5rem;
+    margin-left: calc(24px + 0.375rem); /* Align with filter row content */
     padding: 0.75rem;
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -743,5 +869,276 @@
     overflow-y: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;    
+  }
+  
+  /* MVP-27: Block-level controls (at TOP when expanded) */
+  .block-controls {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--ui-border);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .control-section {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--ui-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+  }
+  
+  .control-header {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ui-text);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+  }
+  
+  .control-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .control-row:last-child {
+    margin-bottom: 0;
+  }
+  
+  .control-label-text {
+    font-size: 0.8125rem;
+    color: var(--ui-text-muted);
+    min-width: 60px;
+  }
+  
+  /* Modern toggle switch */
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    cursor: pointer;
+  }
+  
+  .toggle-switch input[type="checkbox"] {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+  
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(128, 128, 128, 0.3);
+    border: 1px solid rgba(128, 128, 128, 0.4);
+    border-radius: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  
+  .toggle-switch input:checked + .toggle-slider {
+    background: rgba(255, 200, 80, 0.4);
+    border-color: rgba(255, 200, 80, 0.6);
+  }
+  
+  .toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+    background: rgb(255, 200, 80);
+  }
+  
+  .toggle-switch:hover .toggle-slider {
+    background: rgba(128, 128, 128, 0.4);
+  }
+  
+  .toggle-switch input:checked:hover + .toggle-slider {
+    background: rgba(255, 200, 80, 0.5);
+  }
+  
+  /* Channel pill toggles */
+  .channel-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+  
+  .channel-pill {
+    min-width: 32px;
+    padding: 0.25rem 0.625rem;
+    background: rgba(74, 158, 255, 0.1);
+    border: 1px solid rgba(74, 158, 255, 0.3);
+    border-radius: 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgba(74, 158, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  
+  .channel-pill:hover {
+    background: rgba(74, 158, 255, 0.15);
+    border-color: rgba(74, 158, 255, 0.4);
+    color: rgba(74, 158, 255, 0.85);
+  }
+  
+  .channel-pill.active {
+    background: rgba(74, 158, 255, 0.35);
+    border-color: rgba(74, 158, 255, 0.6);
+    color: rgb(74, 158, 255);
+    box-shadow: 0 0 8px rgba(74, 158, 255, 0.2);
+  }
+  
+  .channel-pill.active:hover {
+    background: rgba(74, 158, 255, 0.4);
+    border-color: rgba(74, 158, 255, 0.7);
+  }
+  
+  /* Add filter custom dropdown */
+  .add-filter-container {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .add-filter-trigger {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .add-filter-trigger:hover {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .trigger-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+  }
+  
+  .trigger-icon :global(.icon) {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .trigger-label {
+    flex: 1;
+  }
+  
+  .trigger-caret {
+    font-size: 0.625rem;
+    opacity: 0.6;
+  }
+  
+  .add-filter-dropdown {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  
+  .filter-type-option {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--ui-border);
+    border-radius: 3px;
+    color: var(--ui-text);
+    font-size: 0.8125rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .filter-type-option:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .filter-type-option.selected {
+    background: rgba(74, 158, 255, 0.15);
+    border-color: rgba(74, 158, 255, 0.4);
+    color: rgb(74, 158, 255);
+  }
+  
+  .filter-type-option.cancel {
+    margin-top: 0.25rem;
+    color: var(--ui-text-muted);
+    border-style: dashed;
+  }
+  
+  .option-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  
+  .option-icon :global(.icon) {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .option-label {
+    flex: 1;
+  }
+  
+  .add-filter-btn {
+    padding: 0.5rem 1rem;
+    background: rgba(74, 158, 255, 0.15);
+    border: 1px solid rgba(74, 158, 255, 0.3);
+    border-radius: 4px;
+    color: rgb(74, 158, 255);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .add-filter-btn:hover {
+    background: rgba(74, 158, 255, 0.25);
+    border-color: rgba(74, 158, 255, 0.5);
   }
 </style>

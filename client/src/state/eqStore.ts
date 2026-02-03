@@ -32,6 +32,7 @@ export interface UploadStatus {
 
 // Stores
 export const bands = writable<EqBand[]>([]);
+export const filterNames = writable<string[]>([]); // Filter names corresponding to each band
 export const bandOrderNumbers = writable<number[]>([]); // Pipeline-relative position (1-based) for each band
 export const selectedBandIndex = writable<number | null>(null);
 export const uploadStatus = writable<UploadStatus>({ state: 'idle' });
@@ -61,7 +62,7 @@ const debouncedUpload = debounceCancelable(async () => {
       bands: currentBands,
       preampGain: currentPreampGain,
     };
-    const updatedConfig = applyEqBandsToConfig(lastConfig, updatedData);
+    const updatedConfig = applyEqBandsToConfig(lastConfig, updatedData) as any;
 
     // Update instance config
     dspInstance.config = updatedConfig;
@@ -81,6 +82,7 @@ const debouncedUpload = debounceCancelable(async () => {
       const reExtracted = extractEqBandsFromConfig(confirmedConfig);
       extractedData = reExtracted;
       bands.set(reExtracted.bands);
+      filterNames.set(reExtracted.filterNames);
       bandOrderNumbers.set(reExtracted.orderNumbers);
       preampGain.set(reExtracted.preampGain);
       
@@ -116,6 +118,7 @@ const debouncedUpload = debounceCancelable(async () => {
           const reExtracted = extractEqBandsFromConfig(resyncedConfig);
           extractedData = reExtracted;
           bands.set(reExtracted.bands);
+          filterNames.set(reExtracted.filterNames);
           bandOrderNumbers.set(reExtracted.orderNumbers);
           preampGain.set(reExtracted.preampGain);
         }
@@ -151,6 +154,7 @@ export function initializeFromConfig(config: CamillaDSPConfig): boolean {
 
     // Update stores
     bands.set(extracted.bands);
+    filterNames.set(extracted.filterNames);
     bandOrderNumbers.set(extracted.orderNumbers);
     preampGain.set(extracted.preampGain);
 
@@ -170,6 +174,7 @@ export function clearEqState(): void {
   lastConfig = null;
   extractedData = null;
   bands.set([]);
+  filterNames.set([]);
   preampGain.set(0);
   uploadStatus.set({ state: 'idle' });
 }
@@ -260,13 +265,14 @@ export function toggleBandEnabled(index: number) {
     }
 
     // Update instance config
-    dspInstance.config = updatedConfig;
+    dspInstance.config = updatedConfig as any;
     lastConfig = updatedConfig;
 
     // Re-extract bands to reflect new enabled state
     const extracted = extractEqBandsFromConfig(updatedConfig);
     extractedData = extracted;
     bands.set(extracted.bands);
+    filterNames.set(extracted.filterNames);
     bandOrderNumbers.set(extracted.orderNumbers);
 
     // Trigger upload

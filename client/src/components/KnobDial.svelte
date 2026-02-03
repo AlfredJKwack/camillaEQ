@@ -48,15 +48,21 @@
     }
   })();
 
+  // Clamp value to range for arc computation (prevents visual looping)
+  $: clampedValue = (() => {
+    const { min, max } = rangeConfig;
+    return Math.min(max, Math.max(min, value));
+  })();
+
   // Calculate arc parameters based on range
   $: arcParams = (() => {
     const { min, max, scale } = rangeConfig;
     
     let sweep: number;
     if (scale === 'log') {
-      sweep = mapLog(value, min, max, 30, 270);
+      sweep = mapLog(clampedValue, min, max, 30, 270);
     } else {
-      sweep = mapLinear(value, min, max, 30, 270);
+      sweep = mapLinear(clampedValue, min, max, 30, 270);
     }
     
     return {
@@ -117,6 +123,9 @@
       const step = event.shiftKey ? baseStep * 0.2 : baseStep;
       newValue = startValue + (deltaY * step);
     }
+
+    // Clamp to range before dispatching
+    newValue = Math.min(max, Math.max(min, newValue));
 
     dispatch('change', { value: newValue });
   }

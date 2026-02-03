@@ -45,18 +45,18 @@ export function setCompressorParam(
     throw new Error(`Processor "${processorName}" is not a Compressor`);
   }
   
-  // Apply minimal safety clamping
+  // Apply minimal safety clamping and round to 1 decimal place
   let clampedValue = value;
   
   switch (param) {
     case 'attack':
     case 'release':
-      // Time values must be >= 0
-      clampedValue = Math.max(0, value);
+      // Time values must be >= 0, rounded to 1 decimal
+      clampedValue = Math.round(Math.max(0, value) * 10) / 10;
       break;
     case 'factor':
-      // Factor must be >= 1
-      clampedValue = Math.max(1, value);
+      // Factor must be >= 1, rounded to 1 decimal
+      clampedValue = Math.round(Math.max(1, value) * 10) / 10;
       break;
     case 'channels':
       // Integer >= 1
@@ -64,8 +64,8 @@ export function setCompressorParam(
       break;
     case 'threshold':
     case 'makeup_gain':
-      // Allow any value (power users may need extreme values)
-      clampedValue = value;
+      // Allow any value (power users may need extreme values), rounded to 1 decimal
+      clampedValue = Math.round(value * 10) / 10;
       break;
   }
   
@@ -94,14 +94,14 @@ export function setNoiseGateParam(
     throw new Error(`Processor "${processorName}" is not a NoiseGate`);
   }
   
-  // Apply minimal safety clamping
+  // Apply minimal safety clamping and round to 1 decimal place
   let clampedValue = value;
   
   switch (param) {
     case 'attack':
     case 'release':
-      // Time values must be >= 0
-      clampedValue = Math.max(0, value);
+      // Time values must be >= 0, rounded to 1 decimal
+      clampedValue = Math.round(Math.max(0, value) * 10) / 10;
       break;
     case 'channels':
       // Integer >= 1
@@ -109,8 +109,8 @@ export function setNoiseGateParam(
       break;
     case 'threshold':
     case 'attenuation':
-      // Allow any value (power users may need extreme values)
-      clampedValue = value;
+      // Allow any value (power users may need extreme values), rounded to 1 decimal
+      clampedValue = Math.round(value * 10) / 10;
       break;
   }
   

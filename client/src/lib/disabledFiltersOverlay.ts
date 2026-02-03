@@ -285,3 +285,37 @@ export function remapDisabledFiltersAfterPipelineReorder(fromIndex: number, toIn
   state.disabled = updated;
   saveDisabledFilters(state);
 }
+
+/**
+ * Remap disabled filter step key after Filter step channels change
+ * This keeps disabled filters attached to their correct Filter step when channels are modified
+ * 
+ * @param oldStepKey The old step key (before channels changed)
+ * @param newStepKey The new step key (after channels changed)
+ */
+export function remapDisabledFiltersAfterFilterStepChannelsChange(oldStepKey: string, newStepKey: string): void {
+  if (oldStepKey === newStepKey) {
+    return; // No-op
+  }
+  
+  const state = loadDisabledFilters();
+  const updated: Record<string, DisabledFilterLocation[]> = {};
+  
+  // Remap all disabled filter locations that match the oldStepKey
+  for (const [filterName, locations] of Object.entries(state.disabled)) {
+    updated[filterName] = locations.map(location => {
+      if (location.stepKey === oldStepKey) {
+        // Update to new stepKey, preserving index
+        return {
+          ...location,
+          stepKey: newStepKey,
+        };
+      }
+      return location;
+    });
+  }
+  
+  // Save updated state
+  state.disabled = updated;
+  saveDisabledFilters(state);
+}

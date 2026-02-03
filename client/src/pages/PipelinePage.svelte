@@ -9,14 +9,17 @@
     setPipelineUploadStatusCallback,
     type PipelineUploadStatus,
   } from '../state/pipelineEditor';
-  import {
-    insertPipelineStep,
-    removePipelineStep,
-    createNewFilterStep,
-    createNewMixerBlock,
-    createNewProcessorBlock,
-    cleanupOrphanDefinitions,
-  } from '../lib/pipelineBlockEdit';
+import {
+  insertPipelineStep,
+  removePipelineStep,
+  createNewFilterStep,
+  createNewMixerBlock,
+  createNewProcessorBlock,
+  cleanupOrphanDefinitions,
+  setPipelineStepBypassed,
+  setFilterStepChannels,
+  getAvailableChannels,
+} from '../lib/pipelineBlockEdit';
 import {
   setBiquadFreq,
   setBiquadQ,
@@ -25,6 +28,7 @@ import {
   enableFilter,
   removeFilterFromStep,
   removeFilterDefinitionIfOrphaned,
+  addNewBiquadFilterToStep,
 } from '../lib/pipelineFilterEdit';
 import {
   setMixerSourceGain,
@@ -41,7 +45,7 @@ import {
 } from '../lib/pipelineProcessorEdit';
 import { validateMixerRouting, type MixerValidationResult } from '../lib/mixerRoutingValidation';
 import type { CamillaDSPConfig } from '../lib/camillaDSP';
-import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder, removeDisabledLocationsForStep } from '../lib/disabledFiltersOverlay';
+import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabledFiltersAfterPipelineReorder, removeDisabledLocationsForStep, remapDisabledFiltersAfterFilterStepChannelsChange } from '../lib/disabledFiltersOverlay';
   import FilterBlock from '../components/pipeline/FilterBlock.svelte';
   import MixerBlock from '../components/pipeline/MixerBlock.svelte';
   import ProcessorBlock from '../components/pipeline/ProcessorBlock.svelte';
@@ -755,11 +759,34 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
   // MVP-23: Add/remove block handlers
   function handleAddFilterBlock() {
     if (!$dspConfig) return;
+    
+    // MVP-27: Prompt for channels
+    const channelsInput = window.prompt('Channels (comma-separated):', '0');
+    if (channelsInput === null) return; // User cancelled
+    
     validationError = null;
     const snapshot = JSON.parse(JSON.stringify($dspConfig));
     
     try {
-      const newStep = createNewFilterStep($dspConfig);
+      // Parse and validate channels
+      const availableChannels = getAvailableChannels($dspConfig);
+      const requestedChannels = channelsInput
+        .split(',')
+        .map(ch => parseInt(ch.trim(), 10))
+        .filter(ch => !isNaN(ch));
+      
+      if (requestedChannels.length === 0) {
+        throw new Error('No valid channels specified');
+      }
+      
+      // Check all channels are available
+      for (const ch of requestedChannels) {
+        if (!availableChannels.includes(ch)) {
+          throw new Error(`Channel ${ch} is not available`);
+        }
+      }
+      
+      const newStep = createNewFilterStep($dspConfig, requestedChannels);
       const insertIndex = selection?.kind === 'block' 
         ? blocks.findIndex(b => b.blockId === selection.blockId) + 1 
         : blocks.length;
@@ -894,6 +921,164 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
       updateConfig(snapshot);
     }
   }
+
+  // MVP-27: Filter block bypass handler
+  function handleSetFilterBlockBypassed(event: CustomEvent<{ blockId: string; bypassed: boolean }>) {
+    const { blockId, bypassed } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Apply bypass state change
+      const updatedConfig = setPipelineStepBypassed($dspConfig, stepIndex, bypassed);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after bypass toggle');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter block bypass toggle error:', error);
+      validationError = error instanceof Error ? error.message : 'Bypass toggle failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  // MVP-27: Filter block channels handler
+  function handleSetFilterBlockChannels(event: CustomEvent<{ blockId: string; channels: number[] }>) {
+    const { blockId, channels } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Compute old and new step keys for disabled filter overlay remapping
+      const oldChannels = (stepObj as any).channels || [];
+      const oldStepKey = getStepKey(oldChannels, stepIndex);
+      const newStepKey = getStepKey(channels, stepIndex);
+
+      // Apply channels change
+      const updatedConfig = setFilterStepChannels($dspConfig, stepIndex, channels);
+
+      // Remap disabled filters overlay to follow the channel change
+      remapDisabledFiltersAfterFilterStepChannelsChange(oldStepKey, newStepKey);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = updatedConfig;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after channels change');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(updatedConfig);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(updatedConfig);
+    } catch (error) {
+      console.error('Filter block channels change error:', error);
+      validationError = error instanceof Error ? error.message : 'Channels change failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
+
+  // MVP-27: Add filter to block handler
+  function handleAddFilterToBlock(event: CustomEvent<{ blockId: string; biquadType: string }>) {
+    const { blockId, biquadType } = event.detail;
+
+    if (!$dspConfig) return;
+
+    // Clear any previous error
+    validationError = null;
+
+    // Take snapshot for potential revert
+    const snapshot = JSON.parse(JSON.stringify($dspConfig));
+
+    try {
+      // Find step index by blockId
+      const stepObj = getStepByBlockId(blockId);
+      if (!stepObj) {
+        throw new Error('Pipeline step not found');
+      }
+
+      const stepIndex = $dspConfig.pipeline.indexOf(stepObj as any);
+      if (stepIndex === -1) {
+        throw new Error('Pipeline step not found in config');
+      }
+
+      // Add new biquad filter to step
+      const result = addNewBiquadFilterToStep($dspConfig, stepIndex, biquadType);
+
+      // Validate
+      const dspInstance = getDspInstance();
+      if (dspInstance) {
+        dspInstance.config = result.config;
+        if (!dspInstance.validateConfig()) {
+          throw new Error('Invalid configuration after adding filter');
+        }
+      }
+
+      // Optimistically update UI
+      updateConfig(result.config);
+
+      // Trigger debounced upload
+      commitPipelineConfigChange(result.config);
+    } catch (error) {
+      console.error('Add filter to block error:', error);
+      validationError = error instanceof Error ? error.message : 'Add filter failed';
+
+      // Revert to snapshot
+      updateConfig(snapshot);
+    }
+  }
 </script>
 
 <div class="pipeline-page">
@@ -988,12 +1173,16 @@ import { getDisabledFilterLocations, getStepKey, markFilterDisabled, remapDisabl
                 {block} 
                 expanded={selection?.kind === 'block' && selection.blockId === block.blockId}
                 expandedFilters={selectedBlockExpandedFilters}
+                availableChannels={$dspConfig ? getAvailableChannels($dspConfig) : []}
                 on:reorderName={handleFilterNameReorder}
                 on:updateFilterParam={handleFilterParamUpdate}
                 on:enableFilter={handleFilterEnable}
                 on:disableFilter={handleFilterDisable}
                 on:toggleFilterExpanded={handleToggleFilterExpanded}
                 on:removeFilter={(e) => handleFilterRemove({ ...e, detail: { ...e.detail, blockId: block.blockId } })}
+                on:setBlockBypassed={handleSetFilterBlockBypassed}
+                on:setBlockChannels={handleSetFilterBlockChannels}
+                on:addFilter={handleAddFilterToBlock}
               />
             {:else if block.kind === 'mixer'}
               <MixerBlock 

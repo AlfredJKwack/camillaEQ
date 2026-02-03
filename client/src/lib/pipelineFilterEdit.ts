@@ -23,12 +23,16 @@ export function setBiquadFreq(
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   
+  if (!updated.filters) {
+    throw new Error('No filters in config');
+  }
+  
   const filterDef = updated.filters[filterName];
   if (!filterDef || filterDef.type !== 'Biquad') {
     throw new Error(`Filter "${filterName}" not found or not a Biquad`);
   }
   
-  filterDef.parameters.freq = clampFreqHz(freq);
+  (filterDef.parameters as any).freq = clampFreqHz(freq);
   
   return updated;
 }
@@ -43,12 +47,16 @@ export function setBiquadQ(
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   
+  if (!updated.filters) {
+    throw new Error('No filters in config');
+  }
+  
   const filterDef = updated.filters[filterName];
   if (!filterDef || filterDef.type !== 'Biquad') {
     throw new Error(`Filter "${filterName}" not found or not a Biquad`);
   }
   
-  filterDef.parameters.q = clampQ(q);
+  (filterDef.parameters as any).q = clampQ(q);
   
   return updated;
 }
@@ -63,17 +71,21 @@ export function setBiquadGain(
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   
+  if (!updated.filters) {
+    throw new Error('No filters in config');
+  }
+  
   const filterDef = updated.filters[filterName];
   if (!filterDef || filterDef.type !== 'Biquad') {
     throw new Error(`Filter "${filterName}" not found or not a Biquad`);
   }
   
-  const biquadType = filterDef.parameters.type;
+  const biquadType = (filterDef.parameters as any).type;
   if (!isGainCapable(biquadType as any)) {
     throw new Error(`Filter type "${biquadType}" does not support gain`);
   }
   
-  filterDef.parameters.gain = clampGainDb(gain);
+  (filterDef.parameters as any).gain = clampGainDb(gain);
   
   return updated;
 }
@@ -88,6 +100,10 @@ export function disableFilter(
   filterName: string
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
+  
+  if (!updated.pipeline) {
+    throw new Error('No pipeline in config');
+  }
   
   const step = updated.pipeline[stepIndex];
   if (!step || step.type !== 'Filter') {
@@ -133,6 +149,10 @@ export function enableFilter(
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   
+  if (!updated.pipeline) {
+    throw new Error('No pipeline in config');
+  }
+  
   const step = updated.pipeline[stepIndex];
   if (!step || step.type !== 'Filter') {
     throw new Error(`Pipeline step ${stepIndex} is not a Filter step`);
@@ -165,6 +185,10 @@ export function removeFilterFromStep(
 ): CamillaDSPConfig {
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
   
+  if (!updated.pipeline) {
+    throw new Error('No pipeline in config');
+  }
+  
   const step = updated.pipeline[stepIndex];
   if (!step || step.type !== 'Filter') {
     throw new Error(`Pipeline step ${stepIndex} is not a Filter step`);
@@ -192,19 +216,99 @@ export function removeFilterDefinitionIfOrphaned(
   filterName: string
 ): CamillaDSPConfig {
   // Check all Filter steps for references
-  for (const step of config.pipeline) {
-    if (step.type === 'Filter') {
-      const names = (step as any).names || [];
-      if (names.includes(filterName)) {
-        // Still referenced, don't remove
-        return config;
+  if (config.pipeline) {
+    for (const step of config.pipeline) {
+      if (step.type === 'Filter') {
+        const names = (step as any).names || [];
+        if (names.includes(filterName)) {
+          // Still referenced, don't remove
+          return config;
+        }
       }
     }
   }
   
   // Not referenced anywhere, safe to remove
   const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
-  delete updated.filters[filterName];
+  if (updated.filters) {
+    delete updated.filters[filterName];
+  }
   
   return updated;
+}
+
+/**
+ * Generate a unique filter name that doesn't collide with existing filters
+ */
+function generateUniqueFilterName(config: CamillaDSPConfig): string {
+  const existingNames = Object.keys(config.filters || {});
+  let counter = 1;
+  let name = `EQ${counter}`;
+  
+  while (existingNames.includes(name)) {
+    counter++;
+    name = `EQ${counter}`;
+  }
+  
+  return name;
+}
+
+/**
+ * Add a new biquad filter to a Filter step
+ * Creates the filter definition and adds it to the step's names array
+ * @param config The config to modify
+ * @param stepIndex Index of the Filter step
+ * @param biquadType The biquad subtype (e.g., 'Peaking', 'Highpass', etc.)
+ * @returns Updated config and the name of the created filter
+ */
+export function addNewBiquadFilterToStep(
+  config: CamillaDSPConfig,
+  stepIndex: number,
+  biquadType: string
+): { config: CamillaDSPConfig; filterName: string } {
+  const updated = JSON.parse(JSON.stringify(config)) as CamillaDSPConfig;
+  
+  if (!updated.pipeline || stepIndex < 0 || stepIndex >= updated.pipeline.length) {
+    throw new Error(`Invalid step index: ${stepIndex}`);
+  }
+  
+  const step = updated.pipeline[stepIndex];
+  if (step.type !== 'Filter') {
+    throw new Error('Step is not a Filter step');
+  }
+  
+  // Generate unique filter name
+  const filterName = generateUniqueFilterName(updated);
+  
+  // Determine if this type supports gain
+  const gainCapableTypes = ['Peaking', 'Lowshelf', 'Highshelf', 'LowShelf', 'HighShelf'];
+  const supportsGain = gainCapableTypes.includes(biquadType);
+  
+  // Create filter definition with sensible defaults
+  const filterDef: any = {
+    type: 'Biquad',
+    parameters: {
+      type: biquadType,
+      freq: 1000,
+      q: 1.0,
+    },
+  };
+  
+  // Add gain parameter for gain-capable types
+  if (supportsGain) {
+    filterDef.parameters.gain = 0.0;
+  }
+  
+  // Add to filters
+  if (!updated.filters) {
+    updated.filters = {};
+  }
+  updated.filters[filterName] = filterDef;
+  
+  // Add to step's names array
+  const names = (step as any).names || [];
+  names.push(filterName);
+  (step as any).names = names;
+  
+  return { config: updated, filterName };
 }

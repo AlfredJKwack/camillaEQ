@@ -561,6 +561,21 @@
   - **Test status:** All 292 tests passing (240 client + 52 server)
   - **Type consolidation complete:** Schema is canonical, no duplicate definitions remain
 
+- [x] **MVP-25: Pipeline Validation UI** (2026-02-03)
+  - **Distributed validation model** (no dedicated `pipelineValidation.ts` module):
+    - Structural reference validation: `camillaDSP.validateConfig()` checks filters/mixers/processors exist
+    - Mixer routing validation: `mixerRoutingValidation.ts` checks silent destinations, summing warnings
+    - Inline error surfacing: PipelinePage error banner, missing reference badges per block
+    - Validation triggers: after every edit, before upload, snapshot/revert on failure
+    - Upload blocking: validation errors prevent upload, warnings do not block
+  - **Intentional simplifications vs original plan:**
+    - No global validation summary (single error banner sufficient)
+    - No dedicated validation module (distributed across existing helpers)
+    - Channel/parameter validation deferred to CamillaDSP
+    - Snapshot/revert pattern provides reliable error recovery
+  - **Test coverage:** 24 `camillaDSP.validateConfig()` tests, 8 `mixerRoutingValidation` tests
+  - All 292 tests passing (240 client + 52 server)
+
 - [x] **MVP-26: EQ-Pipeline Synchronization** (2026-02-03)
   - **Convergence model:** Optimistic UI + DSP-confirmed convergence
     - UI may update optimistically for immediate feedback
@@ -580,9 +595,9 @@
   - **Result:** All config editors converge to DSP-confirmed state after uploads
 
 ## Current Status (2026-02-03)
-**Phase:** MVP-26 Completed - EQ-Pipeline Synchronization
+**Phase:** MVP-27 Completed - Add missing pipeline actions
 
-**Convergence model complete:** All config editors (EQ, Pipeline, Presets) now consistently use optimistic UI with DSP-confirmed convergence. After every successful upload, `dspStore.config` is overwritten with the post-upload re-downloaded config from CamillaDSP.
+**Filter block enhancements complete:** Users can now bypass filter blocks, edit channel assignments, and add new filters to existing blocks with full type selection. Processor editing includes parameter rounding and improved UI controls.
 
 ## Planned Milestones
 

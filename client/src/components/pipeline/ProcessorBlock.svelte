@@ -68,10 +68,10 @@
     
     if (type === 'Compressor') {
       return [
-        { key: 'threshold', label: 'Threshold', value: Number(params.threshold || -20), unit: 'dB', min: -80, max: 0 },
-        { key: 'attack', label: 'Attack', value: Number(params.attack || 0.01), unit: 's', min: 0, max: 0.5 },
-        { key: 'release', label: 'Release', value: Number(params.release || 0.1), unit: 's', min: 0, max: 2.0 },
-        { key: 'factor', label: 'Factor', value: Number(params.factor || 2), unit: '', min: 1, max: 20 },
+        { key: 'threshold', label: 'Threshold', value: Number(params.threshold ?? -20), unit: 'dB', min: -80, max: 0 },
+        { key: 'attack', label: 'Attack', value: Number(params.attack ?? 0.01), unit: 's', min: 0, max: 0.5 },
+        { key: 'release', label: 'Release', value: Number(params.release ?? 0.1), unit: 's', min: 0, max: 2.0 },
+        { key: 'factor', label: 'Factor', value: Number(params.factor ?? 2), unit: '', min: 1, max: 20 },
         ...(params.makeup_gain !== undefined ? 
           [{ key: 'makeup_gain', label: 'Makeup Gain', value: Number(params.makeup_gain), unit: 'dB', min: -24, max: 24 }] : 
           []
@@ -79,10 +79,10 @@
       ];
     } else if (type === 'NoiseGate') {
       return [
-        { key: 'threshold', label: 'Threshold', value: Number(params.threshold || -60), unit: 'dB', min: -100, max: 0 },
-        { key: 'attenuation', label: 'Attenuation', value: Number(params.attenuation || -60), unit: 'dB', min: -120, max: 0 },
-        { key: 'attack', label: 'Attack', value: Number(params.attack || 0.01), unit: 's', min: 0, max: 0.5 },
-        { key: 'release', label: 'Release', value: Number(params.release || 0.1), unit: 's', min: 0, max: 2.0 },
+        { key: 'threshold', label: 'Threshold', value: Number(params.threshold ?? -60), unit: 'dB', min: -100, max: 0 },
+        { key: 'attenuation', label: 'Attenuation', value: Number(params.attenuation ?? -60), unit: 'dB', min: -120, max: 0 },
+        { key: 'attack', label: 'Attack', value: Number(params.attack ?? 0.01), unit: 's', min: 0, max: 0.5 },
+        { key: 'release', label: 'Release', value: Number(params.release ?? 0.1), unit: 's', min: 0, max: 2.0 },
       ];
     }
     
@@ -128,8 +128,8 @@
         <!-- Expanded: show edit controls -->
         <div class="edit-controls">
           <!-- Bypass toggle -->
-          <div class="control-row bypass-control">
-            <label class="control-label">
+          <div class="bypass-control">
+            <label class="bypass-label">
               <input 
                 type="checkbox" 
                 checked={block.bypassed} 
@@ -139,43 +139,45 @@
             </label>
           </div>
           
-          <!-- Parameter controls with KnobDials -->
-          {#each editableParams as param}
-            <div class="control-row">
-              <span class="control-label">{param.label}</span>
-              <div class="control-input">
-                <KnobDial
-                  value={param.value}
-                  min={param.min}
-                  max={param.max}
-                  scale="linear"
-                  size={28}
-                  on:change={(e) => handleParamChange(param.key, e.detail.value)}
-                />
-                <span class="control-value">
+          <!-- Parameter controls in grid layout -->
+          <div class="param-grid">
+            {#each editableParams as param}
+              <div class="param-tile">
+                <span class="param-tile-label">{param.label}</span>
+                <div class="param-tile-control">
+                  <KnobDial
+                    value={param.value}
+                    min={param.min}
+                    max={param.max}
+                    scale="linear"
+                    size={32}
+                    on:change={(e) => handleParamChange(param.key, e.detail.value)}
+                  />
+                </div>
+                <span class="param-tile-value">
                   {param.value.toFixed(2)}{param.unit}
                 </span>
               </div>
-            </div>
-          {/each}
-          
-          <!-- Channels (numeric input) -->
-          {#if channelsValue !== undefined}
-            <div class="control-row">
-              <label class="control-label" for="proc-channels-{block.blockId}">
-                Channels
-              </label>
-              <input
-                id="proc-channels-{block.blockId}"
-                type="number"
-                min="1"
-                step="1"
-                value={channelsValue}
-                on:input={(e) => handleParamChange('channels', Number(e.currentTarget.value))}
-                class="numeric-input"
-              />
-            </div>
-          {/if}
+            {/each}
+            
+            <!-- Channels tile (numeric input) -->
+            {#if channelsValue !== undefined}
+              <div class="param-tile">
+                <span class="param-tile-label">Channels</span>
+                <div class="param-tile-control">
+                  <input
+                    id="proc-channels-{block.blockId}"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={channelsValue}
+                    on:input={(e) => handleParamChange('channels', Number(e.currentTarget.value))}
+                    class="channels-input"
+                  />
+                </div>
+              </div>
+            {/if}
+          </div>
         </div>
         
         <details class="json-details">
@@ -414,26 +416,97 @@
   }
   
   .bypass-control {
-    padding-bottom: 0.5rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
     border-bottom: 1px solid var(--ui-border);
   }
   
+  .bypass-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ui-text-muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  
+  .bypass-label input[type="checkbox"] {
+    cursor: pointer;
+  }
+  
+  /* Grid layout for parameters */
+  .param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+  
+  .param-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(212, 164, 255, 0.2);
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+  
+  .param-tile:hover {
+    background: rgba(0, 0, 0, 0.3);
+    border-color: rgba(212, 164, 255, 0.3);
+  }
+  
+  .param-tile-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ui-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+  }
+  
+  .param-tile-control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .param-tile-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8125rem;
+    color: var(--ui-text);
+    text-align: center;
+    min-height: 1.25rem;
+  }
+  
+  .channels-input {
+    width: 60px;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    text-align: center;
+  }
+  
+  .channels-input:focus {
+    outline: none;
+    border-color: rgba(212, 164, 255, 0.5);
+  }
+  
+  /* Legacy styles (kept for compatibility) */
   .control-label {
     font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ui-text-muted);
     min-width: 100px;
-  }
-  
-  .bypass-control .control-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-  }
-  
-  .bypass-control input[type="checkbox"] {
-    cursor: pointer;
   }
   
   .control-input {
