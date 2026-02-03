@@ -2858,7 +2858,13 @@ To Do.
 Ensure changes made in the EQ editor are immediately visible in the Pipeline editor and vice versa, with no duplicate state.
 
 ### Status
-To Do.
+✅ **COMPLETED** (2026-02-03)
+
+### Implementation Model
+**Optimistic UI with DSP-confirmed convergence:**
+- UI may update optimistically for fast feedback
+- After every successful upload, `dspStore.config` is overwritten with the **post-upload re-downloaded config from CamillaDSP**
+- On upload failure: show error + best-effort resync; if resync unavailable, keep local edits as pending
 
 ### Deliverables
 
@@ -2922,17 +2928,18 @@ To Do.
 ## Future MVPs
 
 ### Deliverables:
-1. **Implement pipeline editor**
-2. **Ability to switch from pre-EQ to post-EQ**
-3. **Band re-ordering with drag**
-  - Allow user to select the order (number) where the band sits in the pipeline
-  - Clicking on a band-order-icon pops up a context menu. 
-  - The contedt menu wil contain a title "new position" and icons arranged in two columns.
-  - The icons correspond to the band number icons with their respective colors.
-  - The number of icons shown is the same as the number of bands shown on the page.
-  - The current band is not displayed in the pop-up menu.
-  - Selecting a band number icon will move the band to that position in the pipeline.
-  - The 
+1. **Ability to switch from pre-EQ to post-EQ**
+2. **Ability to enable a bypass on a block**
+  - Allow a user to bypass a filter block with a switch
+  - Ensure the bypass is reflected in the number of filters shown on the EQ page (since that's the union of all filters on all non-bypassed blocks)
+3. **Ability to select the channel for a filter block**
+  - Ability for the user to edit the channel on a filter block
+  - Ability for a user to choose which channel(s) apply to a filter block when creating it.
+  - The available channels should be derived from what is available to the pipeline from the DSP config.
+4. **Ability for a user to add a filter to a filter block**
+   - Allow a user to add a filter to a filter block.
+   - Ensure you present the diffent filter types to the user to choose from 
+6. **band-order-icon title should be the filter name.**
 
 ## Explicitly Deferred Complexity
 

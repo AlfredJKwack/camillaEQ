@@ -81,14 +81,17 @@
         throw new Error('Failed to upload config to CamillaDSP');
       }
 
+      // Get confirmed config from DSP (post-download)
+      const confirmedConfig = dsp.config! as any;
+
       // Clear disabled filters overlay (preset loads overwrite entire state)
       clearDisabledFilters();
       
-      // Update global dspStore so EqPage can initialize from the new config
-      updateConfig(camillaConfig);
+      // Update global dspStore with confirmed config
+      updateConfig(confirmedConfig);
       
-      // Initialize EqStore immediately (even if EqPage isn't mounted)
-      initializeFromConfig(camillaConfig);
+      // Initialize EqStore immediately with confirmed config
+      initializeFromConfig(confirmedConfig);
 
       selectedConfigId = id;
       console.log(`Loaded config: ${pipelineConfig.configName}`);

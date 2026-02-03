@@ -1,10 +1,39 @@
 # Active Context
 
 ## Current Focus
-**MVP-23 completed** (2026-02-01) - Add/Remove Pipeline Blocks with support for all three block types (Filter, Mixer, Processor). Documentation updated across all files.
+**MVP-26 completed** (2026-02-03) - EQ-Pipeline Synchronization with optimistic UI + DSP-confirmed convergence model.
 
 ## Recently Completed
-**MVP-23: Add/Remove Pipeline Blocks** (2026-02-01)
+**MVP-26: EQ-Pipeline Synchronization** (2026-02-03)
+
+### Overview
+Implemented convergence model ensuring `dspStore.config` always reflects DSP-confirmed state after uploads, while allowing optimistic UI updates for fast feedback.
+
+### Implementation Model
+**Optimistic UI with DSP-confirmed convergence:**
+- UI may update optimistically for immediate feedback
+- After every successful upload, `dspStore.config` is overwritten with the **post-upload re-downloaded config from CamillaDSP**
+- On upload failure: show error + best-effort resync; if resync unavailable, keep local edits as pending
+
+### Changes Made
+1. **EQ Store (`client/src/state/eqStore.ts`):**
+   - Success path uses `dspInstance.config` (confirmed) instead of `updatedConfig`
+   - Re-extracts EQ bands from confirmed config to keep UI aligned
+   - Failure path implements best-effort resync (downloads current DSP config)
+   - If resync fails, keeps optimistic state to preserve user work
+
+2. **PresetsPage (`client/src/pages/PresetsPage.svelte`):**
+   - After upload success, uses `dsp.config` (confirmed) instead of pre-upload `camillaConfig`
+   - Syncs global dspStore and initializes eqStore with confirmed config
+
+3. **Pipeline Editor (`client/src/state/pipelineEditor.ts`):**
+   - Already correct: uses `dspInstance.config` (confirmed) after successful upload
+   - Established pattern now consistent across all editors
+
+### Result
+EQ and Pipeline editors now have consistent convergence semantics with optimistic-then-confirmed flow.
+
+**Previous (MVP-23: Add/Remove Pipeline Blocks)** (2026-02-01)
 
 ### Overview
 Implemented full add/remove functionality for pipeline blocks with toolbar UI, validation, and orphan cleanup.

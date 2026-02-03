@@ -561,10 +561,28 @@
   - **Test status:** All 292 tests passing (240 client + 52 server)
   - **Type consolidation complete:** Schema is canonical, no duplicate definitions remain
 
-## Current Status (2026-02-02)
-**Phase:** MVP-24 Completed - Canonical Schema + Enhanced Filter Rendering
+- [x] **MVP-26: EQ-Pipeline Synchronization** (2026-02-03)
+  - **Convergence model:** Optimistic UI + DSP-confirmed convergence
+    - UI may update optimistically for immediate feedback
+    - After every successful upload, `dspStore.config` is overwritten with **post-upload re-downloaded config from CamillaDSP**
+    - On upload failure: show error + best-effort resync; if resync unavailable, keep local edits as pending
+  - **EQ Store (`client/src/state/eqStore.ts`):**
+    - Success path uses `dspInstance.config` (confirmed) instead of `updatedConfig`
+    - Re-extracts EQ bands from confirmed config to keep UI aligned
+    - Failure path implements best-effort resync (downloads current DSP config)
+    - If resync fails, keeps optimistic state to preserve user work
+  - **PresetsPage (`client/src/pages/PresetsPage.svelte`):**
+    - After upload success, uses `dsp.config` (confirmed) instead of pre-upload `camillaConfig`
+    - Syncs global dspStore and initializes eqStore with confirmed config
+  - **Pipeline Editor (`client/src/state/pipelineEditor.ts`):**
+    - Already correct: uses `dspInstance.config` (confirmed) after successful upload
+    - Established pattern now consistent across all editors
+  - **Result:** All config editors converge to DSP-confirmed state after uploads
 
-**Type consolidation complete:** All CamillaDSP types now sourced from `client/src/lib/camillaSchema.ts`. No duplicate definitions remain.
+## Current Status (2026-02-03)
+**Phase:** MVP-26 Completed - EQ-Pipeline Synchronization
+
+**Convergence model complete:** All config editors (EQ, Pipeline, Presets) now consistently use optimistic UI with DSP-confirmed convergence. After every successful upload, `dspStore.config` is overwritten with the post-upload re-downloaded config from CamillaDSP.
 
 ## Planned Milestones
 

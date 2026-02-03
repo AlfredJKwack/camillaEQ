@@ -70,13 +70,23 @@ const debouncedUpload = debounceCancelable(async () => {
     const success = await dspInstance.uploadConfig();
 
     if (success) {
-      // Store updated config as new baseline
-      lastConfig = updatedConfig;
-      updateDspConfig(updatedConfig); // Sync global dspStore
+      // Get confirmed config from DSP instance (post-download)
+      const confirmedConfig = dspInstance.config! as CamillaDSPConfig;
       
-      // Persist to server as latest state (write-through)
+      // Store confirmed config as new baseline
+      lastConfig = confirmedConfig;
+      updateDspConfig(confirmedConfig); // Sync global dspStore
+      
+      // Re-extract EQ bands from confirmed config to ensure UI reflects what DSP accepted
+      const reExtracted = extractEqBandsFromConfig(confirmedConfig);
+      extractedData = reExtracted;
+      bands.set(reExtracted.bands);
+      bandOrderNumbers.set(reExtracted.orderNumbers);
+      preampGain.set(reExtracted.preampGain);
+      
+      // Persist confirmed config to server as latest state (write-through)
       try {
-        await putLatestState(updatedConfig);
+        await putLatestState(confirmedConfig);
       } catch (error) {
         console.warn('Failed to persist latest state to server:', error);
         // Non-fatal: continue even if persistence fails
@@ -91,7 +101,28 @@ const debouncedUpload = debounceCancelable(async () => {
         );
       }, 2000);
     } else {
+      // Upload failed - attempt best-effort resync
       uploadStatus.set({ state: 'error', message: 'Upload failed' });
+      
+      try {
+        // Try to resync with DSP's current config
+        const resynced = await dspInstance.downloadConfig();
+        if (resynced && dspInstance.config) {
+          console.warn('Upload failed, resynced with DSP config');
+          const resyncedConfig = dspInstance.config as CamillaDSPConfig;
+          lastConfig = resyncedConfig;
+          updateDspConfig(resyncedConfig);
+          
+          const reExtracted = extractEqBandsFromConfig(resyncedConfig);
+          extractedData = reExtracted;
+          bands.set(reExtracted.bands);
+          bandOrderNumbers.set(reExtracted.orderNumbers);
+          preampGain.set(reExtracted.preampGain);
+        }
+      } catch (resyncError) {
+        console.warn('Could not resync after upload failure:', resyncError);
+        // Keep optimistic local state so user doesn't lose work
+      }
     }
   } catch (error) {
     console.error('Error uploading config:', error);

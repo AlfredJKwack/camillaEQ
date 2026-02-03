@@ -347,9 +347,15 @@ You can **edit mixer routing** directly in the Pipeline page:
 
 ## Project Status
 
-**Current Milestone:** MVP-23 Complete ✓ — Add/Remove Pipeline Blocks
+**Current Milestone:** MVP-26 Complete ✓ — EQ-Pipeline Synchronization
 
-**New in MVP-23:**
+**New in MVP-26:**
+- **Convergence model:** Optimistic UI + DSP-confirmed convergence ensures `dspStore.config` always reflects CamillaDSP's confirmed state
+- **Consistent behavior:** All config editors (EQ, Pipeline, Presets) now use the same upload-then-download pattern
+- **Best-effort resync:** On upload failure, attempts to resync with current DSP config; if unavailable, keeps local edits as pending
+- **Technical correctness:** UI may update optimistically, but state always converges to what CamillaDSP actually applied
+
+**Previous (MVP-23):**
 - **Add/remove toolbar** with 4 buttons: Add Filter, Add Mixer, Add Processor, Remove Selected
 - **Add Filter Block:** Creates empty Filter step for channel 0, inserts after selection
 - **Add Mixer Block:** Creates 2→2 passthrough mixer with unique auto-generated name

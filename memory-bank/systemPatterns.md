@@ -68,12 +68,15 @@ The system consists of three cooperating processes:
 - `eqStore` updates local state (optimistic)
 - **Debounced upload** (200ms) triggers:
   - `camillaEqMapping.ts` converts `bands[]` → full CamillaDSP config
-  - Upload via `SetConfigJson` + `Reload` on control socket
+  - Upload via `SetConfigJson` on control socket
+  - On success: `downloadConfig()` to get DSP-confirmed config
+  - `dspStore.config` updated with confirmed config
   - **Write-through:** `PUT /api/state/latest` (non-fatal if fails)
 - SVG curves update immediately via reactive Svelte bindings:
   - `EqSvgRenderer.generateCurvePath()` recalculates paths
   - DOM elements update via Svelte reactivity (no tree rebuild)
-- **No UI revert on failure:** Optimistic persistence, user sees error state
+- **Optimistic UI with DSP-confirmed convergence:** UI updates immediately, then converges to confirmed state
+- **On upload failure:** Show error + attempt resync; if resync fails, keep optimistic state
 - CamillaDSP service applies changes, audio processing updates
 
 ### Preset Load/Save (Config Path)
@@ -137,8 +140,9 @@ The system consists of three cooperating processes:
 - Page reload shows most recent edited state (not last loaded preset)
 
 **State Transitions:**
-- Browser requests → CamillaDSP applies → Browser reflects
-- No optimistic updates; UI waits for confirmation
+- Browser requests with optimistic UI update → CamillaDSP applies → Browser converges to confirmed state
+- After successful upload: `dspStore.config` = DSP-confirmed config (via `downloadConfig()`)
+- On failure: attempt resync, or keep optimistic state as pending
 - Explicit error handling for rejected changes
 
 **Domain Models (Actual Implementation):**
