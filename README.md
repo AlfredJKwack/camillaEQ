@@ -1,4 +1,4 @@
-# CamillaEQ
+# CamillaEQ  ![The logo](client/src/assets/CamillaEQ-60w.webp "Logo")
 
 **A browser-based graphical equalizer and spectrum analyzer for CamillaDSP.**
 
@@ -259,6 +259,9 @@ See [LICENSE](LICENSE) file for details.
 **Built with care by someone who just wanted better Zoom calls.**
 
 And since a picture is worth a thousand words...
+
+# Screenshots
+![The Equalizer demo reel](images/CamillaEQ-vid.gif "Graphical EQ demo reel")
 
 # Screenshots
 ## The parametric equalizer

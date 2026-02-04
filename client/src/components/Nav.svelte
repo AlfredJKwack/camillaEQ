@@ -74,8 +74,13 @@
   <div class="nav-spacer"></div>
   
   {#if $appVersion}
-    <div class="nav-footer" title="CamillaEQ v{$appVersion.version} ({$appVersion.buildHash || 'dev'})">
-      v{$appVersion.version}
+    <div class="nav-footer">
+      <a href="https://github.com/AlfredJKwack/camillaEQ" 
+         class="nav-logo"
+         title="CamillaEQ v{$appVersion.version} documentation ({$appVersion.buildHash || 'dev'})">
+        <img src="/src/assets/CamillaEQ-80w.webp" alt="CamillaEQ Logo" />
+        v{$appVersion.version}
+      </a>
     </div>
   {/if}
 </nav>
@@ -94,6 +99,18 @@
 
   .nav-spacer {
     flex: 1;
+  }
+
+  .nav-logo {
+    all: unset;
+    cursor: pointer;
+    display: block;
+  }
+  .nav-logo img {
+    width: 38px;
+    height: auto;
+    display: block;
+    margin-bottom: 0.48rem;
   }
 
   .nav-footer {
