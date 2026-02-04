@@ -67,16 +67,16 @@ npm run start
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Browser (Any device on LAN)               │
+│  Browser (Any device on LAN)                │
 │                                             │
-│  http://camillaeq-host:3000                │
+│  http://camillaeq-host:3000                 │
 │  ↓                                          │
-│  Loads UI (HTML/CSS/JS)                    │
+│  Loads UI (HTML/CSS/JS)                     │
 │                                             │
 │  Then establishes:                          │
-│  - WebSocket to CamillaDSP :1234 (control) │
-│  - WebSocket to CamillaDSP :1235 (spectrum)│
-│  - HTTP REST to CamillaEQ :3000 (presets)  │
+│  - WebSocket to CamillaDSP :1234 (control)  │
+│  - WebSocket to CamillaDSP :1235 (spectrum) │
+│  - HTTP REST to CamillaEQ :3000 (presets)   │
 └─────────────────────────────────────────────┘
          │                    │
          │                    │

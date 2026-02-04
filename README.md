@@ -1,676 +1,271 @@
 # CamillaEQ
 
-A graphical user interface for CamillaDSP equalizer control.
+**A browser-based graphical equalizer and spectrum analyzer for CamillaDSP.**
 
-## Project Structure
+CamillaEQ is a web UI that gives you direct, visual control over your CamillaDSP audio pipeline. Drag EQ tokens, watch the spectrum respond in real time, and tune your sound with immediate feedback.
 
-```
-/server          - Node.js + Fastify backend REST API
-/client          - Svelte + Vite frontend application
-/docs            - Design specifications and API contracts
-/memory-bank     - Project context and decisions
-```
+![The parametric Equalizer](images/GUI-GraphicalEQ.png "Graphical EQ")
+---
 
-## Prerequisites
+## What This Is
 
-- Node.js >= 18.0.0
-- npm >= 9.0.0
+CamillaEQ is a **browser-based interface** for controlling [CamillaDSP](https://github.com/HEnquist/camilladsp), the powerful audio processing engine. You run it on a small device (like an Orange Pi or Raspberry Pi), and control it entirely from any browser on your network.
 
-## Getting Started
+It's designed for people who appreciate good UX and want a tool that *feels good to use*. No configuration files, no command-line editing—just drag, adjust, and hear the difference.
 
-### 1. Install Dependencies
+---
+
+## Why This Exists
+
+I'm not an audio engineer. I just wanted better sound for my daily work calls.
+
+My laptop doesn't allow installing applications, and I'm on Zoom for hours every day. My microphone and room acoustics weren't great, and I couldn't fix it in software on the laptop itself.
+
+The solution was simple: insert an EQ between the microphone and the laptop. CamillaDSP became the audio engine, running on a tiny Orange Pi Zero 2W. I needed a way to control it—something visual, responsive, and accessible from a browser.
+
+So I built CamillaEQ: a UI focused on clarity, direct manipulation, and immediate feedback.
+
+---
+
+## What Makes It Different
+
+**Visual feedback is everything.**
+
+Most EQ tools show you numbers and sliders. CamillaEQ shows you:
+- **Real-time frequency response curves** that update as you drag tokens
+- **A spectrum analyzer overlay** behind the EQ curve
+- **Bandwidth markers and visual cues** that help you understand what each filter is doing
+
+You're not just editing parameters—you're *seeing* what the audio will sound like.
+
+---
+
+## The Killer Feature: Built-In Spectrum Analyzer
+
+CamillaEQ includes a **real-time spectrum analyzer** that runs at ~10 Hz and displays your audio signal behind the EQ curve.
+
+This isn't a native CamillaDSP feature. It's a clever abuse of CamillaDSP's filter bank capabilities: we generate a log-spaced bandpass filter configuration and read the output levels. It's not perfect, but it provides *immediate visual feedback* while you're tuning.
+
+You can see:
+- **Pre-EQ** (what's coming in)
+- **Post-EQ** (what's going out)
+- **Short-term and long-term averages**
+- **Peak hold with decay**
+
+This makes EQ tuning feel **alive**. You adjust a band, and you *see* the spectrum change instantly.
+
+---
+
+## Inspiration
+
+CamillaEQ was inspired by [CamillaNode](https://github.com/ismailAtaman/camillaNode) and the work of its author. CamillaNode proved what was possible with a browser-based CamillaDSP interface.
+
+CamillaEQ takes a different direction—focusing heavily on UX, visual interaction, and direct manipulation—but the inspiration and respect for what came before is real.
+
+---
+
+## Who This Is For
+
+### 🎧 **End Users**
+You want to tune your audio and see what's happening. You don't need to understand DSP internals.
+
+**Start here:** [End User Documentation](docs/end-user/)
+- [Overview](docs/end-user/overview.md) - What CamillaEQ does
+- [Quick Start](docs/end-user/quick-start.md) - Get up and running in 5 minutes
+- [Spectrum Analyzer Guide](docs/end-user/spectrum-analyzer.md) - Understanding what you see
+- [Troubleshooting](docs/end-user/troubleshooting.md) - When things don't work
+
+---
+
+### 🛠️ **Developers**
+You want to understand the architecture, extend functionality, or contribute.
+
+**Start here:** [Developer Documentation](docs/developer/)
+- [Architecture Overview](docs/developer/architecture.md) - Module responsibilities and boundaries
+- [Runtime Topology](docs/developer/runtime-topology.md) - What runs where, and why
+- [Data Flow](docs/developer/data-flow.md) - How config changes propagate
+- [Frontend Architecture](docs/developer/frontend.md) - Svelte, Canvas rendering, state management
+- [Backend Architecture](docs/developer/backend.md) - Fastify, REST API, persistence
+- [State and Persistence](docs/developer/state-and-persistence.md) - State ownership model
+- [Extension Points](docs/developer/extension-points.md) - How to add features safely
+
+---
+
+### 🚀 **Power Users / Deployers**
+You want to run this on a headless device and make it reliable.
+
+**Start here:** [Power User Documentation](docs/power-user/)
+- [Deployment Models](docs/power-user/deployment-models.md) - Dev vs production, network topology
+- [Linux Services](docs/power-user/linux-services.md) - systemd installation and management
+- [Headless SBC Deployment](docs/power-user/headless-sbc.md) - Orange Pi, Raspberry Pi, resource tuning
+- [Recovery and Backups](docs/power-user/recovery-and-backups.md) - Disaster recovery procedures
+
+---
+
+## Try It Now
+
+**Prerequisites:**
+- Node.js 18+
+- npm 9+
+- A running CamillaDSP instance (or use the included mock server)
+
+**Quick start:**
 
 ```bash
+# Clone the repository
+git clone https://github.com/AlfredJKwack/camillaEQ.git
+cd camillaEQ
+
+# Install dependencies
 npm install
-```
 
-### 2. Configure Environment
-
-Copy the example environment file and customize as needed:
-
-```bash
-cp .env.example .env
-```
-
-Default configuration:
-- Server runs on port 3000
-- Client dev server runs on port 5173
-- CamillaDSP WebSocket URLs: ws://localhost:1234 (control), ws://localhost:1235 (spectrum)
-
-### 3. Development
-
-Start both server and client in watch mode:
-
-```bash
+# Start the development server
 npm run dev
 ```
 
-Or run them separately:
+**The UI will be available at `http://localhost:5173`**
+
+### Try Without Real Audio Hardware
+
+You can test the full UI without a real CamillaDSP device using the included **MockCamillaDSP** server:
 
 ```bash
-npm run dev:server  # Start backend only
-npm run dev:client  # Start frontend only
-```
-
-The application will be available at:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3000
-- Health check: http://localhost:3000/health
-
-### 4. Build
-
-Build both server and client for production:
-
-```bash
-npm run build
-```
-
-### 5. Testing
-
-Run all tests:
-
-```bash
-npm test
-```
-
-### 6. Production Deployment
-
-For production deployment on a headless SBC (Orange Pi, Raspberry Pi, etc.):
-
-```bash
-# Build the application
-npm run build
-
-# Start production server
-npm run start
-```
-
-The production server serves both the API and the built UI on a single port (default: 3000).
-
-For systemd deployment instructions, see `deploy/systemd/README.md`.
-
-## Spectrum Analyzer (MVP-16)
-
-To see the real-time spectrum analyzer overlay without a real CamillaDSP device, use the included **MockCamillaDSP** WebSocket server:
-
-### 1. Start the Mock CamillaDSP Server
-
-In a separate terminal, run:
-
-```bash
+# In a separate terminal, start the mock server
 npm -w server exec -- tsx -e "import { MockCamillaDSP } from './src/services/mockCamillaDSP'; (async () => { const s = new MockCamillaDSP(); await s.start(); console.log('Mock CamillaDSP running: control=3146 spectrum=6413'); setInterval(() => {}, 1<<30); })().catch(e => { console.error(e); process.exit(1); });"
 ```
 
-This starts:
-- **Control WebSocket**: `ws://localhost:3146`
-- **Spectrum WebSocket**: `ws://localhost:6413`
-
-### 2. Start the Development Server
-
-In another terminal:
-
-```bash
-npm run dev
-```
-
-### 3. Configure Connection
-
-1. Open `http://localhost:5173/#/connect`
-2. Set connection parameters:
-   - **Server**: `localhost`
-   - **Control Port**: `3146`
-   - **Spectrum Port**: `6413`
-3. (Optional) Enable **Auto-reconnect on page load** checkbox
-4. Click **Connect**
-
-### 4. Enable Spectrum Analyzer Overlay
-
-On the EQ page, under **Visualization Options**:
-
-1. **Select spectrum source:**
-   - Click **Pre** (blue) or **Post** (green) to choose the spectrum source
-   - Note: Buttons dim when overlay is disabled (no analyzer series enabled)
-
-2. **Enable analyzer series** (toggle any to activate overlay):
-   - **STA** (Short-Term Average) - Default: ON, shows stable trend
-   - **LTA** (Long-Term Average) - Default: OFF, shows long-term balance
-   - **PEAK** (Peak Hold) - Default: OFF, shows peak levels with decay
-
-3. **Optional: Adjust smoothing:**
-   - Choose **Smoothing**: Off / 1/12 Oct / 1/6 Oct (default) / 1/3 Oct
-   - Fractional-octave smoothing reduces comb-like artifacts
-
-4. **Reset averages:** Click **↺** to reset STA/LTA/Peak to current live values
-
-You should see analyzer series rendering behind the EQ curve at ~10Hz.
-
-**New in MVP-16:**
-- **Temporal averaging:** STA (0.8s) and LTA (8s) exponential moving averages in dB domain
-- **Peak hold:** Tracks maximum per-bin with configurable hold time (2s) and decay rate (12 dB/s)
-- **Fractional-octave smoothing:** 1/12, 1/6 (default), 1/3 octave options
-- **Coherent overlay state:** Overlay enabled when any of STA/LTA/PEAK is on; Pre/Post selects source
-- **Canvas polling:** Automatically starts/stops based on overlay enabled state
-
-## Auto-Reconnect Feature
-
-The application supports automatic reconnection when you reload the page or navigate back to the app.
-
-### How It Works
-
-When **Auto-reconnect on page load** is enabled on the Connection page:
-
-1. **Startup**: On app load, it automatically attempts to connect using the last saved connection parameters
-2. **Retry Logic**: If the connection fails, it retries with exponential backoff:
-   - Retry 1: after 1 second
-   - Retry 2: after 2 seconds
-   - Retry 3: after 5 seconds
-   - Retry 4: after 10 seconds
-   - Retry 5+: after 30 seconds
-   - Maximum: 10 attempts total
-3. **Visual Feedback**: The connection icon in the navigation rail changes color based on state:
-   - **Green glow**: Connected (both control + spectrum sockets)
-   - **Yellow/Amber glow**: Degraded (control socket OK, spectrum socket down)
-   - **Blue glow**: Connecting/Reconnecting
-   - **Red glow**: Connection error (control socket down)
-   - **Default**: Disconnected
-
-### Enable/Disable
-
-Toggle the **Auto-reconnect on page load** checkbox on the Connection page. The setting is saved to localStorage and persists across sessions.
-
-### Manual Disconnect
-
-Clicking **Disconnect** will:
-- Close the current connection
-- Cancel any pending retry attempts
-- The app will not attempt to reconnect until you manually click **Connect** again or reload the page (if auto-reconnect is enabled)
-
-## Degraded Connection
-
-The app tracks the health of **two separate WebSocket connections** to CamillaDSP:
-1. **Control socket** - Used for EQ config uploads, state queries, volume control
-2. **Spectrum socket** - Used for real-time spectrum data (~10Hz polling)
-
-### What is Degraded State?
-
-When the **control socket is connected but the spectrum socket is down**, the app enters "degraded" mode:
-
-**What still works:**
-- ✅ EQ editing (drag tokens, adjust faders, change filter types)
-- ✅ Config uploads to CamillaDSP
-- ✅ Preset load/save
-- ✅ Volume control
-
-**What's unavailable:**
-- ❌ Spectrum analyzer overlay (canvas clears)
-- ❌ Real-time spectrum data display
-
-**Visual indicators:**
-- Nav icon shows **yellow/amber glow** (instead of green)
-- Connection page shows which socket is down
-- Spectrum canvas clears or shows "unavailable" message
-
-**Recovery:**
-- Control socket failure → App attempts full reconnect (both sockets)
-- Spectrum-only failure → App stays in degraded mode (EQ editing continues)
-- Manual reconnect: Click "Disconnect" then "Connect" to retry both sockets
-
-## Copy Diagnostics
-
-The Connection page includes a **"Copy Diagnostics"** button that exports comprehensive troubleshooting data to your clipboard.
-
-### What's Included
-
-The diagnostics JSON export contains:
-- **Connection state**: Current state (connected/degraded/error/disconnected)
-- **Server info**: Server address, control port, spectrum port
-- **CamillaDSP version**: If connected
-- **Failure log**: Last 50 failures with timestamps
-  - Command that failed
-  - Request/response details
-  - Socket identifier (control/spectrum)
-- **Config summary**: Filter count, mixer count, pipeline step count
-
-### When to Use
-
-Use "Copy Diagnostics" when:
-- Reporting connection issues
-- Troubleshooting WebSocket failures
-- Verifying which commands are failing
-- Sharing debug info with developers
-
-The JSON can be pasted into bug reports or analyzed to understand connection behavior patterns.
-
-## API Endpoints
-
-### Health Check
-- **GET** `/health` - Returns server health status
-
-### Version Info
-- **GET** `/api/version` - Returns version, build hash, and build time
-
-### Config Persistence
-- **GET** `/api/config` - Reads the current config file from disk
-  - Returns: Config JSON object
-  - Error: 404 if config file not found
-- **PUT** `/api/config` - Saves config to disk with atomic write
-  - Body: Config JSON object (max 1MB)
-  - Returns: `{ success: true }`
-  - Errors: 400 (invalid), 413 (too large), 500 (write failed)
-
-## Development Workflow
-
-1. The client proxies API requests to the backend during development
-2. Hot Module Replacement (HMR) is enabled for instant client updates
-3. Server auto-restarts on code changes via tsx watch mode
-
-### Client Logging
-
-The client uses a lightweight logging utility (`client/src/lib/log.ts`) with debug message gating:
-
-```typescript
-import { log } from './lib/log';
-
-log.debug('Only visible in dev mode or when debug=true in localStorage');
-log.info('Important info message');
-log.warn('Warning message');
-log.error('Error message', errorObject);
-```
-
-**Debug modes:**
-- **Development**: All debug messages visible automatically
-- **Production**: Debug messages hidden by default
-- **Production with debug**: Set `localStorage.setItem('debug', 'true')` to enable debug logs
-
-All log messages include timestamp and level prefix for easy filtering.
-
-## Pipeline Editor (MVP-19/20/21)
-
-The **Pipeline page** (`/#/pipeline`) provides an interactive editor for the CamillaDSP signal processing pipeline, showing each processing step in the order audio flows through them.
-
-### What You See
-
-- **Filter blocks**: Display which channels they apply to, list all filters, and allow inline editing (MVP-21)
-- **Mixer blocks**: Show input/output channel counts and mixer name
-- **Processor blocks**: Display processor type and name
-- **Signal flow**: Top → Bottom (Input → blocks → Output)
-
-Each block shows:
-- Missing references (filters/mixers not found in config)
-- Bypass state indicators
-- **Filter editing controls** (MVP-21): expand/collapse, parameter knobs, enable/disable, remove
-
-### Filter Editing (MVP-21)
-
-Click the **+** button on any filter row (when block is selected) to expand inline parameter controls:
-
-- **Parameter knobs**: Frequency (20-20k Hz), Q (0.1-10), Gain (±24 dB for Peaking/Shelf types)
-- **Power button (⏻)**: Enable/disable filter
-  - Disable removes filter from pipeline, stores position in browser localStorage
-  - Enable restores filter to original position
-- **Remove button (×)**: Permanently remove filter from config
-- **Collapsed rows**: Show compact values (e.g., "1000 Hz", "Q 1.0", "-3.0 dB")
-- **Reserved slot**: Expand button slot prevents layout shift when selecting blocks
-
-**Disabled filters overlay:**
-- Disabled filters stored in browser localStorage with step key and index
-- Overlay automatically remaps when you reorder pipeline steps (disabled filters "follow" their step)
-- Enable button restores filter to exact original position
-
-### Reordering Filters (MVP-20)
-
-You can **reorder filters within the same Filter block** using drag-and-drop:
-
-1. **Grab the handle** (☰) on the left side of any filter row
-2. **Drag up or down** - a **"Drop here" landing zone** appears showing where the filter will be inserted
-3. **Drop** to commit the reorder:
-   - Config is validated automatically
-   - Invalid reorders revert with an inline error banner
-   - Valid reorders upload to CamillaDSP with the existing 200ms debounce
-4. Changes appear immediately in the EQ page (band order icons update)
-
-**Note:** Moving filters **between different Filter blocks** is not yet supported. Moving entire pipeline blocks is also deferred to a future milestone.
-
-### Mixer Editing (MVP-22)
-
-You can **edit mixer routing** directly in the Pipeline page:
-
-1. **Expand a mixer block** by clicking on it when selected
-2. **Per-destination controls:**
-   - Each destination channel lists its source channels
-   - Per-source gain knob: -150 to +50 dB (default 0 dB = unity gain)
-   - Per-source invert toggle: phase inversion
-   - Per-source mute toggle: silence that source
-   - Destination mute toggle: mute entire output channel
-
-3. **Inline validation:**
-   - **Error (blocks upload):** Destination has no unmuted sources (silent channel loss)
-     - Exception: muted destinations don't need sources
-   - **Warning (does not block):** Destination sums >1 unmuted source
-   - **Warning (does not block):** Summing with any source gain > 0 dB (risk of clipping)
-
-4. **Live editing:**
-   - Changes upload automatically with 200ms debounce
-   - Invalid routing shows inline error and blocks upload
-   - Warnings remain visible but allow upload to proceed
-
-**Best practices:**
-- When summing multiple sources, use negative gain (e.g., -6 dB) to prevent clipping
-- Monitor validation warnings to ensure proper routing
-- Mute unused destination channels to save processing
+Then in the UI:
+1. Navigate to the **Connect** page
+2. Set **Server** to `localhost`
+3. Set **Control Port** to `3146`
+4. Set **Spectrum Port** to `6413`
+5. Click **Connect**
+
+You'll see a live spectrum analyzer and be able to adjust EQ bands, even without real audio passing through.
+
+---
+
+## What You Get
+
+- **Interactive EQ editor** with draggable tokens and real-time curve rendering
+- **Real-time spectrum analyzer** (pre/post-EQ modes)
+- **Pipeline editor** for managing filters, mixers, and processors
+- **Preset library** with save/load functionality
+- **Direct CamillaDSP integration** via WebSocket (browser connects directly, no proxying)
+- **Runs on low-power devices** (Orange Pi, Raspberry Pi, etc.)
+- **Fully tested** (240+ tests, 80%+ code coverage)
 
 ---
 
 ## Project Status
 
-**Current Milestone:** MVP-26 Complete ✓ — EQ-Pipeline Synchronization
+**Current Release:** v0.1.0
 
-**New in MVP-26:**
-- **Convergence model:** Optimistic UI + DSP-confirmed convergence ensures `dspStore.config` always reflects CamillaDSP's confirmed state
-- **Consistent behavior:** All config editors (EQ, Pipeline, Presets) now use the same upload-then-download pattern
-- **Best-effort resync:** On upload failure, attempts to resync with current DSP config; if unavailable, keeps local edits as pending
-- **Technical correctness:** UI may update optimistically, but state always converges to what CamillaDSP actually applied
+CamillaEQ is **production-ready** but still evolving. The core features—EQ editing, spectrum analyzer, preset management, and pipeline editing—are stable and tested.
 
-**Previous (MVP-23):**
-- **Add/remove toolbar** with 4 buttons: Add Filter, Add Mixer, Add Processor, Remove Selected
-- **Add Filter Block:** Creates empty Filter step for channel 0, inserts after selection
-- **Add Mixer Block:** Creates 2→2 passthrough mixer with unique auto-generated name
-- **Add Processor Block:** Prompts for name, creates empty processor definition
-- **Remove Block:** Removes pipeline step + cleans up orphaned filter/mixer/processor definitions
-- **Validation:** All operations validated via `dsp.validateConfig()` with snapshot/revert on failure
-- All 240 client tests passing
+**What works:**
+- ✅ Full CamillaDSP control (config upload, volume, reload)
+- ✅ Real-time spectrum analyzer with smoothing and averaging
+- ✅ Interactive EQ with 7 filter types (peaking, shelves, HPF/LPF, bandpass, notch)
+- ✅ Pipeline editor (reorder filters, edit mixers, add/remove blocks)
+- ✅ Preset library with search and keyboard navigation
+- ✅ Auto-reconnect with exponential backoff
+- ✅ Degraded mode (EQ works even if spectrum socket fails)
 
-**Previous (MVP-22):**
-- **Mixer block editor** with inline routing controls (gain/invert/mute per source)
-- **Routing validation:** Errors block upload (silent channel loss), warnings shown but non-blocking (summing, gain > 0 dB while summing)
-- **Live editing:** Debounced upload (200ms) with snapshot/revert on validation failure
-- **Test preset:** `mvp22-mixer-block-test.json` - 2ch passthrough mixer (device-safe)
+**Known limitations:**
+- Spectrum analyzer is approximate (bandpass filter bank, not FFT)
+- No multi-tab coordination (last-write-wins)
+- No authentication (designed for trusted LAN)
 
-**Previous (MVP-21 Follow-up):**
-- **Unified enablement semantics:** EQ and Pipeline editors now have consistent enable/disable behavior
-- **Global EQ mute:** Removes/restores filter across all Filter steps in pipeline
-- **Per-block Pipeline disable:** Affects only the selected Filter block
-- **Enabled computation:** Changed from overlay check to pipeline membership scan (present in any step = enabled)
-- **Overlay schema v2:** Multi-step aware with array of locations per filter
+---
 
-**Previous (MVP-21):**
-- **Inline filter parameter editing** in Pipeline page Filter blocks
-- **Enable/disable filters** with power button (⏻) - removes from pipeline, stores in localStorage overlay
-- **Remove filters** with × button - cleans up orphaned definitions
-- **Collapsed row value display** shows Hz, Q, dB without labels
-- **Reserved slot** for expand button prevents layout shift when block selected
-- **Disabled filters overlay** persists in browser localStorage and remaps on pipeline reorder
-- **Stable blockIds** remain unchanged across enable/disable operations
+## Architecture at a Glance
 
-**Previous (MVP-20):**
-- **Drag-and-drop filter reordering** inside Filter blocks on Pipeline page
-- **Landing zone visualization** shows insertion point during drag
-- **Direction-aware index adjustment** ensures correct drop behavior when dragging up/down
-- **Validation + snapshot/revert** prevents invalid pipeline states
-- **Stable identity keying** ensures smooth DOM updates during reorder
+```
+┌─────────────────────────────────────────────┐
+│  Browser (your laptop, phone, tablet)       │
+│                                             │
+│  - Loads UI from CamillaEQ server           │
+│  - Connects directly to CamillaDSP via WS   │
+│  - Stores presets via REST API              │
+└─────────────────────────────────────────────┘
+         │                    │
+         │                    │
+    ┌────▼────────┐     ┌─────▼──────────┐
+    │ CamillaEQ   │     │  CamillaDSP    │
+    │ Server      │     │                │
+    │ :3000       │     │  :1234 control │
+    │             │     │  :1235 spectrum│
+    │ (Node.js)   │     │  (Rust)        │
+    └─────────────┘     └────────────────┘
+```
 
-**New in MVP-17:**
-- **CamillaDSP version display** in status card when connected
-- **Audio devices section:** Capture/playback device lists with "In Use" badges
-- **Current configuration section:** YAML configs for control + spectrum with title/description
-- **DSP failures section:** Timestamped error log with request/response context (auto-clears on success)
+**Key design decisions:**
+- Browser connects **directly** to CamillaDSP (no WebSocket proxy)
+- CamillaEQ server is **not** in the audio path
+- Spectrum data flows browser ← CamillaDSP (no server involvement)
+- Backend handles presets and recovery cache only
 
-### Completed Milestones
+This keeps the audio path clean and allows CamillaEQ to fail without disrupting audio processing.
 
-#### MVP-0: Repo + Dev Environment ✓
-Monorepo structure, Fastify backend, Svelte frontend, dev workflow, build pipeline
+---
 
-#### MVP-1: Backend REST Foundation + Hardening ✓
-Structured error responses, request logging with correlation IDs, `shellExec` utility, comprehensive test coverage
+## Technology Stack
 
-#### MVP-2: Config Persistence API ✓
-ConfigStore service with atomic writes, GET/PUT endpoints, config validation, error handling
+**Frontend:**
+- Svelte 4 (reactive UI framework)
+- TypeScript (type safety)
+- Vite (build tool + dev server)
+- Canvas API (spectrum rendering)
+- SVG (EQ curves and tokens)
 
-#### MVP-3: Client CamillaDSP Module ✓
-WebSocket client for CamillaDSP control + spectrum, mock server for testing, 9 integration tests
+**Backend:**
+- Node.js 18+
+- Fastify (HTTP framework)
+- TypeScript (ES modules)
 
-#### MVP-4: EQ Editor Layout (Static) + Band Theming ✓
-4-zone EQ graph layout (octaves, regions, plot, frequency scale), log10 frequency mapping, decade-based grid, band tokens with compensated ellipses, right panel with band columns, band theming contract with CSS custom properties
+**Testing:**
+- Vitest (client tests)
+- Jest (server tests)
+- 240+ tests total
 
-#### MVP-5: SVG EQ Curve Rendering (Sum + Per-Band) ✓
-RBJ biquad filter response calculation, `EqSvgRenderer` module, reactive curve generation (256 sample points), sum curve + optional per-band curves, Tangzu Waner reference config (10 bands)
+---
 
-#### MVP-6: Interactive Tokens + Bidirectional Sync ✓
-**Fully functional EQ editor with:**
-- State management via Svelte stores (`eqStore.ts`)
-- Interactive drag on tokens (freq/gain/Q adjustment)
-- Functional right panel controls (fader, mute, frequency/Q dials)
-- Bidirectional synchronization (token ↔ controls ↔ curves)
-- Band selection sync across all UI elements
-- Layout refinements (viz options alignment, selection styling)
-- 49 client tests passing (5 test suites)
+## Contributing
 
-#### MVP-7: Canvas Spectrum Renderer + Mode Toggles ✓
-**Real-time spectrum visualization with:**
-- **Pluggable layer architecture** for extendable background visualizations
-  - `CanvasVisualizationLayer` interface for modular rendering
-  - `SpectrumAreaLayer` renders filled curve with visible outline
-- **Canvas-based rendering** (~10Hz) with zero DOM churn and DPR-aware sizing
-- **Filled spectrum curve** (area fill + brighter outline) replaces vertical bars
-- **Smoothing system:**
-  - Catmull-Rom spline interpolation for geometric smoothing
-  - Moving-average data filter (default window size: 5, configurable 1-20)
-  - Toggle: "Smooth spectrum" checkbox in viz options
-  - Internal `smoothingStrength` parameter (not yet wired to GUI, ready for future control)
-- Spectrum data parser supporting multiple formats (256+ bins, legacy 2-channel)
-- Integration into EqPage with automatic CamillaDSP connection
-- Mode toggles: Off / Pre-EQ / Post-EQ with distinct colors
-- Stale frame detection (>500ms → fade indicator)
-- MockCamillaDSP updated to generate realistic 256-bin spectrum data
-- **Bug fixes:**
-  - Fixed resize scaling accumulation (`ctx.setTransform()` reset)
-  - Fixed smooth fill path closure (proper bottom-left anchor)
-- Full test coverage (19 spectrumParser tests, updated integration tests)
-- All 68 client tests passing
+Contributions are welcome. Before opening a PR:
 
-#### MVP-8: Real CamillaDSP Integration + Upload Policy ✓
-**Full CamillaDSP protocol integration with:**
-- **Extended DSP math** for 7 filter types using RBJ Audio EQ Cookbook formulas:
-  - Peaking, HighShelf, LowShelf (freq + q + gain)
-  - HighPass, LowPass, BandPass, AllPass (freq + q)
-- **Bidirectional CamillaDSP ⇄ EqBand mapping layer** (`camillaEqMapping.ts`):
-  - Extract EQ bands from CamillaDSP config (uses channel 0 as reference)
-  - Apply EQ bands to ALL channels in config
-  - Only Biquad filters with 7 supported subtypes
-- **Upload-on-commit with debounce** (200ms default via `debounceCancelable()`):
-  - Every parameter change (freq/gain/q/enabled) triggers debounced upload
-  - `SetConfigJson` followed by `Reload` per CamillaDSP spec
-  - Upload status tracked (idle/pending/success/error)
-- **Global DSP state management** (`dspStore.ts`):
-  - Singleton CamillaDSP instance shared across all pages
-  - Connection state management with auto-reconnect
-  - Config synchronization (CamillaDSP → eqStore on connect)
-- **Master volume control**:
-  - Master fader controls CamillaDSP volume via `SetVolume`
-  - Range: -150 to +50 dB (per CamillaDSP spec)
-  - Debounced live updates during drag (200ms)
-  - `GetVolume` on connect to sync initial state
-- **Visual feedback**:
-  - Nav icon colors: green (connected/success), blue (connecting/pending), red (error)
-  - Upload status with automatic 2s success timeout
-- All 76 client tests passing (6 test suites)
+1. Read the [Developer Documentation](docs/developer/)
+2. Ensure tests pass: `npm test`
+3. Follow the [Extension Points](docs/developer/extension-points.md) guide
+4. Keep changes focused and well-tested
 
-### Current Capabilities
-
-The application now provides a **fully interactive equalizer editor** with:
-- Real-time EQ curve visualization (sum + per-band)
-- **Real-time spectrum overlay** (Canvas, ~10Hz):
-  - Filled area curve with visible outline
-  - Pre-EQ / Post-EQ / Off modes with distinct colors
-  - Optional smoothing (spline + data filter)
-  - Extendable layer system for future visualizations
-- Drag tokens to adjust frequency and gain
-- Shift+drag or mouse wheel to adjust Q/bandwidth
-- Right panel controls (faders, mute buttons, parameter dials)
-- Live curve updates as parameters change
-- Band selection and visual feedback
-- Log-scale frequency axis (20 Hz - 20 kHz)
-- Linear gain axis (±24 dB)
-
-#### MVP-9: Config Library + Persistence Roundtrip ✓
-**Preset management with compact, searchable UI:**
-- **Server-side config library** (`server/src/services/configsLibrary.ts`):
-  - Lists configs from `server/data/configs/` directory
-  - Loads/saves pipeline-config JSON format
-  - Atomic writes, validation, error handling
-- **New API endpoints:**
-  - `GET /api/configs` - List all saved configurations with metadata
-  - `GET /api/configs/:id` - Get specific configuration
-  - `PUT /api/configs/:id` - Save configuration
-- **Pipeline-config mapping layer** (`client/src/lib/pipelineConfigMapping.ts`):
-  - `pipelineConfigToCamillaDSP()` - Converts simplified format → full CamillaDSP config
-  - `camillaDSPToPipelineConfig()` - Extracts filters/preamp from CamillaDSP config
-  - Full config replacement (pipeline + filters + devices)
-- **Presets page UI** (`client/src/pages/PresetsPage.svelte`):
-  - Compact list layout (2-3× more presets visible than card grid)
-  - **Search functionality:**
-    - Case-insensitive substring matching
-    - Real-time filtering with result counter
-    - Highlighted matched substrings in yellow
-  - **Keyboard navigation:**
-    - Press `/` anywhere to focus search (Vim-style)
-    - Arrow Up/Down to navigate results
-    - Enter to load highlighted preset
-    - Hover also highlights rows
-  - **Load/Save operations:**
-    - Load: Fetches config → converts to CamillaDSP → uploads → syncs EQ UI
-    - Save: Downloads from CamillaDSP → converts → saves to server
-  - Error handling and loading states
-- **Full roundtrip flow:**
-  - Config storage: `server/data/configs/` (tracked in git)
-  - Format: pipeline-config JSON (configName, filterArray with filters/preamp/volume)
-  - All 130 tests passing (76 client + 54 server)
-
-#### MVP-10: Tooltip & Labels on Band Editor ✓
-**Visual enhancements for precision and feedback:**
-- **Fader value tooltip**: SVG-based, band-themed, collision-aware positioning
-  - Appears on fader `pointerdown`, fades out over 1.5s
-  - Displays formatted gain value (±X.X dB)
-  - Flips to right side when would clip off-screen
-  - Single global tooltip instance (avoids DOM churn)
-
-#### MVP-11: EQ Page Layout Refinement ✓
-**Vertically aligned plot + fader tracks for visual continuity:**
-- **3-row grid layout** across main panel and band columns:
-  - Row 1 (auto height): Top controls/labels (octaves, regions, filter icons)
-  - Row 2 (flex: 1): Main interactive area (EQ plot + fader tracks stretch together)
-  - Row 3 (auto height): Bottom controls (freq scale, viz options, knobs, mute buttons)
-- **Precise vertical alignment**: EQ plot top/bottom aligns with fader track top/bottom
-- **Shared row sizing**: Each row height = max(main panel, band columns)
-- All existing functionality preserved (dragging, curves, synchronization)
-- No visual gaps or misalignments
-
-#### MVP-12: Informative EQ Plot Tokens ✓
-**Enhanced token visuals with comprehensive feedback:**
-- **Token center index number**: Shows filter's position in pipeline (1, 2, 3...)
-- **Selection halo**: Outer glow ring (1.8× radius) when token selected
-- **Q/BW arc indicator**: Visual arc around token perimeter
-  - Sweep range: 30° (Q=0.1) to 270° (Q=10), centered at top
-  - Arc split into 2 segments for sweeps >180° (prevents jitter)
-- **Frequency label**: Smart formatting ("1.2k Hz" or "150 Hz") in band accent color
-- **Q label**: "Q 2.5" format (1 decimal place) in muted band color
-- **Boundary-aware label placement**: Labels smoothly transition from "below" to "side orbit" when token approaches bottom
-  - Uses smoothstep interpolation for smooth movement
-  - Chooses left/right side based on token X position
-- **Shift-mode cursor feedback**: Cursor changes to `ns-resize` when Shift held (Q adjustment mode)
-- **Token circularity maintained**: Compensated ellipse approach ensures tokens remain circular when plot stretches
-- All 112 client tests passing (including 25 tokenUtils tests, 8 EqPage tests)
-
-#### MVP-13: Filter Type Selection ✓
-**Interactive filter type picker with polished popover UI:**
-- **Filter type picker component** (`client/src/components/FilterTypePicker.svelte`):
-  - 7 filter types supported: Peaking, LowShelf, HighShelf, HighPass, LowPass, BandPass, Notch
-  - 4×2 grid layout with filter icon + label + subtitle per type
-  - Subtitles indicate parameter availability ("Gain + Q" vs "Q only")
-- **Side popover placement**:
-  - Positioned left or right of 38px band column with 6px gap
-  - Prefers right side, falls back to left if insufficient room
-  - Vertical centering on filter icon with viewport clamping
-  - Speech-bubble tail (CSS double-triangle) points to filter icon
-  - Lighter border color for better visual separation
-- **Keyboard navigation**:
-  - Arrow keys (up/down/left/right) navigate grid
-  - Enter/Space selects highlighted type
-  - Escape closes popover
-- **Parameter preservation**:
-  - Frequency always preserved across type changes
-  - Gain preserved when switching between gain-supporting types
-  - Q preserved across all types
-- **Visual feedback**:
-  - Current type highlighted in popover
-  - Keyboard-selected type highlighted differently
-  - Band icon updates to reflect new type
-  - Curve updates immediately on type change
-- **Integration**:
-  - `eqStore.ts` extended with `setBandType()` action
-  - Type changes trigger curve regeneration
-  - Upload debounce applies to type changes (200ms)
-- All 113 client tests passing
-
-#### MVP-14: Informative EQ Plot Token Highlighting ✓
-**Focus mode with visual emphasis and area-of-effect visualization:**
-- Focus mode: Selected token bright + labels visible; others dimmed to 30% with labels hidden
-- Curves: Sum curve thin/low contrast + selected band curve thick/bright
-- Spectrum ducking: Partial duck (70%) on selection, stronger duck (40%) while actively editing
-- Area-of-effect per filter type:
-  - Peaking: Filled area under curve to baseline (0 dB)
-  - Shelf: Half-plane tint (left for LowShelf, right for HighShelf)
-  - HP/LP: Localized tint around cutoff frequency
-  - BandPass: Full-height window tint with true -3 dB boundaries
-  - Notch: Localized halo (wider stroke behind curve)
-- Bandwidth markers: -3 dB half-power points for Peaking/Notch (toggle, default ON)
-- Band fill opacity control: Knob dial (0-100%, default 40%) with sum-curve colored arc
-- Deselection: Click plot background clears selection
-- All 137 tests passing
-
-#### MVP-19: Pipeline Viewer (Read-Only Display) ✓
-**Pipeline page showing CamillaDSP signal flow:**
-- **Pipeline view model** (`client/src/lib/pipelineViewModel.ts`):
-  - Converts CamillaDSP config → render-friendly block view models
-  - Supports Filter, Mixer, and Processor pipeline steps
-  - Detects missing references (orphaned filter/mixer names)
-- **Block components** (`client/src/components/pipeline/*`):
-  - FilterBlock: channel badges, filter list with type icons, missing reference indicators
-  - MixerBlock: mixer name + in/out channel summary
-  - ProcessorBlock: generic processor/unknown step display
-- **Pipeline page** (`client/src/pages/PipelinePage.svelte`):
-  - Vertical stack with explicit `[ Input ] → blocks → [ Output ]` signal flow
-  - Robust empty states (not connected / loading / no pipeline)
-  - Pure read-only rendering of shared `dspStore.config`
-
-#### MVP-20: Pipeline Block & Element Reordering ✓
-**Drag-and-drop filter reordering within Filter blocks:**
-- **Filter row reordering** (`client/src/components/pipeline/FilterBlock.svelte`):
-  - Per-row grab handles (☰, 24px) with pointer-based DnD (6px movement threshold)
-  - Landing zone system: "Drop here" indicator rendered before target row
-  - Direction-aware index adjustment (drag down: toIndex -= 1 to account for array shift)
-  - Placeholder behavior: dragged row at 50% opacity, no-flicker design (gaps removed during drag)
-  - Stable identity keying by filter.name
-- **PipelinePage integration**:
-  - Identity-based lookup via `getStepByBlockId()` (WeakMap-based blockId tracking)
-  - Validation + snapshot/revert: deep snapshot before reorder, reverts on validation failure
-  - Debounced upload (200ms) on successful reorder
-- **Supporting infrastructure**:
-  - `client/src/lib/pipelineUiIds.ts`: Stable UI-only blockId generation
-  - `client/src/lib/pipelineReorder.ts`: Pure array reordering utilities
-  - `client/src/state/pipelineEditor.ts`: Upload status tracking
-- All 240 tests passing
-
-### Next Milestone
-
-**MVP-18:** Review and refine state management
-
-## Documentation
-
-- [Design Specification](docs/design-spec.md) - Complete implementation specification
-- [Implementation Plan](docs/implementation-plan.md) - Sequential MVP milestones
-- [API Contract](docs/api-contract-camillaDSP.md) - CamillaDSP WebSocket protocol
+---
 
 ## License
 
-See LICENSE file for details.
+See [LICENSE](LICENSE) file for details.
+
+---
+
+## Acknowledgements
+
+- **Henrik Enquist** for [CamillaDSP](https://github.com/HEnquist/camilladsp)
+- **ismailAtaman** for [CamillaNode](https://github.com/ismailAtaman/camillaNode) (inspiration)
+- The RBJ Audio EQ Cookbook (filter math)
+
+---
+
+**Built with care by someone who just wanted better Zoom calls.**
+
+And since a picture is worth a thousand words...
+
+# Screenshots
+## The parametric equalizer
+![The parametric Equalizer](images/GUI-GraphicalEQ-highlights.webp "Graphical EQ")
+
+## The pipeline editor
+![The pipeline editor](images/GUI-PipelineEditor.webp "Pipeline")
+
+## The connection & diagnostics page
+![Connection and diagnostics](images/GUI-Connection.webp "Connection")
