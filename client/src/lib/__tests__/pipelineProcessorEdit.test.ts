@@ -145,32 +145,32 @@ describe('pipelineProcessorEdit', () => {
       expect(updated.processors!.comp1.parameters.channels).toBe(3);
     });
 
-    it('rounds threshold to 1 decimal place', () => {
+    it('rounds threshold to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setCompressorParam(config, 'comp1', 'threshold', -3.0933349609375007);
 
-      expect(updated.processors!.comp1.parameters.threshold).toBe(-3.1);
+      expect(updated.processors!.comp1.parameters.threshold).toBe(-3.09);
     });
 
-    it('rounds attack to 1 decimal place', () => {
+    it('rounds attack to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setCompressorParam(config, 'comp1', 'attack', 0.0456789);
 
-      expect(updated.processors!.comp1.parameters.attack).toBe(0);
+      expect(updated.processors!.comp1.parameters.attack).toBe(0.05);
     });
 
-    it('rounds release to 1 decimal place', () => {
+    it('rounds release to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setCompressorParam(config, 'comp1', 'release', 0.15678);
 
-      expect(updated.processors!.comp1.parameters.release).toBe(0.2);
+      expect(updated.processors!.comp1.parameters.release).toBe(0.16);
     });
 
-    it('rounds factor to 1 decimal place', () => {
+    it('rounds factor to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setCompressorParam(config, 'comp1', 'factor', 4.56789);
 
-      expect(updated.processors!.comp1.parameters.factor).toBe(4.6);
+      expect(updated.processors!.comp1.parameters.factor).toBe(4.57);
     });
 
     it('sets makeup_gain parameter (no clamping)', () => {
@@ -251,32 +251,32 @@ describe('pipelineProcessorEdit', () => {
       expect(updated.processors!.gate1.parameters.channels).toBe(2);
     });
 
-    it('rounds threshold to 1 decimal place', () => {
+    it('rounds threshold to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setNoiseGateParam(config, 'gate1', 'threshold', -45.6789123);
 
-      expect(updated.processors!.gate1.parameters.threshold).toBe(-45.7);
+      expect(updated.processors!.gate1.parameters.threshold).toBe(-45.68);
     });
 
-    it('rounds attenuation to 1 decimal place', () => {
+    it('rounds attenuation to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setNoiseGateParam(config, 'gate1', 'attenuation', -62.3456789);
 
-      expect(updated.processors!.gate1.parameters.attenuation).toBe(-62.3);
+      expect(updated.processors!.gate1.parameters.attenuation).toBe(-62.35);
     });
 
-    it('rounds attack to 1 decimal place', () => {
+    it('rounds attack to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setNoiseGateParam(config, 'gate1', 'attack', 0.0234567);
 
-      expect(updated.processors!.gate1.parameters.attack).toBe(0);
+      expect(updated.processors!.gate1.parameters.attack).toBe(0.02);
     });
 
-    it('rounds release to 1 decimal place', () => {
+    it('rounds release to 2 decimal places', () => {
       const config = createTestConfig();
       const updated = setNoiseGateParam(config, 'gate1', 'release', 0.2789123);
 
-      expect(updated.processors!.gate1.parameters.release).toBe(0.3);
+      expect(updated.processors!.gate1.parameters.release).toBe(0.28);
     });
 
     it('throws error for non-existent processor', () => {

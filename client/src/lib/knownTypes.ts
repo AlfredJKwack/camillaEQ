@@ -276,6 +276,8 @@ function formatNumber(value: any, showSign: boolean = false): string {
 /**
  * Check if a filter is editable in the UI
  * Validates that the filter definition is well-formed and of a supported type
+ * 
+ * Currently only Biquad filters with known subtypes are editable
  */
 export function isKnownEditableFilter(filterDef: any): boolean {
   // Handle missing/null filter
@@ -290,7 +292,7 @@ export function isKnownEditableFilter(filterDef: any): boolean {
     return false;
   }
   
-  // For Biquad filters, enforce subtype validation
+  // Only Biquad filters are editable in the EQ UI
   if (filterType === 'Biquad') {
     const biquadSubtype = filterDef.parameters?.type;
     
@@ -302,7 +304,6 @@ export function isKnownEditableFilter(filterDef: any): boolean {
     return true; // Valid biquad with known subtype
   }
   
-  // For non-Biquad filters, use kind-based check
-  const kind = getFilterUiKind(filterDef);
-  return isEditableFilterKind(kind);
+  // Non-Biquad filters are not editable in the EQ UI
+  return false;
 }

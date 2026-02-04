@@ -184,7 +184,7 @@ describe('camillaEqMapping', () => {
       expect(result.bands[0].enabled).toBe(true);
     });
 
-    it('should mark band as disabled when all relevant steps are bypassed', () => {
+    it('should exclude filters when all relevant steps are bypassed', () => {
       const configWithAllBypassed: CamillaDSPConfig = {
         ...mockConfig,
         pipeline: [
@@ -195,8 +195,9 @@ describe('camillaEqMapping', () => {
 
       const result = extractEqBandsFromConfig(configWithAllBypassed);
       
-      // All steps with Filter01 are bypassed
-      expect(result.bands[0].enabled).toBe(false);
+      // All steps with Filter01 are bypassed, so filter is not in EQ page at all
+      expect(result.bands.length).toBe(0);
+      expect(result.filterNames.length).toBe(0);
     });
 
     it('should default to 0 when no preamp mixer exists', () => {

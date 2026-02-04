@@ -102,7 +102,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
   }
 
   // Build unified ordered filter name list from ALL non-bypassed Filter steps (union strategy)
-  // MVP-27: Skip bypassed Filter steps entirely
+  // Bypassed steps are skipped entirely - user cannot unmute individual filters in a bypassed block
   // Dedupe by first occurrence in pipeline order
   const refNames: string[] = [];
   const seenNames = new Set<string>();
@@ -114,7 +114,7 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
       continue;
     }
 
-    // MVP-27: Skip bypassed Filter steps
+    // Skip bypassed Filter steps - they're out of signal path
     if (step.bypassed) {
       continue;
     }
@@ -172,21 +172,21 @@ export function extractEqBandsFromConfig(config: CamillaDSPConfig): ExtractedEqD
     }
 
     // Determine if filter is enabled
-    // A filter is enabled if present in AT LEAST ONE Filter step's enabled names
+    // A filter is enabled if present in AT LEAST ONE non-bypassed Filter step's enabled names
     let presentInAny = false;
-    let allRelevantStepsBypassed = true;
+    let presentInAnyNonBypassed = false;
     
     for (const step of filterSteps) {
       const stepNames = step.names || [];
       if (stepNames.includes(filterName)) {
         presentInAny = true;
         if (!step.bypassed) {
-          allRelevantStepsBypassed = false;
+          presentInAnyNonBypassed = true;
         }
       }
     }
     
-    const enabled = presentInAny && !allRelevantStepsBypassed;
+    const enabled = presentInAnyNonBypassed;
 
     // Extract parameters with fallbacks
     const freq = Number(params.freq || params.Frequency || 1000);
