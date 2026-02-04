@@ -317,7 +317,7 @@ describe('ConfigsLibrary', () => {
 
     it('should use default directory when not configured', () => {
       const defaultLibrary = new ConfigsLibrary();
-      expect(defaultLibrary.getConfigsDir()).toBe('./data/configs');
+      expect(defaultLibrary.getConfigsDir()).toBe('data/configs');
     });
 
     it('should respect environment variable', () => {

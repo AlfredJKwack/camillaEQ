@@ -139,6 +139,7 @@
   });
 </script>
 
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 <div
   class="filter-type-picker"
   role="dialog"

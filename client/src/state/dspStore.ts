@@ -8,6 +8,7 @@ import { CamillaDSP, type CamillaDSPConfig, type DeviceEntry, type DspEventInfo,
 import { debounce } from '../lib/debounce';
 import { getLatestState } from '../lib/api';
 import { parseSpectrumData } from '../dsp/spectrumParser';
+import { initializeFromConfig } from './eqStore';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'degraded' | 'error';
 
@@ -319,10 +320,11 @@ async function maybeRestoreLatestState(): Promise<void> {
   if (filterCount > 0 && hasFilterNames) {
     console.log(`CamillaDSP has ${filterCount} filters in use - using downloaded config`);
     
-    // Initialize EQ store immediately
+    // Initialize EQ store immediately (ensure filters exist for type safety)
     try {
-      const { initializeFromConfig } = await import('./eqStore');
-      initializeFromConfig(config);
+      if (config.filters) {
+        initializeFromConfig(config as any); // Type assertion safe here - we checked filters exist
+      }
     } catch (error) {
       console.error('Error initializing EQ from downloaded config:', error);
     }
@@ -333,9 +335,6 @@ async function maybeRestoreLatestState(): Promise<void> {
   console.log('Downloaded config is empty, attempting to restore latest state from server');
 
   try {
-    // Dynamically import to avoid circular dependency
-    const { initializeFromConfig } = await import('./eqStore');
-
     // Fetch latest state from server using API module
     const latestConfig = await getLatestState();
 
@@ -350,7 +349,9 @@ async function maybeRestoreLatestState(): Promise<void> {
 
     // Update store
     updateConfig(latestConfig);
-    initializeFromConfig(latestConfig);
+    if (latestConfig.filters) {
+      initializeFromConfig(latestConfig as any); // Type assertion safe - we need filters to initialize
+    }
 
     console.log('Successfully restored latest state from server');
   } catch (error) {

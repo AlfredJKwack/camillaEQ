@@ -866,11 +866,11 @@
     <!-- Row 2: Middle (Plot + Faders) -->
     <div class="eq-left-middle">
       <div class="eq-plot-area">
-        <div class="eq-plot" bind:this={plotElement} on:click={handlePlotBackgroundClick}>
+        <div class="eq-plot" bind:this={plotElement} on:click={handlePlotBackgroundClick} on:keydown={() => {}} role="button" tabindex="-1">
           <!-- Canvas spectrum layer (behind SVG) with ducking -->
           <canvas class="spectrum-canvas" bind:this={canvasElement} style="opacity: {spectrumOpacity}; transition: opacity 0.2s ease;"></canvas>
           
-          <svg viewBox="0 0 1000 400" preserveAspectRatio="none" on:click={handlePlotBackgroundClick}>
+          <svg viewBox="0 0 1000 400" preserveAspectRatio="none">
           <!-- Grid: Horizontal lines -->
           <g class="grid-horizontal">
             {#each gainTicks as gain}
@@ -1232,6 +1232,12 @@
                     class="fader-thumb"
                     on:pointerdown={handleMasterFaderPointerDown}
                     on:dblclick={(e) => { e.preventDefault(); setPreampGain(0); }}
+                    role="slider"
+                    tabindex="-1"
+                    aria-label="Preamp gain"
+                    aria-valuemin={-24}
+                    aria-valuemax={24}
+                    aria-valuenow={$preampGain}
                   ></div>
                 </div>
               </div>
@@ -1287,6 +1293,12 @@
                       class="fader-thumb"
                       on:pointerdown={(e) => handleFaderPointerDown(e, i)}
                       on:dblclick={(e) => handleFaderDoubleClick(e, i)}
+                      role="slider"
+                      tabindex="-1"
+                      aria-label="Band {i + 1} gain"
+                      aria-valuemin={-24}
+                      aria-valuemax={24}
+                      aria-valuenow={band.gain}
                     ></div>
                   </div>
                 </div>

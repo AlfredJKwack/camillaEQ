@@ -316,23 +316,6 @@
     font-size: 0.8125rem;
   }
   
-  .param-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-  
-  .param-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--ui-border);
-    border-radius: 4px;
-  }
-  
   .param-label {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -406,13 +389,6 @@
     background: rgba(212, 164, 255, 0.05);
     border: 1px solid rgba(212, 164, 255, 0.2);
     border-radius: 4px;
-  }
-  
-  .control-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
   }
   
   .bypass-control {
@@ -497,44 +473,6 @@
   }
   
   .channels-input:focus {
-    outline: none;
-    border-color: rgba(212, 164, 255, 0.5);
-  }
-  
-  /* Legacy styles (kept for compatibility) */
-  .control-label {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--ui-text-muted);
-    min-width: 100px;
-  }
-  
-  .control-input {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  
-  .control-value {
-    font-family: 'Courier New', monospace;
-    font-size: 0.8125rem;
-    color: var(--ui-text);
-    min-width: 80px;
-    text-align: right;
-  }
-  
-  .numeric-input {
-    width: 80px;
-    padding: 0.375rem 0.5rem;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--ui-border);
-    border-radius: 4px;
-    color: var(--ui-text);
-    font-family: 'Courier New', monospace;
-    font-size: 0.8125rem;
-  }
-  
-  .numeric-input:focus {
     outline: none;
     border-color: rgba(212, 164, 255, 0.5);
   }
