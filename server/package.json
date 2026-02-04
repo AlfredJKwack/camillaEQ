@@ -13,6 +13,7 @@
     "test:watch": "node --experimental-vm-modules ../node_modules/jest/bin/jest.js --watch"
   },
   "dependencies": {
+    "@fastify/static": "^9.0.0",
     "@types/ws": "^8.18.1",
     "dotenv": "^16.4.1",
     "fastify": "^4.26.0",

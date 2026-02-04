@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Build
+      run: npm run build
+      env:
+        BUILD_HASH: ${{ github.sha }}
+        BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+    
+    - name: Verify build artifacts
+      run: |
+        test -f server/dist/index.js || exit 1
+        test -f client/dist/index.html || exit 1
+        test -d server/dist/client || exit 1
+        echo "✓ Build artifacts verified"

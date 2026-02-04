@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { getConfigDir } from '../configPaths.js';
 
 export function registerHealthRoutes(app: FastifyInstance): void {
   app.get('/health', async () => {
@@ -8,7 +9,7 @@ export function registerHealthRoutes(app: FastifyInstance): void {
     
     // Check if config directory is writable
     try {
-      const configDir = process.env.CONFIG_DIR || join(process.cwd(), 'server', 'data');
+      const configDir = getConfigDir();
       const testFile = join(configDir, `.health-check-${Date.now()}.tmp`);
       
       await fs.writeFile(testFile, 'test', 'utf8');

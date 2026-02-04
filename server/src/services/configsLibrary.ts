@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { AppError, ErrorCode } from '../types/errors.js';
+import { getConfigsDir } from '../configPaths.js';
 
 /**
  * Configuration for configs library
@@ -9,8 +10,6 @@ export interface ConfigsLibraryConfig {
   /** Directory where config library is stored */
   configsDir?: string;
 }
-
-const DEFAULT_CONFIGS_DIR = './data/configs';
 
 /**
  * Metadata for a saved config
@@ -55,7 +54,7 @@ export class ConfigsLibrary {
   private configsDir: string;
 
   constructor(config: ConfigsLibraryConfig = {}) {
-    this.configsDir = config.configsDir || process.env.CONFIGS_DIR || DEFAULT_CONFIGS_DIR;
+    this.configsDir = config.configsDir || getConfigsDir();
   }
 
   /**

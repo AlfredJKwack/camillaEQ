@@ -73,6 +73,22 @@ Run all tests:
 npm test
 ```
 
+### 6. Production Deployment
+
+For production deployment on a headless SBC (Orange Pi, Raspberry Pi, etc.):
+
+```bash
+# Build the application
+npm run build
+
+# Start production server
+npm run start
+```
+
+The production server serves both the API and the built UI on a single port (default: 3000).
+
+For systemd deployment instructions, see `deploy/systemd/README.md`.
+
 ## Spectrum Analyzer (MVP-16)
 
 To see the real-time spectrum analyzer overlay without a real CamillaDSP device, use the included **MockCamillaDSP** WebSocket server:

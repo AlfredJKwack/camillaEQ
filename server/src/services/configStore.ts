@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { AppError, ErrorCode } from '../types/errors.js';
+import { getConfigDir } from '../configPaths.js';
 
 /**
  * Configuration for config storage
@@ -14,7 +15,6 @@ export interface ConfigStoreConfig {
   maxConfigSize?: number;
 }
 
-const DEFAULT_CONFIG_DIR = './data';
 const DEFAULT_CONFIG_FILE = 'config.json';
 const DEFAULT_MAX_SIZE = 1024 * 1024; // 1MB
 
@@ -27,7 +27,7 @@ export class ConfigStore {
   private maxConfigSize: number;
 
   constructor(config: ConfigStoreConfig = {}) {
-    this.configDir = config.configDir || process.env.CONFIG_DIR || DEFAULT_CONFIG_DIR;
+    this.configDir = config.configDir || getConfigDir();
     this.configFileName = config.configFileName || DEFAULT_CONFIG_FILE;
     this.maxConfigSize = config.maxConfigSize || DEFAULT_MAX_SIZE;
   }

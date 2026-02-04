@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { ConfigStore } from '../services/configStore.js';
+import { getConfigDir } from '../configPaths.js';
 
 export function registerStateRoutes(app: FastifyInstance): void {
   const latestStateStore = new ConfigStore({
-    configDir: './data',
+    configDir: getConfigDir(),
     configFileName: 'latest_dsp_state.json',
   });
 
