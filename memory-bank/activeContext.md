@@ -1,244 +1,113 @@
 # Active Context
 
 ## Current Focus
-**MVP-26 completed** (2026-02-03) - EQ-Pipeline Synchronization with optimistic UI + DSP-confirmed convergence model.
+**Documentation + Test Fixes completed** (2026-02-04) - Production-ready persona-based documentation and full test suite passing.
 
 ## Recently Completed
-**MVP-26: EQ-Pipeline Synchronization** (2026-02-03)
+**Documentation Overhaul (Persona-Based)** (2026-02-04)
 
 ### Overview
-Implemented convergence model ensuring `dspStore.config` always reflects DSP-confirmed state after uploads, while allowing optimistic UI updates for fast feedback.
+Created comprehensive production-ready documentation organized by three distinct personas, replacing old narrative-style docs.
 
-### Implementation Model
-**Optimistic UI with DSP-confirmed convergence:**
-- UI may update optimistically for immediate feedback
-- After every successful upload, `dspStore.config` is overwritten with the **post-upload re-downloaded config from CamillaDSP**
-- On upload failure: show error + best-effort resync; if resync unavailable, keep local edits as pending
+### Documentation Structure
+```
+/docs
+  /end-user          # For end users who just want to use the EQ
+  /developer         # For OSS developers who want to understand/modify code
+  /power-user        # For deployers running on headless SBCs
+```
 
-### Changes Made
-1. **EQ Store (`client/src/state/eqStore.ts`):**
-   - Success path uses `dspInstance.config` (confirmed) instead of `updatedConfig`
-   - Re-extracts EQ bands from confirmed config to keep UI aligned
-   - Failure path implements best-effort resync (downloads current DSP config)
-   - If resync fails, keeps optimistic state to preserve user work
+### Files Created/Updated
+1. **End User docs:**
+   - `docs/end-user/overview.md` - What CamillaEQ does and doesn't do
+   - `docs/end-user/quick-start.md` - Step-by-step installation and first connection
+   - `docs/end-user/spectrum-analyzer.md` - What spectrum shows, data sources, limitations
+   - `docs/end-user/troubleshooting.md` - Common issues and solutions
 
-2. **PresetsPage (`client/src/pages/PresetsPage.svelte`):**
-   - After upload success, uses `dsp.config` (confirmed) instead of pre-upload `camillaConfig`
-   - Syncs global dspStore and initializes eqStore with confirmed config
+2. **Developer docs:**
+   - `docs/developer/architecture.md` - High-level system design and constraints
+   - `docs/developer/runtime-topology.md` - Process relationships and data flow
+   - `docs/developer/data-flow.md` - Request/response patterns for all three paths
+   - `docs/developer/frontend.md` - Client architecture, stores, rendering layers
+   - `docs/developer/backend.md` - Server responsibilities, endpoints, services
+   - `docs/developer/state-and-persistence.md` - State ownership and sync model
+   - `docs/developer/extension-points.md` - How to extend the system safely
 
-3. **Pipeline Editor (`client/src/state/pipelineEditor.ts`):**
-   - Already correct: uses `dspInstance.config` (confirmed) after successful upload
-   - Established pattern now consistent across all editors
+3. **Power User docs:**
+   - `docs/power-user/deployment-models.md` - Dev vs production deployment patterns
+   - `docs/power-user/linux-services.md` - systemd service setup with examples
+   - `docs/power-user/headless-sbc.md` - Running on Raspberry Pi and similar
+   - `docs/power-user/recovery-and-backups.md` - Backup strategies and recovery procedures
 
-### Result
-EQ and Pipeline editors now have consistent convergence semantics with optimistic-then-confirmed flow.
+4. **README.md:** Complete rewrite with persona-specific navigation
 
-**Previous (MVP-23: Add/Remove Pipeline Blocks)** (2026-02-01)
+### Key Principles
+- **As-built accuracy:** Documentation reflects actual implementation, not aspirational designs
+- **Persona separation:** Each doc explicitly states who it's for and what it doesn't cover
+- **Actionable content:** Users can install, run, debug, and extend using only these docs
+- **No history duplication:** Git is source of truth for project history
+
+---
+
+**Test Suite Fixes** (2026-02-04)
 
 ### Overview
-Implemented full add/remove functionality for pipeline blocks with toolbar UI, validation, and orphan cleanup.
+Fixed 4 failing client tests across 3 modules by correcting implementation logic and test expectations.
 
-### Implemented Features
+### Issues Fixed
 
-**1. Add/remove toolbar:**
-- 4 toolbar buttons: Add Filter (🎚️), Add Mixer (🔀), Add Processor (⚙️), Remove Selected (🗑️)
-- Toolbar only visible when connected and config loaded
-- Remove button right-aligned, disabled when no selection
+**1. camillaEqMapping - Bypassed filter blocks** (`client/src/lib/camillaEqMapping.ts`)
+- **Problem:** Bypassed Filter steps were included in EQ page filter list
+- **Root cause:** Filter list building didn't skip bypassed steps
+- **Fix:** Skip bypassed Filter steps entirely when building `refNames` array
+- **Rationale:** When a Filter block is bypassed, it's out of signal path - users cannot unmute individual filters within a bypassed block
+- **Test updated:** "should exclude filters when all relevant steps are bypassed"
 
-**2. Add Filter Block flow:**
-- Creates new Filter step with `channels: [0]`, empty `names[]`
-- Inserts after selected block (or at end if no selection)
-- Uses `createNewFilterStep()` helper
-- Validates and uploads immediately
+**2. knownTypes - Non-Biquad filter editability** (`client/src/lib/knownTypes.ts`)
+- **Problem:** `isKnownEditableFilter()` returned true for Delay filters
+- **Root cause:** Logic fell through to `isEditableFilterKind()` which returned true for Delay
+- **Fix:** Made function explicitly return false for all non-Biquad filters
+- **Rationale:** Only Biquad filters with known subtypes are currently editable in EQ UI
+- **Test fixed:** "should return false for non-Biquad filters"
 
-**3. Add Mixer Block flow:**
-- Creates 2→2 passthrough mixer with unique auto-generated name (mixer_1, mixer_2, etc.)
-- Inserts pipeline step after selected block (or at end)
-- Uses `createNewMixerBlock()` helper
-- Validates and uploads immediately
-
-**4. Add Processor Block flow:**
-- Prompts user for processor name via `window.prompt()` (default: "processor")
-- Creates empty processor definition `{}`
-- Generates unique name if collision detected
-- Inserts pipeline step after selected block (or at end)
-- Uses `createNewProcessorBlock(config, 'Processor', baseName)` helper
-- User must configure processor externally (parameters left empty)
-- Validates and uploads immediately
-
-**5. Remove Block flow:**
-- Removes selected pipeline step
-- Calls `cleanupOrphanDefinitions()` to remove unused filters/mixers/processors
-- Validates and uploads immediately
-- Deselects after removal
-
-**6. Validation:**
-- All operations validated via `dsp.validateConfig()` before upload
-- Snapshot/revert pattern on validation failure
-- Inline error banner displays validation errors
-- No confirmation dialogs (matches existing UX pattern)
-
-### Implementation Files
-- **Mutations:** `client/src/lib/pipelineBlockEdit.ts` (all block creation helpers + cleanup)
-- **UI:** `client/src/pages/PipelinePage.svelte` (toolbar + handlers)
-- **Cleanup:** `client/src/lib/disabledFiltersOverlay.ts` (`removeDisabledLocationsForStep()`)
-- **Tests:**
-  - `client/src/lib/__tests__/pipelineBlockEdit.test.ts` (17 tests)
-  - `client/src/pages/PipelinePage.test.ts` (8 tests)
+**3. pipelineProcessorEdit - Parameter rounding** (`client/src/lib/pipelineProcessorEdit.ts`)
+- **Problem:** Tests expected 2-decimal precision but code used 1-decimal
+- **Root cause:** Rounding formula used `* 10 / 10` instead of `* 100 / 100`
+- **Fix:** Changed all processor parameters to 2-decimal rounding consistently
+- **Parameters affected:** attack, release, threshold, factor, makeup_gain, attenuation
+- **Rationale:** Preserves user precision for common values like 0.05s attack time
+- **Tests updated:** All rounding test expectations changed to 2-decimal values
 
 ### Test Results
-- All 25 new/updated tests passing
-- All 240 client tests passing total
+- **Before fixes:** 4 tests failing
+- **After fixes:** All 385 tests passing (33 test files, 2 intentionally skipped)
+- **Test suites:** 6 server suites + 27 client suites
 
-### Documentation Updated
-- `docs/implementation-plan.md` - Marked MVP-23 complete with comprehensive "As Built" section
-- `README.md` - Updated project status, added MVP-23 feature summary
-- `memory-bank/progress.md` - Added MVP-23 milestone entry
-- `memory-bank/activeContext.md` - Updated current focus (this file)
-
-**Previous (MVP-22: Mixer Block Editor)** (2026-02-01)
-
-### Overview
-Implemented full mixer block editor with inline routing controls, validation, and live editing on the Pipeline page.
-
-### Implemented Features
-
-**1. Mixer block editor UI:**
-- Expandable mixer blocks with inline routing editor
-- Per-destination channel display with list of source channels
-- Per-source controls: gain knob (-150 to +50 dB), invert toggle, mute toggle
-- Destination-level mute toggle
-- Inline validation warnings/errors per destination
-- Compact summary view when collapsed
-
-**2. Routing validation:**
-- **Error (blocks upload):** Destination has 0 unmuted sources (unless dest itself muted)
-- **Warning (non-blocking):** Destination sums >1 unmuted source
-- **Warning (non-blocking):** Summing with any source gain > 0 dB (risk of clipping)
-- Validation runs continuously as user edits
-- Results displayed inline on affected destination
-
-**3. Gain editing:**
-- Per-source gain: -150 to +50 dB (CamillaDSP range)
-- KnobDial component (24px) for gain adjustment
-- Default: 0 dB (unity gain)
-- Live updates with debounced upload (200ms)
-
-**4. Test config:**
-- `server/data/configs/mvp22-mixer-block-test.json` - 2ch passthrough mixer
-- Changed from 4→2 downmix to 2ch-safe for device compatibility
-- Reason: Presets don't store `devices`, so mixer must match common 2ch capture/playback
-
-### Implementation Files
-- **UI:** `client/src/components/pipeline/MixerBlock.svelte`
-- **State mutations:** `client/src/lib/pipelineMixerEdit.ts`
-- **Validation:** `client/src/lib/mixerRoutingValidation.ts`
-- **Tests:**
-  - `client/src/lib/__tests__/pipelineMixerEdit.test.ts` (17 tests)
-  - `client/src/lib/__tests__/mixerRoutingValidation.test.ts` (8 tests)
-
-### Test Results
-- All 25 new tests passing (17 mixer edit + 8 validation)
-- All 292 tests passing total (240 client + 52 server, 2 intentionally skipped)
-
-### Documentation Updated
-- `docs/implementation-plan.md` - Marked MVP-22 complete with "As Built" section
-- `README.md` - Added "Mixer Editing (MVP-22)" section with usage instructions
-- `docs/rest-api.md` - Updated `/api/configs/:id` to document extended preset format
-- `memory-bank/progress.md` - Added MVP-22 milestone entry
-- `memory-bank/activeContext.md` - Updated current focus
-
-**Previous (MVP-21 Follow-up: Unified Enablement Semantics)** (2026-02-01)
-
-### Overview
-Unified the enablement semantics across EQ and Pipeline editors to resolve confusion between global mute and per-block disable operations. Changed enabled computation from overlay check to pipeline membership scan.
-
-### Implemented Features
-
-**1. Unified enablement semantics:**
-- **Enabled computation:** Filter is enabled if present in **at least one** relevant Filter step
-- **Relevant Filter steps:** All `step.type === 'Filter'` steps containing EQ biquad filter set
-- **Global vs per-block behavior:**
-  - **EQ editor mute:** Global operation (removes/restores filter across all Filter steps)
-  - **Pipeline editor enable/disable:** Per-block operation (affects only selected Filter step)
-
-**2. Overlay schema v2 (multi-step aware)** (`client/src/lib/disabledFiltersOverlay.ts`):
-- Migrated from `Record<string, DisabledFilterLocation>` to `Record<string, DisabledFilterLocation[]>`
-- Each filter can have multiple disabled locations (one per Filter step where it was disabled)
-- Each location: `{ stepKey, index, filterName }`
-- **Migration:** `loadDisabledFiltersOverlay()` wraps v1 single location into array
-- Added `markFilterEnabledForStep()` - per-block enable (removes only specified step's overlay entry)
-- Existing `markFilterDisabled()` adds to location array
-- Existing `markFilterEnabled()` removes all locations (global enable)
-
-**3. EQ enabled computation** (`client/src/lib/camillaEqMapping.ts`):
-- **Changed from overlay check to pipeline membership scan**
-- `extractEqBandsFromConfig()` checks if filter present in any Filter step
-- Band shows as enabled if present in at least one step (not bypassed)
-- Removed dependency on disabled overlay for enabled computation
-
-**4. Global enable/disable helpers** (`client/src/lib/filterEnablement.ts`):
-- `ensureFilterEnabledInAllSteps()` - adds filter to all relevant Filter steps (for EQ mute)
-- `removeFilterFromAllSteps()` - removes filter from all relevant Filter steps (for EQ mute)
-- Used by EQ editor's toggle mute functionality
-
-**5. Per-block enable** (`client/src/lib/pipelineFilterEdit.ts`):
-- `enableFilter()` now uses `markFilterEnabledForStep()` instead of `markFilterEnabled()`
-- Restores filter only to the specific step where it was disabled
-- Preserves disabled state in other Filter steps
-
-### Test Updates
-- **Obsolete tests removed/skipped:**
-  - `eqStore.test.ts`: `setFilterBypassed` unit test (skipped - behavior changed to pipeline scan)
-  - `EqPage.behavior.test.ts`: `toggleBandEnabled` integration test (skipped - behavior changed)
-- All 292 tests passing (240 client + 52 server, 2 intentionally skipped)
-
-### Documentation Updates
-- **docs/implementation-plan.md**: Added MVP-21 Follow-up section with comprehensive details
-- **docs/current-architecture.md**: Added "Unified enablement semantics" section under Pipeline Editor
-- **README.md**: Updated project status to MVP-21 Follow-up Complete
-- **memory-bank/progress.md**: Added MVP-21 Follow-up milestone entry
-- **memory-bank/activeContext.md**: Updated current focus
-
-### Next Steps
-- MVP-22+: Future pipeline editing features (add/remove blocks, mixer editing, etc.)
+### Files Modified
+1. `client/src/lib/camillaEqMapping.ts` - Skip bypassed steps in filter list building
+2. `client/src/lib/knownTypes.ts` - Explicit false return for non-Biquad filters
+3. `client/src/lib/pipelineProcessorEdit.ts` - 2-decimal rounding for all parameters
+4. `client/src/lib/__tests__/pipelineProcessorEdit.test.ts` - Updated 8 test expectations
+5. `client/src/lib/__tests__/camillaEqMapping.test.ts` - Updated 1 test assertion
 
 ## Decisions Made
-- ✅ **Frontend framework:** Svelte (ADR-003)
-- ✅ **Monorepo:** Single repo with workspaces
-- ✅ **Testing:** Jest (backend) + Vitest (frontend) + Playwright (E2E, deferred)
-- ✅ **Layout pattern:** 4-zone grid with shared right-side column (44px) for axis labels
-- ✅ **Curve rendering:** RBJ biquad formulas, 256 sample points, reactive SVG paths
-- ✅ **EQ graph semantics:** Filter bank response only (excludes preamp/output gain)
-- ✅ **Spectrum rendering:** Canvas layer with pluggable architecture, multi-series analyzer
-- ✅ **Temporal averaging:** EMA in dB domain with actual dt timing (ADR-007)
-- ✅ **Fractional-octave smoothing:** Log-frequency spacing, applied before averaging (ADR-007)
-- ✅ **Overlay enablement:** Driven by analyzer series toggles, not Pre/Post selector (ADR-007)
-- ✅ **Canvas resolution:** Use DPR scaling for retina displays
-- ✅ **Layer architecture:** `CanvasVisualizationLayer` interface for extendable visualizations
-- ✅ **Failure tracking:** Accumulate failures, clear on any success (MVP-17)
+- ✅ **Documentation approach:** Persona-based organization (End User / Developer / Power User)
+- ✅ **Bypassed filters:** Excluded from EQ page entirely (not just shown as disabled)
+- ✅ **Parameter rounding:** 2-decimal precision for all processor parameters
+- ✅ **Editable filters:** Only Biquad filters with known subtypes (Delay/Gain/etc. not editable)
 
 ## Open Questions
-- **Upload debounce timing:** 200ms current - validated as good balance
-- **CamillaDSP spectrum Q:** Current default Q=18 - recommend Q=12-16 for smoother display (documented in current-architecture.md)
+None at this stage.
 
 ## Current Risks
-- **CamillaDSP overload** - Mitigated with 200ms upload debounce
-- **Network latency** - Optimistic UI updates, write-through persistence
+None identified.
 
-## Risk Mitigation Strategy (per implementation plan)
-- ✅ **MVP-17 validated:** DSP info display provides comprehensive diagnostics
-- ✅ **Failure tracking:** Clear visibility into DSP communication issues
-- ✅ **Version display:** Users can verify CamillaDSP compatibility
-
-## Next Milestones
-1. **MVP-18:** Review and refine state management (eqStore, dspStore patterns)
-2. **Future:** Multi-channel pipeline editor, advanced features
+## Next Steps
+- Future enhancements per backlog
+- User feedback integration
 
 ## Context References
+- **`docs/`** - Complete persona-based documentation
 - **`docs/implementation-plan.md`** - Sequential MVP roadmap (authoritative)
-- **`docs/current-architecture.md`** - As-built architecture + CamillaDSP spectrum interdependencies
-- `docs/design-spec.md` - Implementation specification
-- `docs/api-contract-camillaDSP.md` - CamillaDSP protocol contract
-- `memory-bank/decisions.md` - ADR-001 through ADR-007
+- **`docs/current-architecture.md`** - As-built architecture
 - `memory-bank/` - All context documents
