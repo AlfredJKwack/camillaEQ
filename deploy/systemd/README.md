@@ -17,9 +17,21 @@ sudo useradd -r -s /bin/false camillaeq
 sudo mkdir -p /opt/camillaeq
 sudo chown camillaeq:camillaeq /opt/camillaeq
 
-# Copy built application
-sudo cp -r server/dist /opt/camillaeq/server
-sudo cp -r package.json /opt/camillaeq/
+# Copy built server (from server/dist to /opt/camillaeq/server)
+sudo mkdir -p /opt/camillaeq/server
+sudo cp -r server/dist/* /opt/camillaeq/server/
+sudo cp server/package.json /opt/camillaeq/server/
+
+# Copy workspace metadata for dependency installation
+sudo mkdir -p /opt/camillaeq/client
+sudo cp package.json package-lock.json /opt/camillaeq/
+sudo cp client/package.json /opt/camillaeq/client/
+
+# Install production dependencies
+cd /opt/camillaeq
+sudo npm ci --omit=dev --workspaces=server
+
+# Fix ownership
 sudo chown -R camillaeq:camillaeq /opt/camillaeq
 
 # Create data directory
@@ -86,8 +98,15 @@ sudo systemctl stop camillaeq
 sudo cp -r /opt/camillaeq/data /opt/camillaeq/data.backup
 
 # Update application files
-sudo cp -r server/dist /opt/camillaeq/server
-sudo chown -R camillaeq:camillaeq /opt/camillaeq/server
+sudo cp -r server/dist/* /opt/camillaeq/server/
+sudo cp server/package.json /opt/camillaeq/server/
+
+# Update dependencies if package.json changed
+cd /opt/camillaeq
+sudo npm ci --omit=dev --workspaces=false
+
+# Fix ownership
+sudo chown -R camillaeq:camillaeq /opt/camillaeq
 
 # Start service
 sudo systemctl start camillaeq
@@ -107,8 +126,9 @@ sudo journalctl -u camillaeq -n 50 --no-pager
 
 ### Test Configuration
 ```bash
-# Test as camillaeq user
-sudo -u camillaeq /usr/bin/node /opt/camillaeq/server/dist/index.js
+# Test as camillaeq user (from WorkingDirectory)
+cd /opt/camillaeq
+sudo -u camillaeq NODE_ENV=production /usr/bin/node server/index.js
 ```
 
 ### Verify Permissions

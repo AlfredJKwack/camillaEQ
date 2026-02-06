@@ -14,7 +14,7 @@
     "build": "npm-run-all build:client build:server copy:client",
     "build:server": "npm run build --workspace=server",
     "build:client": "npm run build --workspace=client",
-    "copy:client": "mkdir -p server/dist && cp -r client/dist server/dist/client",
+    "copy:client": "mkdir -p server/dist/client && cp -r client/dist/* server/dist/client/",
     "test": "npm-run-all test:server test:client",
     "test:server": "npm run test --workspace=server",
     "test:client": "npm run test --workspace=client",

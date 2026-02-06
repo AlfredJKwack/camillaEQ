@@ -29,7 +29,8 @@ const start = async () => {
     
     if (isProduction) {
       // Resolve client dist relative to compiled server/dist
-      const clientDistPath = join(__dirname, '..', 'client');
+      // Build process copies client/dist to server/dist/client
+      const clientDistPath = join(__dirname, 'client');
       
       app.log.info({ clientDistPath }, 'Serving static client build');
       

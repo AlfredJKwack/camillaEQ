@@ -39,6 +39,29 @@ export function buildApp(): FastifyInstance {
     }, 'Incoming request');
   });
 
+  // Read-only mode enforcement hook
+  const isReadOnly = process.env.SERVER_READ_ONLY === 'true';
+  if (isReadOnly) {
+    app.addHook('onRequest', async (request, reply) => {
+      // Only check API routes
+      if (request.url.startsWith('/api/')) {
+        // Block any non-safe HTTP methods
+        const unsafeMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+        if (unsafeMethods.includes(request.method)) {
+          reply.status(403).send({
+            error: {
+              code: 'ERR_READ_ONLY',
+              message: 'Server is in read-only mode. Write operations are not permitted.',
+              statusCode: 403,
+            },
+          });
+        }
+      }
+    });
+    
+    app.log.warn('SERVER_READ_ONLY mode enabled: all write operations to /api/* are blocked');
+  }
+
   // Response logging hook
   app.addHook('onResponse', async (request, reply) => {
     request.log.info({
@@ -48,26 +71,6 @@ export function buildApp(): FastifyInstance {
       durationMs: reply.elapsedTime,
       requestId: request.id,
     }, 'Request completed');
-  });
-
-  // 404 handler for unmatched API routes only (SPA fallback will handle UI routes)
-  // This is registered at the app level but will only fire if no route matches
-  // The SPA fallback is registered after API routes in index.ts
-  app.setNotFoundHandler((request, reply) => {
-    // Only return JSON 404 for API routes
-    if (request.url.startsWith('/api/') || request.url.startsWith('/health')) {
-      reply.status(404).send({
-        error: {
-          code: ErrorCode.ERR_NOT_FOUND,
-          message: 'Resource not found',
-          statusCode: 404,
-        },
-      });
-    } else {
-      // For non-API routes, let the SPA fallback handle it
-      // This should not normally fire since static plugin handles most cases
-      reply.callNotFound();
-    }
   });
 
   // Error handler for structured error responses
