@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { router } from '../lib/router';
   import { 
     connectionState, 
@@ -14,6 +15,7 @@
     exportDiagnostics,
     refreshDspInfo
   } from '../state/dspStore';
+  import { getSettings } from '../lib/api';
 
   let server = localStorage.getItem('camillaDSP.server') || 'localhost';
   let controlPort = localStorage.getItem('camillaDSP.controlPort') || '1234';
@@ -21,6 +23,35 @@
   let autoReconnect = localStorage.getItem('camillaDSP.autoReconnect') === 'true';
   let isConnecting = false;
   let copyFeedback = '';
+  
+  // Load defaults from server settings if not in localStorage
+  onMount(async () => {
+    const hasStoredSettings = localStorage.getItem('camillaDSP.server') ||
+                               localStorage.getItem('camillaDSP.controlPort') ||
+                               localStorage.getItem('camillaDSP.spectrumPort');
+    
+    if (!hasStoredSettings) {
+      try {
+        const settings = await getSettings();
+        
+        // Parse control WS URL
+        if (settings.camillaControlWsUrl) {
+          const controlUrl = new URL(settings.camillaControlWsUrl);
+          server = controlUrl.hostname;
+          controlPort = controlUrl.port || '1234';
+        }
+        
+        // Parse spectrum WS URL (only need port, server should be same)
+        if (settings.camillaSpectrumWsUrl) {
+          const spectrumUrl = new URL(settings.camillaSpectrumWsUrl);
+          spectrumPort = spectrumUrl.port || '1235';
+        }
+      } catch (error) {
+        // Ignore settings fetch errors, use hardcoded defaults
+        console.warn('Could not load connection settings from server:', error);
+      }
+    }
+  });
   
   // State for refresh and copy functionality
   let refreshingConfigs = false;

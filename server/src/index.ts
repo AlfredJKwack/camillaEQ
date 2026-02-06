@@ -8,6 +8,7 @@ import { registerVersionRoutes } from './routes/version.js';
 import { registerConfigRoutes } from './routes/config.js';
 import { registerStateRoutes } from './routes/state.js';
 import { registerConfigsRoutes } from './routes/configs.js';
+import { registerSettingsRoutes } from './routes/settings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,6 +20,7 @@ const start = async () => {
     // Register all API routes first
     registerHealthRoutes(app);
     registerVersionRoutes(app);
+    registerSettingsRoutes(app);
     registerConfigRoutes(app);
     registerStateRoutes(app);
     registerConfigsRoutes(app);
