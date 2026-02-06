@@ -11,14 +11,15 @@ When CamillaEQ needs to connect to CamillaDSP over plain `ws://` (non-TLS WebSoc
 ```caddyfile
 # Caddyfile
 http://camillaeq.his.house {
-  reverse_proxy 127.0.0.1:3000
+	reverse_proxy 127.0.0.1:3000
 
-  # Ensure no HSTS is sent
-  header {
-    -Strict-Transport-Security
-  }
+	# Ensure no HSTS is sent
+	header {
+		-Strict-Transport-Security
+	}
 }
 ```
+And don't forget to 'sudo caddy reload'.
 
 ### Example: HTTP + optional HTTPS redirect
 
