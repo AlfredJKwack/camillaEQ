@@ -39,3 +39,58 @@ After generating the config file, you'll need to:
 1. Edit the `devices:` section to match your CamillaDSP audio setup
 2. Load the config on CamillaDSP's spectrum port (typically different from the control port)
 3. The client will auto-detect the number of bins when connecting
+
+____
+
+## Device Configuration Wizard
+
+An interactive CLI wizard that helps you create a valid CamillaDSP configuration file with properly configured audio devices for your platform.
+
+### Supported Platforms
+
+- **macOS**: CoreAudio backend
+- **Linux**: ALSA backend
+
+## Features
+
+- 🔍 **Auto-discovery** of audio devices on your system
+- 🔬 **Hardware probing** (Linux/ALSA) to detect valid sample rates, formats, and channel counts
+- 📋 **Interactive menus** with arrow-key navigation and search
+- ✅ **Automatic validation** using `camilladsp --check`
+- 🎯 **Smart defaults** based on your sample rate and hardware capabilities
+
+### Usage
+```bash
+node camilladsp-device-wizard.mjs
+```
+
+### Command Line Options
+
+```bash
+node camilladsp-device-wizard.mjs [options]
+
+Options:
+  --output <path>       Output file path (default: ./camilladsp.yml)
+  --camilladsp <path>   Path to camilladsp binary (default: camilladsp)
+  --no-probe            Skip ALSA hardware probing (Linux only)
+```
+
+### Examples
+
+Generate config in a specific location:
+```bash
+node tools/camilladsp-device-wizard.mjs --output ~/config/my-dsp.yml
+```
+
+Use a custom CamillaDSP binary path:
+```bash
+node tools/camilladsp-device-wizard.mjs --camilladsp /usr/local/bin/camilladsp
+```
+
+Skip hardware probing on Linux:
+```bash
+node tools/camilladsp-device-wizard.mjs --no-probe
+```
+
+### Post-Generation Setup
+After generating the config file, you'll need to oad the config onto a CamillaDSP instance.

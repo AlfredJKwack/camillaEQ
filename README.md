@@ -260,7 +260,7 @@ See [LICENSE](LICENSE) file for details.
 
 And since a picture is worth a thousand words...
 
-# Screenshots
+# Demo reel
 ![The Equalizer demo reel](images/CamillaEQ-vid.gif "Graphical EQ demo reel")
 
 # Screenshots
