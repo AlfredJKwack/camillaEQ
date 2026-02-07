@@ -46,8 +46,11 @@ const CONTROL_RATE_BURST = Number(process.env.DEMO_CONTROL_BURST) || 200;
 const SPECTRUM_RATE_LIMIT = Number(process.env.DEMO_SPECTRUM_RATE_LIMIT) || 50; // msg/sec
 const SPECTRUM_RATE_BURST = Number(process.env.DEMO_SPECTRUM_BURST) || 100;
 
-// Origin allowlist (comma-separated, empty = allow all)
-const ALLOWED_ORIGINS = process.env.DEMO_ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || [];
+// Origin allowlist (comma-separated, empty/unset = allow all)
+const ALLOWED_ORIGINS = process.env.DEMO_ALLOWED_ORIGINS
+  ?.split(',')
+  .map((o) => o.trim())
+  .filter(Boolean) || [];
 
 // Config complexity limits
 const CONFIG_LIMITS: ConfigLimits = {

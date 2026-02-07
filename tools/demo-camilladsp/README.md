@@ -123,8 +123,10 @@ DEMO_MAX_PIPELINE_STEPS=128
 DEMO_MAX_NAMES_PER_STEP=512
 DEMO_MAX_JSON_SIZE=204800
 
-# Origin allowlist (comma-separated, empty = allow all)
-# Example: DEMO_ALLOWED_ORIGINS=http://demo.example.com,https://demo.example.com
+# Origin allowlist (comma-separated)
+# Leave empty or unset to allow all origins (recommended for LAN/private deployment)
+# Set to specific origins for public deployment to prevent abuse
+# Example: DEMO_ALLOWED_ORIGINS=http://camillaeq.his.house
 DEMO_ALLOWED_ORIGINS=
 ```
 
@@ -215,7 +217,7 @@ With these set, users can click "Connect" without typing anything.
 | `DEMO_MAX_PIPELINE_STEPS` | `128` | Max pipeline steps in config |
 | `DEMO_MAX_NAMES_PER_STEP` | `512` | Max filter names per Filter step |
 | `DEMO_MAX_JSON_SIZE` | `204800` | Max config JSON size (bytes) |
-| `DEMO_ALLOWED_ORIGINS` | _(empty)_ | Comma-separated origin allowlist (empty = allow all) |
+| `DEMO_ALLOWED_ORIGINS` | _(empty)_ | Comma-separated origin allowlist (empty/unset = allow all) |
 
 ---
 
@@ -231,24 +233,82 @@ sudo ufw allow 6413/tcp comment 'CamillaEQ Demo Spectrum'
 
 ---
 
-## Reverse Proxy (Optional)
+## Reverse Proxy Configuration
 
-If serving over HTTPS, you'll need a reverse proxy for WebSocket TLS termination.
+### Port-Based WebSocket Proxy (Caddy)
 
-### Caddy Example
+The CamillaEQ client requires **port-based** WebSocket connections (`ws://host:port`) and does not support URL paths.
 
-```caddy
-demo.example.com {
-    reverse_proxy /ws/control localhost:3146
-    reverse_proxy /ws/spectrum localhost:6413
+When deploying alongside CamillaEQ server with Caddy:
+
+```caddyfile
+# CamillaEQ UI (HTTP only)
+http://camillaeq.his.house {
+    reverse_proxy 127.0.0.1:30024
+
+    # Ensure no HSTS is sent
+    header {
+        -Strict-Transport-Security
+    }
 }
+
+# Demo CamillaDSP control WebSocket (port-based)
+http://camillaeq.his.house:3146 {
+    reverse_proxy 127.0.0.1:3146
+
+    header {
+        -Strict-Transport-Security
+    }
+}
+
+# Demo CamillaDSP spectrum WebSocket (port-based)
+http://camillaeq.his.house:6413 {
+    reverse_proxy 127.0.0.1:6413
+
+    header {
+        -Strict-Transport-Security
+    }
+}
+```
+
+**Port remapping example:**
+If you want the demo service to bind to different local ports (e.g., for firewall rules), configure the service ports in `/etc/camillaeq-demo-dsp.env`:
+```bash
+DEMO_CONTROL_PORT=1234
+DEMO_SPECTRUM_PORT=1235
+```
+
+Then update Caddyfile to remap:
+```caddyfile
+# Map public port 3146 to local 1234
+http://camillaeq.his.house:3146 {
+    reverse_proxy 127.0.0.1:1234
+    header { -Strict-Transport-Security }
+}
+
+# Map public port 6413 to local 1235
+http://camillaeq.his.house:6413 {
+    reverse_proxy 127.0.0.1:1235
+    header { -Strict-Transport-Security }
+}
+```
+
+After updating Caddyfile:
+```bash
+sudo caddy reload
 ```
 
 Then configure CamillaEQ server with:
 ```bash
-CAMILLA_CONTROL_WS_URL=wss://demo.example.com/ws/control
-CAMILLA_SPECTRUM_WS_URL=wss://demo.example.com/ws/spectrum
+CAMILLA_CONTROL_WS_URL=ws://camillaeq.his.house:3146
+CAMILLA_SPECTRUM_WS_URL=ws://camillaeq.his.house:6413
 ```
+
+**Important notes:**
+- WebSockets must remain HTTP (`ws://`) not HTTPS (`wss://`)
+- Client does not support path-based WebSocket URLs
+- All ports must be exposed through Caddy with separate listeners
+- If using a firewall, ensure ports 3146 and 6413 are allowed
 
 ---
 
@@ -289,12 +349,35 @@ sudo journalctl -u camillaeq-demo-dsp -n 100 --no-pager
 sudo ss -tlnp | grep -E '(3146|6413)'
 ```
 
-### Test WebSocket connection
+### Test WebSocket connection locally
 ```bash
-# Using websocat (install: cargo install websocat)
-websocat ws://localhost:3146
-# Then type: "GetVersion"
+# Using wscat (install: [npm install -g wscat](https://www.npmjs.com/package/wscat))
+wscat -c ws://localhost:1234
+# Then type (incl. quotations): "GetVersion"
+# Expected response: {"GetVersion":{"result":"Ok","value":"3.0.0-demo"}}
 ```
+
+### Test through Caddy proxy
+```bash
+# Verify HTTP endpoint responds
+curl -i http://camillaeq.his.house:3146
+# Expected: HTTP 200 (but no body - this is normal for WS upgrade endpoints)
+
+# Test control WS (requires websocat)
+websocat ws://camillaeq.his.house:3146
+# Then type: "GetVersion"
+
+# Test spectrum WS
+websocat ws://camillaeq.his.house:6413
+# Then type: "GetPlaybackSignalPeak"
+```
+
+**Common issues:**
+- `426 Upgrade Required` from `curl`: **Normal** - WebSockets require HTTP upgrade
+- `Rejected control connection from origin`: Check `DEMO_ALLOWED_ORIGINS` in env file
+  - If set to empty string (`DEMO_ALLOWED_ORIGINS=`), origins will be rejected
+  - Either remove the line entirely or set specific origins
+- Connection refused: Check firewall rules for ports 3146 and 6413
 
 ---
 
