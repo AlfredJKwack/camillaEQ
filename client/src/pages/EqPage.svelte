@@ -5,6 +5,8 @@
   import KnobDial from '../components/KnobDial.svelte';
   import FaderTooltip from '../components/FaderTooltip.svelte';
   import FilterTypePicker from '../components/FilterTypePicker.svelte';
+  import preEqSpectrumUrl from '../assets/vis-opt-spectrum-preeq.webp';
+  import postEqSpectrumUrl from '../assets/vis-opt-spectrum-posteq.webp';
   import type { EqBand } from '../dsp/filterResponse';
   import {
     bands,
@@ -1107,7 +1109,7 @@
               on:click={() => (spectrumMode = 'pre')}
               title="Pre-EQ Spectrum"
             >
-              <img src="/src/assets/vis-opt-spectrum-preeq.webp" alt="Pre-EQ Spectrum" />
+              <img src={preEqSpectrumUrl} alt="Pre-EQ Spectrum" />
             </button>
             <button 
               class="spectrum-button" 
@@ -1116,7 +1118,7 @@
               on:click={() => (spectrumMode = 'post')}
               title="Post-EQ Spectrum"
             >
-              <img src="/src/assets/vis-opt-spectrum-posteq.webp" alt="Post-EQ Spectrum" />
+              <img src={postEqSpectrumUrl} alt="Post-EQ Spectrum" />
             </button>
           </div>
         </div>

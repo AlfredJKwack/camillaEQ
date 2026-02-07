@@ -3,6 +3,7 @@
   import { connectionState } from '../state/dspStore';
   import { uploadStatus } from '../state/eqStore';
   import { appVersion } from '../state/appVersionStore';
+  import logoUrl from '../assets/CamillaEQ-80w.webp';
 
   const navItems: { route: Route; label: string; icon: string }[] = [
     { route: '/connect', label: 'Connection', icon: '🔌' },
@@ -78,7 +79,7 @@
       <a href="https://github.com/AlfredJKwack/camillaEQ" 
          class="nav-logo"
          title="CamillaEQ v{$appVersion.version} documentation ({$appVersion.buildHash || 'dev'})">
-        <img src="/src/assets/CamillaEQ-80w.webp" alt="CamillaEQ Logo" />
+        <img src={logoUrl} alt="CamillaEQ Logo" />
         v{$appVersion.version}
       </a>
     </div>

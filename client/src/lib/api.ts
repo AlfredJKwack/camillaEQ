@@ -62,6 +62,14 @@ export interface VersionInfo {
 }
 
 /**
+ * Server settings response
+ */
+export interface SettingsInfo {
+  camillaControlWsUrl: string | null;
+  camillaSpectrumWsUrl: string | null;
+}
+
+/**
  * Fetch latest CamillaDSP state from server
  */
 export async function getLatestState(): Promise<CamillaDSPConfig> {
@@ -105,6 +113,22 @@ export async function getVersion(): Promise<VersionInfo> {
     throw new ApiError(
       response.status,
       `Failed to fetch version: ${response.status} ${response.statusText}`
+    );
+  }
+  
+  return await response.json();
+}
+
+/**
+ * Get server settings (CamillaDSP connection defaults)
+ */
+export async function getSettings(): Promise<SettingsInfo> {
+  const response = await fetch('/api/settings');
+  
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      `Failed to fetch settings: ${response.status} ${response.statusText}`
     );
   }
   
