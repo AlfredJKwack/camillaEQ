@@ -27,17 +27,17 @@ sudo mkdir -p /opt/camillaeq/client
 sudo cp package.json package-lock.json /opt/camillaeq/
 sudo cp client/package.json /opt/camillaeq/client/
 
+# Copy data directory for presets
+sudo mkdir -p /opt/camillaeq/data/configs
+sudo chown -R camillaeq:camillaeq /opt/camillaeq/data
+sudo cp server/data/configs/*.json /opt/camillaeq/data/configs/
+
 # Install production dependencies
 cd /opt/camillaeq
 sudo npm ci --omit=dev --workspaces=server
 
 # Fix ownership
 sudo chown -R camillaeq:camillaeq /opt/camillaeq
-
-# Create data directory
-sudo mkdir -p /opt/camillaeq/data/configs
-sudo chown -R camillaeq:camillaeq /opt/camillaeq/data
-```
 
 ### 3. Configure Environment
 
