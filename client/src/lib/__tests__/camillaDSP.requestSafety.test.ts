@@ -29,8 +29,8 @@ describe('CamillaDSP Request Safety', () => {
   let wsServer: WebSocketServer;
   let wsSpectrumServer: WebSocketServer;
   let dsp: CamillaDSP;
-  const TEST_PORT = 9877;
-  const TEST_SPECTRUM_PORT = 9878;
+  let testPort: number;
+  let testSpectrumPort: number;
 
   // Mock config for GetConfigJson
   const mockConfig = {
@@ -45,14 +45,35 @@ describe('CamillaDSP Request Safety', () => {
   };
 
   beforeEach(async () => {
-    // Create control WebSocket server
-    wsServer = new WebSocketServer({ port: TEST_PORT });
+    // Create control WebSocket server with ephemeral port (port 0)
+    wsServer = new WebSocketServer({ port: 0 });
     
-    // Create spectrum WebSocket server
-    wsSpectrumServer = new WebSocketServer({ port: TEST_SPECTRUM_PORT });
+    // Create spectrum WebSocket server with ephemeral port (port 0)
+    wsSpectrumServer = new WebSocketServer({ port: 0 });
     
-    // Wait for servers to be ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for servers to be listening and get assigned ports
+    await new Promise<void>((resolve) => {
+      let controlReady = false;
+      let spectrumReady = false;
+      
+      const checkReady = () => {
+        if (controlReady && spectrumReady) {
+          testPort = (wsServer.address() as any).port;
+          testSpectrumPort = (wsSpectrumServer.address() as any).port;
+          resolve();
+        }
+      };
+      
+      wsServer.on('listening', () => {
+        controlReady = true;
+        checkReady();
+      });
+      
+      wsSpectrumServer.on('listening', () => {
+        spectrumReady = true;
+        checkReady();
+      });
+    });
   });
 
   afterEach(async () => {
@@ -118,7 +139,7 @@ describe('CamillaDSP Request Safety', () => {
 
       // Connect DSP
       dsp = new CamillaDSP({ controlTimeoutMs: 5000 });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // Start both requests simultaneously
       const promise1 = dsp.getVersion();
@@ -183,7 +204,7 @@ describe('CamillaDSP Request Safety', () => {
       });
 
       dsp = new CamillaDSP();
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // Fire multiple requests
       const promises = [
@@ -221,7 +242,7 @@ describe('CamillaDSP Request Safety', () => {
       });
 
       dsp = new CamillaDSP({ controlTimeoutMs: 500 });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // Test via private method to verify timeout rejection
       await expect((dsp as any).sendDSPMessage('GetVersion')).rejects.toThrow(/timed out/i);
@@ -252,7 +273,7 @@ describe('CamillaDSP Request Safety', () => {
 
       const shortTimeout = 200;
       dsp = new CamillaDSP({ controlTimeoutMs: shortTimeout });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       const start = Date.now();
       const version = await dsp.getVersion();
@@ -297,7 +318,7 @@ describe('CamillaDSP Request Safety', () => {
       });
 
       dsp = new CamillaDSP({ controlTimeoutMs: 300 });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // First request should timeout and return null
       const version1 = await dsp.getVersion();
@@ -332,7 +353,7 @@ describe('CamillaDSP Request Safety', () => {
         controlTimeoutMs: 2000,
         spectrumTimeoutMs: 300 // Short spectrum timeout
       });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // Control request should succeed
       const version = await dsp.getVersion();
@@ -370,7 +391,7 @@ describe('CamillaDSP Request Safety', () => {
       });
 
       dsp = new CamillaDSP({ controlTimeoutMs: 5000 });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // Start request via private method
       const promise = (dsp as any).sendDSPMessage('GetVersion');
@@ -406,7 +427,7 @@ describe('CamillaDSP Request Safety', () => {
       });
 
       dsp = new CamillaDSP({ controlTimeoutMs: 5000 });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // Start multiple requests via private method (second+ will be queued)
       const promise1 = (dsp as any).sendDSPMessage('GetVersion');
@@ -447,7 +468,7 @@ describe('CamillaDSP Request Safety', () => {
       });
 
       dsp = new CamillaDSP({ controlTimeoutMs: 200 });
-      await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+      await dsp.connect('localhost', testPort, testSpectrumPort);
 
       // First request times out
       const version = await dsp.getVersion();
@@ -486,7 +507,7 @@ describe('CamillaDSP Request Safety', () => {
       // Rapid cycles
       for (let i = 0; i < 5; i++) {
         dsp = new CamillaDSP({ controlTimeoutMs: 1000 });
-        await dsp.connect('localhost', TEST_PORT, TEST_SPECTRUM_PORT);
+        await dsp.connect('localhost', testPort, testSpectrumPort);
         
         // Maybe start a request
         if (i % 2 === 0) {
