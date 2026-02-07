@@ -307,6 +307,42 @@ Wants=network-online.target camilladsp.service
 
 ---
 
+## CamillaDSP Device Configuration
+
+### Device Configuration Wizard
+
+CamillaEQ includes an interactive CLI wizard to help generate valid CamillaDSP device configurations for macOS (CoreAudio) and Linux (ALSA).
+
+**Location:** `tools/camilladsp-device-wizard.mjs`
+
+**Features:**
+- Auto-discovers audio devices on your system
+- Hardware probing (Linux/ALSA) to detect valid sample rates, formats, and channel counts
+- Interactive menus with arrow-key navigation
+- Automatic validation using `camilladsp --check`
+- Smart defaults based on hardware capabilities
+
+**Usage:**
+```bash
+# From CamillaEQ project root
+node tools/camilladsp-device-wizard.mjs
+
+# With custom output path
+node tools/camilladsp-device-wizard.mjs --output ~/my-dsp-config.yml
+
+# Skip ALSA probing (Linux only)
+node tools/camilladsp-device-wizard.mjs --no-probe
+```
+
+**Use cases:**
+- First-time CamillaDSP setup on new hardware
+- Troubleshooting device configuration issues
+- Quick generation of valid device configs
+
+See [`tools/README.md`](../../tools/README.md) for detailed options and examples.
+
+---
+
 ## Spectrum Analyzer on SBC
 
 ### Bin Count Recommendations

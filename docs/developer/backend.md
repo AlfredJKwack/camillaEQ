@@ -112,6 +112,28 @@ server/
 
 ---
 
+### Settings
+
+**Endpoint:** `GET /api/settings`  
+**Handler:** `server/src/routes/settings.ts`
+
+**Response:**
+```json
+{
+  "camillaControlWsUrl": "ws://localhost:1234",
+  "camillaSpectrumWsUrl": "ws://localhost:1235"
+}
+```
+
+**Source:** Environment variables `CAMILLA_CONTROL_WS_URL` and `CAMILLA_SPECTRUM_WS_URL`
+
+**Use case:**
+- Client fetches connection defaults on first load (when localStorage is empty)
+- Enables production deployments to preconfigure CamillaDSP connection parameters
+- Returns `null` for URLs if environment variables are not set
+
+---
+
 ### Recovery Cache
 
 **Endpoint:** `GET /api/state/latest`  
@@ -307,6 +329,10 @@ class AppError extends Error {
 **SERVER_PORT** (default: 3000)
 - HTTP server port
 
+**SERVER_HOST** (default: `0.0.0.0`)
+- Network interface binding
+- Use `127.0.0.1` for localhost-only (behind reverse proxy)
+
 **DATA_DIR** (default: `./server/data`)
 - Data directory for presets + recovery cache
 
@@ -316,6 +342,22 @@ class AppError extends Error {
 **NODE_ENV** (default: `development`)
 - `production` → serves built frontend
 - `development` → API only (Vite serves frontend)
+- In development: server loads `.env` from `server/.env` (preferred) or repo root
+
+**CAMILLA_CONTROL_WS_URL** (optional)
+- Default CamillaDSP control WebSocket URL
+- Example: `ws://localhost:1234`
+- Returned via `GET /api/settings` for client auto-configuration
+
+**CAMILLA_SPECTRUM_WS_URL** (optional)
+- Default CamillaDSP spectrum WebSocket URL
+- Example: `ws://localhost:1235`
+- Returned via `GET /api/settings` for client auto-configuration
+
+**SERVER_READ_ONLY** (default: `false`)
+- When `true`, blocks write operations (PUT/POST/PATCH/DELETE) to `/api/*`
+- CamillaDSP control from browser remains fully functional (WebSocket bypass)
+- Use for safer public exposure
 
 ---
 

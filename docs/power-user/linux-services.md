@@ -361,12 +361,51 @@ CONFIG_DIR=./data  # Relative to WorkingDirectory (/opt/camillaeq)
 
 # Logging
 LOG_LEVEL=info  # debug, info, warn, error
+
+# CamillaDSP connection defaults (optional)
+# These values are exposed via /api/settings for client auto-configuration
+CAMILLA_CONTROL_WS_URL=ws://localhost:1234
+CAMILLA_SPECTRUM_WS_URL=ws://localhost:1235
+
+# Read-only mode (optional, default: false)
+# When true, blocks write operations to /api/* for safer public exposure
+# EQ control via WebSocket remains fully functional
+SERVER_READ_ONLY=false
 ```
 
 **After changing:**
 ```bash
 sudo systemctl restart camillaeq
 ```
+
+---
+
+### Public Exposure Configuration
+
+**For public/internet-facing deployments:**
+
+1. **Enable read-only mode** to prevent unauthorized preset changes:
+   ```bash
+   # In /etc/camillaeq/camillaeq.env
+   SERVER_READ_ONLY=true
+   ```
+
+2. **Use reverse proxy** (nginx/Caddy) with HTTPS:
+   - See [Caddy examples](../deploy/caddy/README.md)
+   - Consider HTTP-only mode for `ws://` mixed-content compatibility
+
+3. **What read-only mode blocks:**
+   - `PUT/POST/PATCH/DELETE` requests to `/api/*`
+   - Saving presets
+   - Updating recovery cache
+
+4. **What still works:**
+   - Viewing presets
+   - EQ editing (direct WebSocket to CamillaDSP)
+   - Volume control
+   - All read operations (`GET` requests)
+
+**Note:** Browser still needs direct WebSocket access to CamillaDSP ports (1234, 1235) unless you implement additional proxy infrastructure.
 
 ---
 

@@ -220,6 +220,39 @@ SERVER_HOST=127.0.0.1
 
 ---
 
+## Public vs LAN Deployment
+
+### LAN-Only Deployment (Default)
+**Use case:** Home/studio network, trusted users only
+
+**Configuration:**
+- Bind to `0.0.0.0` or specific LAN interface
+- No authentication required
+- Direct WebSocket access to CamillaDSP
+- Full read/write access to presets
+
+**Security:** Network-level (firewall, router ACLs)
+
+---
+
+### Public Internet Exposure
+**Use case:** Remote access, multiple locations, public demo
+
+**Recommended setup:**
+1. **Reverse proxy with HTTPS** (nginx/Caddy)
+2. **Read-only mode** (`SERVER_READ_ONLY=true`)
+3. **Firewall** CamillaDSP ports (1234/1235) or VPN access
+4. **Optional:** Authentication layer (add to reverse proxy)
+
+**Limitations:**
+- Browser needs direct WebSocket access to CamillaDSP
+- If CamillaDSP ports are firewalled, EQ editing won't work
+- Read-only mode prevents preset saves (by design)
+
+**See:** [Caddy reverse proxy examples](../deploy/caddy/README.md) for HTTP-only mode and read-only deployment guidance
+
+---
+
 ## Reverse Proxy Setup
 
 ### nginx Example
@@ -239,7 +272,7 @@ server {
 }
 ```
 
-**Note:** Reverse proxy does **not** proxy CamillaDSP WebSockets. Browser still connects directly to CamillaDSP ports.
+**Note:** Reverse proxy does **not** proxy CamillaDSP WebSockets. Browser still connects directly to CamillaDSP ports (1234, 1235).
 
 ---
 

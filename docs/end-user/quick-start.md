@@ -83,6 +83,8 @@ Default: `1234`
 **Spectrum Port:** CamillaDSP WebSocket spectrum port  
 Default: `1235`
 
+**Note:** If you're connecting for the first time and haven't saved connection settings before, the Connect page may pre-fill these fields with defaults provided by the server. Production deployments often preconfigure these values so you don't need to type them manually.
+
 ### 3. Optional: Enable Auto-Reconnect
 
 Check **"Auto-reconnect on page load"** to automatically reconnect when you reload the page or navigate back to CamillaEQ.

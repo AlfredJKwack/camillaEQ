@@ -115,6 +115,7 @@
 - `PUT /api/configs/:id` - Save preset
 - `GET /api/state/latest` - Get last-applied DSP state
 - `PUT /api/state/latest` - Save last-applied DSP state
+- `GET /api/settings` - Get server-provided connection defaults (CamillaDSP WebSocket URLs)
 - `GET /api/version` - Get server version
 - `GET /health` - Health check
 
@@ -122,6 +123,16 @@
 - Backend is not in the realtime path
 - REST is sufficient for non-realtime operations
 - Presets are human-triggered, infrequent
+
+**Connection defaults:**
+- Server can optionally provide CamillaDSP WebSocket URLs via environment variables (`CAMILLA_CONTROL_WS_URL`, `CAMILLA_SPECTRUM_WS_URL`)
+- Client fetches these via `GET /api/settings` when localStorage is empty (first-time connection)
+- Enables production deployments to preconfigure connection parameters
+
+**Read-only mode:**
+- Server can be configured with `SERVER_READ_ONLY=true` to block write operations to `/api/*`
+- Used for safer public exposure (prevents persistence changes)
+- CamillaDSP control via WebSocket remains fully functional (not affected by read-only mode)
 
 ---
 

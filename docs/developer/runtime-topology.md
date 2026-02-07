@@ -166,6 +166,11 @@
 - Saves last-applied DSP state to `server/data/latest_dsp_state.json`
 - Body: `CamillaDSPConfig` object
 
+`GET /api/settings`
+- Returns server-provided CamillaDSP connection defaults
+- Response: `{ camillaControlWsUrl: string | null, camillaSpectrumWsUrl: string | null }`
+- Source: `CAMILLA_CONTROL_WS_URL` and `CAMILLA_SPECTRUM_WS_URL` environment variables
+
 `GET /api/version`
 - Returns backend version
 - Response: `{ version: string }`

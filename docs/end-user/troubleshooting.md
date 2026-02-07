@@ -349,9 +349,47 @@
 
 ---
 
+## Server Issues
+
+### Cannot Save Preset (Read-Only Mode)
+
+**Symptoms:**
+- "Save Current" fails with 403 error
+- Error message: "Server is in read-only mode"
+- Browser console shows `ERR_READ_ONLY`
+
+**What this means:**
+- The server has been configured in **read-only mode** for security (typically for public exposure)
+- Write operations to `/api/*` are blocked
+- EQ editing and CamillaDSP control still work (WebSocket connections bypass this restriction)
+
+**What still works:**
+- Adjusting EQ bands (uploads to CamillaDSP directly)
+- Volume control
+- Viewing existing presets
+
+**What does not work:**
+- Saving new presets
+- Updating existing presets
+- Saving latest DSP state to recovery cache
+
+**Solutions:**
+
+**If you're the administrator:**
+- Edit server configuration: `/etc/camillaeq/camillaeq.env`
+- Set `SERVER_READ_ONLY=false`
+- Restart service: `sudo systemctl restart camillaeq`
+- See [Linux Services](../power-user/linux-services.md) for details
+
+**If you're not the administrator:**
+- Contact your system administrator
+- This is an intentional security feature for publicly-exposed deployments
+
+---
+
 ## Preset Issues
 
-### Cannot Save Preset
+### Cannot Save Preset (Other Causes)
 
 **Symptoms:**
 - "Save Current" button does nothing
