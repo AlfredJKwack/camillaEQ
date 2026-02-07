@@ -54,6 +54,19 @@ sudo chmod 644 /etc/camillaeq/camillaeq.env
 sudo nano /etc/camillaeq/camillaeq.env
 ```
 
+**Important:** The systemd service loads environment variables from `/etc/camillaeq/camillaeq.env` (via `EnvironmentFile=`).
+- Do **not** rely on `.env` files in `/opt/camillaeq` or `/usr/local/share/camillaeq`.
+- Changes to `/etc/camillaeq/camillaeq.env` require a service restart: `sudo systemctl restart camillaeq`.
+
+To verify which environment variables the running service sees:
+```bash
+# Get the service PID
+sudo systemctl show camillaeq -p MainPID
+
+# Inspect process environment (replace <PID> with actual MainPID)
+sudo tr '\0' '\n' < /proc/<PID>/environ | grep '^CAMILLA_'
+```
+
 ### 4. Install and Enable Service
 
 ```bash
