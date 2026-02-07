@@ -1,0 +1,194 @@
+{
+  "title": "Tangzu Waner Demo Configuration",
+  "description": "Default EQ preset for CamillaEQ demo",
+  "devices": {
+    "samplerate": 48000,
+    "chunksize": 1024,
+    "capture": {
+      "type": "Alsa",
+      "channels": 2,
+      "device": "hw:0",
+      "format": "S32LE"
+    },
+    "playback": {
+      "type": "Alsa",
+      "channels": 2,
+      "device": "hw:1",
+      "format": "S32LE"
+    }
+  },
+  "filters": {
+    "Filter01": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 24,
+        "q": 0.5,
+        "gain": 1.2
+      }
+    },
+    "Filter02": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 170,
+        "q": 0.5,
+        "gain": -2.9
+      }
+    },
+    "Filter03": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 880,
+        "q": 1,
+        "gain": 1
+      }
+    },
+    "Filter04": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 1400,
+        "q": 2,
+        "gain": -1.5
+      }
+    },
+    "Filter05": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 2000,
+        "q": 1.5,
+        "gain": -2.8
+      }
+    },
+    "Filter06": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 5200,
+        "q": 2,
+        "gain": -1.8
+      }
+    },
+    "Filter07": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 6500,
+        "q": 0.6,
+        "gain": 5.4
+      }
+    },
+    "Filter08": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 6600,
+        "q": 2,
+        "gain": 4.1
+      }
+    },
+    "Filter09": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 8200,
+        "q": 2,
+        "gain": -8.1
+      }
+    },
+    "Filter10": {
+      "type": "Biquad",
+      "parameters": {
+        "type": "Peaking",
+        "freq": 10000,
+        "q": 2,
+        "gain": 7.6
+      }
+    }
+  },
+  "mixers": {
+    "preamp": {
+      "channels": {
+        "in": 2,
+        "out": 2
+      },
+      "mapping": [
+        {
+          "dest": 0,
+          "sources": [
+            {
+              "channel": 0,
+              "gain": -8.1,
+              "inverted": false,
+              "mute": false,
+              "scale": "dB"
+            }
+          ],
+          "mute": false
+        },
+        {
+          "dest": 1,
+          "sources": [
+            {
+              "channel": 1,
+              "gain": -8.1,
+              "inverted": false,
+              "mute": false,
+              "scale": "dB"
+            }
+          ],
+          "mute": false
+        }
+      ]
+    }
+  },
+  "pipeline": [
+    {
+      "type": "Mixer",
+      "name": "preamp",
+      "bypassed": false
+    },
+    {
+      "type": "Filter",
+      "channels": [
+        0
+      ],
+      "names": [
+        "Filter01",
+        "Filter02",
+        "Filter03",
+        "Filter04",
+        "Filter05",
+        "Filter06",
+        "Filter07",
+        "Filter08",
+        "Filter09",
+        "Filter10"
+      ],
+      "bypassed": false
+    },
+    {
+      "type": "Filter",
+      "channels": [
+        1
+      ],
+      "names": [
+        "Filter01",
+        "Filter02",
+        "Filter03",
+        "Filter04",
+        "Filter05",
+        "Filter06",
+        "Filter07",
+        "Filter08",
+        "Filter09",
+        "Filter10"
+      ],
+      "bypassed": false
+    }
+  ],
+  "processors": {}
+}
