@@ -7,6 +7,17 @@ CamillaEQ is a web UI that gives you direct, visual control over your CamillaDSP
 ![The parametric Equalizer](images/GUI-GraphicalEQ.png "Graphical EQ")
 ---
 
+## Try It in Your Browser
+
+There's a hosted demo at **[camillaeq.his.house/#/connect](http://camillaeq.his.house/#/connect)**
+
+- Click **Connect** to play with a simulated CamillaDSP (includes spectrum analyzer)
+- Or enter your own CamillaDSP host (e.g., `localhost`) and control port (usually `1234`)
+
+If you don't have a spectrum service set up, you'll be in degraded mode—EQ editing works, but no spectrum overlay. See [tools/README.md](tools/README.md#build-camilladsp-spectrum-yaml) if you want to add spectrum.
+
+---
+
 ## What This Is
 
 CamillaEQ is a **browser-based interface** for controlling [CamillaDSP](https://github.com/HEnquist/camilladsp), the powerful audio processing engine. You run it on a small device (like an Orange Pi or Raspberry Pi), and control it entirely from any browser on your network.
@@ -104,6 +115,8 @@ You want to run this on a headless device and make it reliable.
 
 ## Try It Now
 
+### Run It Locally
+
 **Prerequisites:**
 - Node.js 18+
 - npm 9+
@@ -127,7 +140,7 @@ npm run dev
 
 ### Try Without Real Audio Hardware
 
-You can test the full UI without a real CamillaDSP device using the included **MockCamillaDSP** server:
+You can test the full UI locally without a real CamillaDSP device using the included **MockCamillaDSP** server:
 
 ```bash
 # In a separate terminal, start the mock server
@@ -159,7 +172,7 @@ You'll see a live spectrum analyzer and be able to adjust EQ bands, even without
 
 ## Project Status
 
-**Current Release:** v0.1.0
+**Current Release:** v0.1.1
 
 CamillaEQ is **production-ready** but still evolving. The core features—EQ editing, spectrum analyzer, preset management, and pipeline editing—are stable and tested.
 
