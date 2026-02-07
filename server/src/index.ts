@@ -1,6 +1,7 @@
-import 'dotenv/config';
-import { join, dirname } from 'path';
+import dotenv from 'dotenv';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import fastifyStatic from '@fastify/static';
 import { buildApp } from './app.js';
 import { registerHealthRoutes } from './routes/health.js';
@@ -9,6 +10,26 @@ import { registerConfigRoutes } from './routes/config.js';
 import { registerStateRoutes } from './routes/state.js';
 import { registerConfigsRoutes } from './routes/configs.js';
 import { registerSettingsRoutes } from './routes/settings.js';
+
+// Load .env files in development only
+// Production uses systemd EnvironmentFile (e.g., /etc/camillaeq/camillaeq.env)
+if (process.env.NODE_ENV !== 'production') {
+  // Try server/.env first (workspace-local)
+  const serverEnv = resolve(process.cwd(), '.env');
+  if (existsSync(serverEnv)) {
+    dotenv.config({ path: serverEnv });
+    console.log(`Loaded environment from: ${serverEnv}`);
+  } else {
+    // Fallback to repo-root .env (monorepo-friendly)
+    const rootEnv = resolve(process.cwd(), '..', '.env');
+    if (existsSync(rootEnv)) {
+      dotenv.config({ path: rootEnv });
+      console.log(`Loaded environment from: ${rootEnv}`);
+    } else {
+      console.log('No .env file found (server/.env or repo-root .env)');
+    }
+  }
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
