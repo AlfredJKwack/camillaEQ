@@ -1,9 +1,53 @@
 # Active Context
 
 ## Current Focus
-**Documentation + Test Fixes completed** (2026-02-04) - Production-ready persona-based documentation and full test suite passing.
+**v0.1.1 Documentation Updates + Hosted Demo** (2026-02-07/08) - Connection guidance, hosted demo integration, and deployment documentation for public exposure.
 
 ## Recently Completed
+
+**v0.1.1 Documentation Updates** (2026-02-07/08)
+
+### Overview
+Updated documentation and README to reflect production deployment features added in recent commits:
+- `/api/settings` endpoint for server-provided connection defaults
+- `SERVER_READ_ONLY` mode for safer public exposure
+- Hosted demo at `http://camillaeq.his.house/#/connect`
+- CamillaDSP device configuration wizard tool
+
+### Documentation Updates
+1. **End-user docs:**
+   - `quick-start.md` - Added note about server-provided defaults (auto-fill on first load)
+   - `troubleshooting.md` - New section: "Cannot Save Preset (Read-Only Mode)" with symptoms/solutions
+
+2. **Developer docs:**
+   - `architecture.md` - Added `/api/settings` to API inventory, documented connection defaults + read-only mode
+   - `backend.md` - Added `/api/settings` route docs, expanded environment variables section
+   - `runtime-topology.md` - Added `/api/settings` to backend HTTP API endpoints
+
+3. **Power-user docs:**
+   - `linux-services.md` - Added env var docs (`CAMILLA_*_WS_URL`, `SERVER_READ_ONLY`), public exposure configuration section
+   - `deployment-models.md` - New "Public vs LAN Deployment" section with security guidance
+   - `headless-sbc.md` - Added "CamillaDSP Device Configuration" section documenting wizard tool
+
+4. **README.md:**
+   - New "Try It in Your Browser" section at top (hosted demo + connection instructions)
+   - Restructured "Try It Now" section with three options (hosted, local, mock)
+   - Updated version to v0.1.1
+   - Removed "salesy" marketing tone (user feedback)
+
+### Implementation Details
+- **`GET /api/settings`** returns `{ camillaControlWsUrl, camillaSpectrumWsUrl }` from env vars
+- **`SERVER_READ_ONLY=true`** blocks write operations to `/api/*` via Fastify preHandler hook
+- Client fetches `/api/settings` on first load when localStorage empty (zero-config connection)
+- Hosted demo preconfigured with mock CamillaDSP (control + spectrum ports)
+
+### Key Principles
+- Connection defaults optional (env vars, not required)
+- Read-only mode for public exposure (WebSocket control still works)
+- Documentation reflects actual deployed features (not aspirational)
+
+---
+
 **Documentation Overhaul (Persona-Based)** (2026-02-04)
 
 ### Overview
@@ -95,9 +139,12 @@ Fixed 4 failing client tests across 3 modules by correcting implementation logic
 - ✅ **Bypassed filters:** Excluded from EQ page entirely (not just shown as disabled)
 - ✅ **Parameter rounding:** 2-decimal precision for all processor parameters
 - ✅ **Editable filters:** Only Biquad filters with known subtypes (Delay/Gain/etc. not editable)
+- ✅ **Connection defaults:** Server-provided via `/api/settings` (optional env vars)
+- ✅ **Read-only mode:** `SERVER_READ_ONLY=true` blocks `/api/*` writes for public exposure
+- ✅ **Hosted demo:** `camillaeq.his.house` with preconfigured mock CamillaDSP
 
 ## Open Questions
-None at this stage.
+- **Versioning housekeeping:** `CHANGELOG.md` currently only lists v0.1.0, but README shows v0.1.1. Need to backfill CHANGELOG entry for 0.1.1 release notes (deployment features + docs).
 
 ## Current Risks
 None identified.

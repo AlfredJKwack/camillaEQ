@@ -16,6 +16,7 @@ The system consists of three cooperating processes:
 - Provides minimal REST API:
   - `/health` - liveness check
   - `/api/version` - build info
+  - `/api/settings` - GET server-provided CamillaDSP connection defaults (from env vars)
   - `/api/config` - GET/PUT DSP config file
   - `/api/state/latest` - GET/PUT last applied DSP state (write-through cache)
   - `/api/configs` - GET list of saved presets
@@ -24,6 +25,7 @@ The system consists of three cooperating processes:
   - `/api/system/services` - **planned** (not yet implemented)
 - Does NOT proxy WebSocket traffic
 - Stateless, low overhead
+- Optional read-only mode: `SERVER_READ_ONLY=true` blocks write operations to `/api/*`
 
 **Browser Client**
 - Fetches UI assets from Process B

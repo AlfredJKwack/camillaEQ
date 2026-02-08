@@ -296,6 +296,42 @@ Adopt **`client/src/lib/camillaSchema.ts`** as the single source of truth for al
 
 ---
 
+## ADR-010: Server-Provided Connection Defaults & Read-Only Mode
+**Date:** 2026-02-07  
+**Status:** Accepted
+
+### Context
+Initial release (v0.1.0) required users to manually enter CamillaDSP connection parameters on first load. For production deployments (headless SBCs, public-facing demos), this created two problems:
+1. **Configuration friction:** Users had to know and type WebSocket URLs
+2. **Security exposure:** Public deployments needed a way to block preset/state writes while allowing EQ control
+
+### Decision
+**Server-provided connection defaults:**
+- New endpoint: `GET /api/settings`
+  - Returns: `{ camillaControlWsUrl: string | null, camillaSpectrumWsUrl: string | null }`
+  - Source: Environment variables `CAMILLA_CONTROL_WS_URL` and `CAMILLA_SPECTRUM_WS_URL`
+- Client fetches on first load (when localStorage empty) to auto-populate connection fields
+- Enables zero-config connection for preconfigured deployments
+
+**Read-only server mode:**
+- New environment variable: `SERVER_READ_ONLY=true`
+- When enabled: blocks all write operations (`PUT/POST/PATCH/DELETE`) to `/api/*`
+- Implemented via Fastify `preHandler` hook (runs before all routes)
+- What still works: `GET` endpoints, WebSocket connections to CamillaDSP (unaffected)
+- Use case: Public internet exposure without allowing preset/state changes
+
+### Consequences
+- **Positive:** Production deployments can preconfigure connection parameters
+- **Positive:** Hosted demo at `camillaeq.his.house` works out-of-box (just click Connect)
+- **Positive:** Read-only mode enables safer public exposure
+- **Positive:** CamillaDSP control remains fully functional (WebSocket bypass)
+- **Positive:** Zero-code client changes (env vars configure behavior)
+- **Negative:** Adds optional env var complexity (must be documented)
+- **Negative:** Read-only mode blocks legitimate use cases (must be disabled for personal deployments)
+- **Negative:** Connection defaults only work for single CamillaDSP instance per deployment
+
+---
+
 ## ADR Template for Future Decisions
 
 ```markdown

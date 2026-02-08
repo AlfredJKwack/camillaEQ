@@ -30,6 +30,7 @@
 **Implemented REST API:**
 - `GET /health` - Server health check
 - `GET /api/version` - Build info (version, hash, timestamp)
+- `GET /api/settings` - Get server-provided CamillaDSP connection defaults
 - `GET /api/config` - Read DSP config file from disk
 - `PUT /api/config` - Write DSP config file to disk
 - `GET /api/state/latest` - Read last applied DSP state (write-through cache)
@@ -180,9 +181,9 @@ This keeps the web UI server (Process B) minimal and avoids proxying overhead.
 - Browser handles compute-intensive rendering (spectrum + curve math)
 
 **Testing:**
-- Backend: Jest with `fastify.inject()` (54 tests passing)
-- Frontend: Vitest (112 tests passing)
-- Total: 166 tests passing
+- Backend: Jest with `fastify.inject()` (72 tests passing across 7 suites)
+- Frontend: Vitest (385 tests passing across 33 suites, 2 intentionally skipped)
+- Total: 457 tests passing
 
 ---
 

@@ -24,13 +24,33 @@
     - Preserves user precision (e.g., 0.05s attack time)
   - All 385 tests passing (33 test files, 2 skipped)
 
-## Current Status (2026-02-04)
-**Phase:** Documentation complete, test suite clean
+- [x] **v0.1.1 Documentation + Deployment Features** (2026-02-07/08)
+  - **Backend additions:**
+    - `GET /api/settings` endpoint (returns CamillaDSP connection defaults from env vars)
+    - `SERVER_READ_ONLY=true` mode (blocks write operations to `/api/*`)
+    - Environment variables: `CAMILLA_CONTROL_WS_URL`, `CAMILLA_SPECTRUM_WS_URL`
+  - **Hosted demo:**
+    - Deployed at `http://camillaeq.his.house/#/connect`
+    - Preconfigured mock CamillaDSP (control + spectrum)
+    - Zero-config connection (just click Connect)
+  - **Documentation updates:**
+    - README: "Try It in Your Browser" section at top, restructured "Try It Now"
+    - End-user docs: connection guidance, read-only mode troubleshooting
+    - Developer docs: `/api/settings` API docs, env var documentation
+    - Power-user docs: public deployment guidance, read-only configuration
+  - **Tools:**
+    - CamillaDSP device configuration wizard documented (`tools/README.md`)
+
+## Current Status (2026-02-08)
+**Phase:** v0.1.1 documentation updates complete
 
 **Latest work:**
-- Production-ready documentation organized by persona (End User, Developer, Power User)
-- Test suite fully passing after bug fixes
-- All processor parameter rounding now consistent at 2 decimals
+- Hosted demo integration (`camillaeq.his.house/#/connect`)
+- Connection defaults via `/api/settings` endpoint
+- Read-only server mode for public deployments
+- Documentation updates across all three personas (end-user, developer, power-user)
+- README restructured with hosted demo quick-start
+- CamillaDSP device wizard tool documented
 
 ## Known Issues
 None at this stage.
