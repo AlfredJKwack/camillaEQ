@@ -368,22 +368,34 @@ try {
 
 ### For New Features
 
-**Unit tests:**
-- Pure functions (filterResponse, spectrumParser)
+**Server tests (Jest):**
+- Route/integration tests via `fastify.inject()` (no real network required)
+- Service unit tests for persistence + utilities (`configStore`, `configsLibrary`, `shellExec`)
+- Cross-cutting behavior tests (e.g., `SERVER_READ_ONLY` enforcement at route layer)
+
+**Client unit tests (Vitest):**
+- Pure functions (filterResponse, spectrumParser, clamping, mapping)
 - Type utilities (camillaTypes, knownTypes)
-- Business logic (mappings, validators)
+- Business logic (camillaEqMapping, pipelineBlockEdit, validators)
 
-**Integration tests:**
-- With mock CamillaDSP instance
-- Full upload-download cycle
-- Error handling
+**Client integration tests (Vitest, in-process):**
+- WebSocket lifecycle with in-process mock (`ws.WebSocketServer`)
+  - Control + spectrum dual-socket lifecycle
+  - Degraded mode transitions
+  - Request queue, timeouts, cleanup
+- Convergence model (upload → re-download → sync)
+- Store behavior tests (`dspStore`, `eqStore`)
 
-**Component tests:**
-- User interactions
-- State updates
-- Error states
+**HTTP client tests (Vitest):**
+- Mock `fetch()` for REST calls (`/api/configs`, `/api/state/latest`, `/api/settings`)
 
-**Run:** `npm test` (covers both client and server)
+**Component behavior tests (Vitest):**
+- UI/component behavior where meaningful
+- Keep most correctness in non-UI modules
+
+**Run tests:**
+- `npm test` (runs both server + client test suites)
+- GitHub CI must pass before merge is accepted
 
 ---
 
