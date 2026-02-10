@@ -16,15 +16,66 @@
   let searchQuery = '';
   let searchInputElement: HTMLInputElement;
   let highlightedIndex = 0;
+  let renderCount = 200;
+  let rafId: number | null = null;
+  let showAutoEq = true;
 
-  // Filter configs by search query
-  $: filteredConfigs = configs.filter((config) =>
-    config.configName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const BATCH_SIZE = 200;
+  const INITIAL_RENDER = 200;
 
-  // Reset highlight when filtered list changes
+  // Filter configs by source (AutoEQ toggle) then by search query
+  $: filteredConfigs = configs
+    .filter((config) => showAutoEq || config.source !== 'autoeq')
+    .filter((config) =>
+      config.configName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+  // Count AutoEQ presets
+  $: autoEqCount = configs.filter((c) => c.source === 'autoeq').length;
+
+  // Reset highlight and rendering when filtered list changes
   $: if (filteredConfigs.length > 0) {
     highlightedIndex = Math.min(highlightedIndex, filteredConfigs.length - 1);
+    scheduleProgressiveRender(filteredConfigs);
+  }
+
+  // Ensure highlighted item is rendered (for keyboard navigation)
+  $: if (highlightedIndex >= renderCount && renderCount < filteredConfigs.length) {
+    // User navigated beyond rendered items, expand render count
+    renderCount = Math.min(highlightedIndex + BATCH_SIZE, filteredConfigs.length);
+  }
+
+  // Progressive rendering: batch render items to avoid blocking main thread
+  function scheduleProgressiveRender(items: ConfigMetadata[]) {
+    // Cancel any pending render
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
+    // Reset to initial batch
+    renderCount = Math.min(INITIAL_RENDER, items.length);
+
+    // Schedule progressive loading of remaining items
+    if (renderCount < items.length) {
+      scheduleNextBatch(items);
+    }
+  }
+
+  function scheduleNextBatch(items: ConfigMetadata[]) {
+    rafId = requestAnimationFrame(() => {
+      if (renderCount < items.length) {
+        renderCount = Math.min(renderCount + BATCH_SIZE, items.length);
+        // Continue scheduling until all items are rendered
+        if (renderCount < items.length) {
+          scheduleNextBatch(items);
+        } else {
+          rafId = null;
+        }
+      } else {
+        rafId = null;
+      }
+    });
   }
 
   // Load configs list on mount
@@ -71,7 +122,7 @@
       }
 
       // Convert pipeline-config to CamillaDSP config (full replacement)
-      const camillaConfig = pipelineConfigToCamillaDSP(pipelineConfig, dsp.config || undefined);
+      const camillaConfig = pipelineConfigToCamillaDSP(pipelineConfig, dsp.config || undefined) as any;
 
       // Upload to CamillaDSP
       dsp.config = camillaConfig;
@@ -219,6 +270,13 @@
         {/if}
       </div>
     </div>
+    <button 
+      class="btn-secondary" 
+      on:click={() => (showAutoEq = !showAutoEq)}
+      title={showAutoEq ? 'Hide AutoEQ presets' : 'Show AutoEQ presets'}
+    >
+      {showAutoEq ? 'Hide' : 'Show'} AutoEQ {#if autoEqCount > 0}({autoEqCount}){/if}
+    </button>
     <button class="btn-primary" on:click={openSaveDialog} disabled={loading}>
       Save Current
     </button>
@@ -245,7 +303,7 @@
     </div>
   {:else}
     <div class="configs-list">
-      {#each filteredConfigs as config, i}
+      {#each filteredConfigs.slice(0, renderCount) as config, i}
         {@const isHighlighted = i === highlightedIndex}
         {@const isSelected = selectedConfigId === config.id}
         <div
@@ -255,7 +313,6 @@
           class:highlighted={isHighlighted}
           class:selected={isSelected}
           on:click={() => loadConfig(config.id)}
-          on:mouseenter={() => (highlightedIndex = i)}
           on:focus={() => (highlightedIndex = i)}
           on:keydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -264,7 +321,15 @@
             }
           }}
         >
-          <span class="config-name">{@html highlightMatch(config.configName, searchQuery)}</span>
+          <div class="config-info">
+            <span class="config-name">{@html highlightMatch(config.configName, searchQuery)}</span>
+            {#if config.source === 'autoeq'}
+              <span class="config-badge autoeq">AutoEQ</span>
+            {/if}
+            {#if config.category}
+              <span class="config-meta">{config.category}</span>
+            {/if}
+          </div>
           <button
             class="btn-load"
             on:click|stopPropagation={() => loadConfig(config.id)}
@@ -516,8 +581,15 @@
     background: rgba(120, 160, 255, 0.08);
   }
 
-  .config-name {
+  .config-info {
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .config-name {
     font-size: 0.9375rem;
     font-weight: 500;
     color: var(--ui-text, rgba(255, 255, 255, 0.88));
@@ -531,6 +603,28 @@
     color: rgb(255, 220, 100);
     padding: 0.125rem 0.25rem;
     border-radius: 3px;
+  }
+
+  .config-badge {
+    padding: 0.125rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+
+  .config-badge.autoeq {
+    background: rgba(100, 200, 255, 0.15);
+    color: rgb(100, 200, 255);
+    border: 1px solid rgba(100, 200, 255, 0.3);
+  }
+
+  .config-meta {
+    font-size: 0.8125rem;
+    color: var(--ui-text-muted, rgba(255, 255, 255, 0.52));
+    flex-shrink: 0;
   }
 
   .btn-load {

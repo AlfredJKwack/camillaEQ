@@ -312,13 +312,21 @@ server {
 - node_modules: ~100-150 MB
 
 **Data:**
-- Presets: ~1-5 KB each
+- User presets: ~1-5 KB each
+- AutoEQ library: ~2-5 MB (if imported)
 - Recovery cache: ~10-50 KB
-- Total data: <1 MB typical
+- Total data: ~25-30 MB with AutoEQ library
 
 **Growth:**
 - Logs (if enabled): Varies by log level
-- Preset accumulation: Linear with user saves
+- User preset accumulation: Linear with saves
+- AutoEQ library: Static (updated only via `npm run import:autoeq`)
+
+**AutoEQ Library:**
+- Optional pre-imported headphone/IEM EQ profiles
+- Located in `server/data/configs/autoeq/`
+- Includes manifest file (`autoeq/index.json`) for fast cold-start
+- Committed to repo (no need to re-import on deployment)
 
 ---
 

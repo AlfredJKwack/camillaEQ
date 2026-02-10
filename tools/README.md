@@ -1,5 +1,34 @@
 # Tools
 
+## AutoEQ Preset Import (Build-Time)
+
+Import high-quality headphone/IEM EQ presets from the AutoEQ database.
+
+**Usage:**
+```bash
+npm run import:autoeq
+```
+
+**What it does:**
+1. Clones the AutoEQ repository (temporarily, deleted after import)
+2. Parses `results/README.md` to find referenced devices
+3. Converts `ParametricEQ.txt` files to the canonical EQ preset format
+4. Writes deterministic JSON presets to `server/data/configs/autoeq/<category>/`
+5. Cleans up the temporary clone
+
+**Output structure:**
+- `server/data/configs/autoeq/headphones/<Manufacturer> <Model>.json`
+- `server/data/configs/autoeq/iems/<Manufacturer> <Model>.json`
+- `server/data/configs/autoeq/speakers/<Manufacturer> <Model>.json`
+
+**Important:**
+- The AutoEQ library will take ~25-30 MB of disk space
+- The AutoEQ repo is **not** committed to this project
+- Generated presets are committed and served as read-only
+- Re-running the script is idempotent (produces identical output)
+
+---
+
 ## Build CamillaDSP Spectrum YAML
 This script builds out a log-spaced bandpass filter bank yaml for CamillaDSP which is then used as the source for the spectrum analyzer. It's the poor man's hack to approximate a visual aid for the Graphical Equalizer resembling a FFT.
 

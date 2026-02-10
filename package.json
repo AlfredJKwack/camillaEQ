@@ -15,15 +15,18 @@
     "build:server": "npm run build --workspace=server",
     "build:client": "npm run build --workspace=client",
     "copy:client": "mkdir -p server/dist/client && cp -r client/dist/* server/dist/client/",
-    "test": "npm-run-all test:server test:client",
+    "test": "npm-run-all test:server test:client test:tools",
     "test:server": "npm run test --workspace=server",
     "test:client": "npm run test --workspace=client",
+    "test:tools": "cd tools && npx --prefix ../client vitest run __tests__",
     "start": "NODE_ENV=production npm run start --workspace=server",
-    "start:prod": "npm run build && npm run start"
+    "start:prod": "npm run build && npm run start",
+    "import:autoeq": "tsx tools/import-autoeq.ts"
   },
   "devDependencies": {
+    "@inquirer/prompts": "^5.5.0",
     "npm-run-all": "^4.1.5",
-    "@inquirer/prompts": "^5.5.0"
+    "tsx": "^4.21.0"
   },
   "engines": {
     "node": ">=18.0.0",

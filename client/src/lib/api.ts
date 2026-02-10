@@ -52,6 +52,15 @@ export interface ConfigMetadata {
   file: string;
   mtimeMs: number;
   size: number;
+  
+  // Extended metadata (MVP-27: AutoEQ support)
+  presetType?: 'pipeline' | 'eq';
+  source?: 'autoeq' | 'user';
+  readOnly?: boolean;
+  category?: string;
+  manufacturer?: string;
+  model?: string;
+  variant?: string;
 }
 
 /**

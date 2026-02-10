@@ -12,12 +12,17 @@
 
 **Must back up:**
 - `/opt/camillaeq/data/` - All user data
-  - `configs/*.json` - Saved presets
+  - `configs/*.json` - User-saved presets
+  - `configs/autoeq/` - AutoEQ library (if using)
   - `latest_dsp_state.json` - Recovery cache
 
-**Size:** Typically <1 MB
+**Size:** 
+- User presets: ~1-5 KB each
+- AutoEQ library: ~25-30 MB (if present)
 
-**Loss impact:** Loss of saved presets and recovery state
+**Loss impact:** Loss of saved presets, AutoEQ library, and recovery state
+
+**Note:** AutoEQ library is committed to the repo, but backing it up with user data ensures you don't lose any custom imports.
 
 ---
 

@@ -16,11 +16,9 @@ describe('ConfigsLibrary', () => {
   });
 
   afterEach(async () => {
-    // Clean up test directory
+    // Clean up test directory recursively
     try {
-      const files = await fs.readdir(TEST_CONFIGS_DIR);
-      await Promise.all(files.map((file) => fs.unlink(join(TEST_CONFIGS_DIR, file))));
-      await fs.rmdir(TEST_CONFIGS_DIR);
+      await fs.rm(TEST_CONFIGS_DIR, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors
     }
@@ -136,6 +134,57 @@ describe('ConfigsLibrary', () => {
   });
 
   describe('getConfig', () => {
+    it('should convert EQ preset to pipeline config with correct filter type casing', async () => {
+      // Create an EQ preset (AutoEQ format)
+      const eqPreset = {
+        presetType: 'eq',
+        schemaVersion: 1,
+        name: 'Test EQ Preset',
+        device: {
+          category: 'headphones',
+          manufacturer: 'Test',
+          model: 'Model',
+        },
+        preampDb: -3,
+        bands: [
+          { type: 'LowShelf', freqHz: 105, gainDb: 5.5, q: 0.7, enabled: true },
+          { type: 'Peaking', freqHz: 1000, gainDb: 3, q: 1, enabled: true },
+          { type: 'HighShelf', freqHz: 10000, gainDb: -2, q: 0.7, enabled: true },
+        ],
+        source: 'autoeq',
+        readOnly: true,
+      };
+
+      await fs.writeFile(
+        join(TEST_CONFIGS_DIR, 'Test EQ Preset.json'),
+        JSON.stringify(eqPreset, null, 2)
+      );
+
+      const result = await configsLibrary.getConfig('test-eq-preset');
+
+      // Verify conversion to pipeline config
+      expect(result.configName).toBe('Test EQ Preset');
+      expect(result.filterArray).toBeDefined();
+      expect(result.filterArray).toHaveLength(5); // 3 bands + preamp + volume
+
+      // Verify filter type casing matches CamillaDSP expectations
+      const filter01 = result.filterArray[0].Filter01;
+      expect(filter01.type).toBe('Lowshelf'); // Not LowShelf
+
+      const filter02 = result.filterArray[1].Filter02;
+      expect(filter02.type).toBe('Peaking'); // Unchanged
+
+      const filter03 = result.filterArray[2].Filter03;
+      expect(filter03.type).toBe('Highshelf'); // Not HighShelf
+
+      // Verify preamp is included
+      const preamp = result.filterArray[3].Preamp;
+      expect(preamp.gain).toBe(-3);
+
+      // Verify volume placeholder
+      expect(result.filterArray[4].Volume).toBeDefined();
+    });
+
     it('should get config by ID', async () => {
       const config: PipelineConfig = {
         configName: 'My Config',
@@ -161,13 +210,14 @@ describe('ConfigsLibrary', () => {
       });
     });
 
-    it('should throw INVALID_JSON for malformed config', async () => {
+    it('should throw NOT_FOUND for malformed config (skipped during list scan)', async () => {
       await fs.writeFile(join(TEST_CONFIGS_DIR, 'Bad Config.json'), 'invalid json');
 
+      // Malformed configs are skipped by listConfigs(), so getConfig() won't find them
       await expect(configsLibrary.getConfig('bad-config')).rejects.toThrow(AppError);
       await expect(configsLibrary.getConfig('bad-config')).rejects.toMatchObject({
-        code: ErrorCode.ERR_CONFIG_INVALID_JSON,
-        statusCode: 400,
+        code: ErrorCode.ERR_CONFIG_NOT_FOUND,
+        statusCode: 404,
       });
     });
 
@@ -333,6 +383,178 @@ describe('ConfigsLibrary', () => {
       } else {
         delete process.env.CONFIGS_DIR;
       }
+    });
+  });
+
+  describe('AutoEQ manifest fast-path', () => {
+    it('should use manifest when present and skip scanning autoeq directory', async () => {
+      // Create autoeq subdirectory with manifest
+      const autoeqDir = join(TEST_CONFIGS_DIR, 'autoeq');
+      await fs.mkdir(autoeqDir, { recursive: true });
+
+      // Create manifest with 2 entries
+      const manifest = {
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        source: { repo: 'https://github.com/jaakkopasanen/AutoEq.git' },
+        configs: [
+          {
+            id: 'autoeq--headphones--test-headphones',
+            configName: 'Test Headphones',
+            file: 'autoeq/headphones/Test Headphones.json',
+            mtimeMs: Date.now(),
+            size: 1024,
+            presetType: 'eq',
+            source: 'autoeq',
+            readOnly: true,
+            category: 'headphones',
+            manufacturer: 'Test',
+            model: 'Headphones',
+          },
+          {
+            id: 'autoeq--iems--test-iems',
+            configName: 'Test IEMs',
+            file: 'autoeq/iems/Test IEMs.json',
+            mtimeMs: Date.now(),
+            size: 2048,
+            presetType: 'eq',
+            source: 'autoeq',
+            readOnly: true,
+            category: 'iems',
+            manufacturer: 'Test',
+            model: 'IEMs',
+          },
+        ],
+      };
+
+      await fs.writeFile(
+        join(autoeqDir, 'index.json'),
+        JSON.stringify(manifest, null, 2)
+      );
+
+      // Create a malformed JSON file under autoeq/ (should be ignored by fast-path)
+      await fs.writeFile(join(autoeqDir, 'should-be-ignored.json'), '{ invalid json');
+
+      // Create a user preset at root
+      const userConfig: PipelineConfig = {
+        configName: 'User Config',
+        filterArray: [],
+      };
+      await fs.writeFile(
+        join(TEST_CONFIGS_DIR, 'User Config.json'),
+        JSON.stringify(userConfig)
+      );
+
+      const configs = await configsLibrary.listConfigs();
+
+      // Should return 3 configs (2 from manifest + 1 user)
+      expect(configs).toHaveLength(3);
+
+      // Verify manifest entries are present
+      const autoeqConfigs = configs.filter((c) => c.source === 'autoeq');
+      expect(autoeqConfigs).toHaveLength(2);
+      expect(autoeqConfigs.find((c) => c.configName === 'Test Headphones')).toBeDefined();
+      expect(autoeqConfigs.find((c) => c.configName === 'Test IEMs')).toBeDefined();
+
+      // Verify user config is present
+      const userConfigs = configs.filter((c) => c.source === 'user');
+      expect(userConfigs).toHaveLength(1);
+      expect(userConfigs[0].configName).toBe('User Config');
+
+      // Verify malformed file was not scanned (fast-path skipped autoeq/)
+      expect(configs.find((c) => c.file.includes('should-be-ignored'))).toBeUndefined();
+    });
+
+    it('should fallback to full scan when manifest is missing', async () => {
+      // Create autoeq subdirectory with NO manifest
+      const autoeqDir = join(TEST_CONFIGS_DIR, 'autoeq', 'headphones');
+      await fs.mkdir(autoeqDir, { recursive: true });
+
+      // Create a valid EQ preset
+      const eqPreset = {
+        presetType: 'eq',
+        schemaVersion: 1,
+        name: 'Fallback Test',
+        device: {
+          category: 'headphones',
+          manufacturer: 'Test',
+          model: 'Fallback',
+        },
+        preampDb: 0,
+        bands: [{ type: 'Peaking', freqHz: 1000, gainDb: 3, q: 1, enabled: true }],
+        source: 'autoeq',
+        readOnly: true,
+      };
+
+      await fs.writeFile(
+        join(autoeqDir, 'Fallback Test.json'),
+        JSON.stringify(eqPreset, null, 2)
+      );
+
+      const configs = await configsLibrary.listConfigs();
+
+      // Should find the preset via fallback full scan
+      expect(configs).toHaveLength(1);
+      expect(configs[0].configName).toBe('Fallback Test');
+      expect(configs[0].source).toBe('autoeq');
+      expect(configs[0].presetType).toBe('eq');
+    });
+
+    it('should fallback to full scan when manifest is invalid', async () => {
+      // Create autoeq directory with invalid manifest
+      const autoeqDir = join(TEST_CONFIGS_DIR, 'autoeq');
+      await fs.mkdir(autoeqDir, { recursive: true });
+
+      // Write invalid manifest (missing configs array)
+      await fs.writeFile(
+        join(autoeqDir, 'index.json'),
+        JSON.stringify({ schemaVersion: 1 })
+      );
+
+      // Create a valid EQ preset
+      const eqPreset = {
+        presetType: 'eq',
+        schemaVersion: 1,
+        name: 'Invalid Manifest Fallback',
+        device: { category: 'headphones', manufacturer: 'Test', model: 'Invalid' },
+        preampDb: 0,
+        bands: [],
+        source: 'autoeq',
+        readOnly: true,
+      };
+
+      await fs.writeFile(
+        join(autoeqDir, 'Invalid Manifest Fallback.json'),
+        JSON.stringify(eqPreset, null, 2)
+      );
+
+      const configs = await configsLibrary.listConfigs();
+
+      // Should find the preset via fallback
+      expect(configs).toHaveLength(1);
+      expect(configs[0].configName).toBe('Invalid Manifest Fallback');
+    });
+
+    it('should skip index.json files when scanning', async () => {
+      // Create directory with index.json at root (not autoeq/)
+      await fs.writeFile(
+        join(TEST_CONFIGS_DIR, 'index.json'),
+        JSON.stringify({ test: 'data' })
+      );
+
+      // Create a normal config
+      const config: PipelineConfig = { configName: 'Normal', filterArray: [] };
+      await fs.writeFile(
+        join(TEST_CONFIGS_DIR, 'Normal.json'),
+        JSON.stringify(config)
+      );
+
+      const configs = await configsLibrary.listConfigs();
+
+      // Should only find the normal config, not index.json
+      expect(configs).toHaveLength(1);
+      expect(configs[0].configName).toBe('Normal');
+      expect(configs.find((c) => c.file === 'index.json')).toBeUndefined();
     });
   });
 });

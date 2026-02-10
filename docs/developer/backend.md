@@ -35,7 +35,7 @@ server/
 └── src/
     ├── index.ts           # Entry point
     ├── app.ts             # Fastify app setup
-    ├── logger.ts          # Winston logger
+    ├── logger.ts          # Pino logger
     ├── configPaths.ts     # Path resolution
     │
     ├── routes/            # HTTP endpoint handlers
@@ -174,23 +174,41 @@ server/
 **Endpoint:** `GET /api/configs`  
 **Handler:** `server/src/routes/configs.ts`
 
-**Response:**
+**Response:** Array of `ConfigMetadata` objects
 ```json
-{
-  "configs": [
-    {
-      "id": "harman-target",
-      "name": "Harman Target",
-      "createdAt": "2024-01-15T10:30:00.000Z",
-      "updatedAt": "2024-01-15T10:30:00.000Z"
-    },
-    ...
-  ]
-}
+[
+  {
+    "id": "autoeq--headphones--sennheiser-hd-6xx",
+    "configName": "Sennheiser HD 6XX",
+    "file": "autoeq/headphones/Sennheiser HD 6XX.json",
+    "mtimeMs": 1234567890123,
+    "size": 2048,
+    "presetType": "eq",
+    "source": "autoeq",
+    "readOnly": true,
+    "category": "headphones",
+    "manufacturer": "Sennheiser",
+    "model": "HD 6XX"
+  },
+  {
+    "id": "my-custom-eq",
+    "configName": "My Custom EQ",
+    "file": "My Custom EQ.json",
+    "mtimeMs": 1234567890456,
+    "size": 512,
+    "presetType": "pipeline",
+    "source": "user",
+    "readOnly": false
+  }
+]
 ```
 
-**ID generation:** Kebab-case from filename  
-**Name extraction:** From JSON `configName` field
+**ID generation:** Kebab-case from relative path + filename  
+**Name extraction:** From JSON `name` (EQ presets) or `configName` (pipeline configs)
+
+**Includes:**
+- User-created presets (top-level + subdirs)
+- AutoEQ library presets (imported from AutoEQ database)
 
 ---
 
@@ -200,6 +218,8 @@ server/
 **Response:** Pipeline-config JSON (see [pipelineConfigMapping.ts](../client/src/lib/pipelineConfigMapping.ts))
 
 **Use case:** Load preset into UI
+
+**Note:** AutoEQ presets (EqPresetV1 format) are **converted on-the-fly** to PipelineConfig format (legacy filterArray) for client compatibility.
 
 ---
 
@@ -211,14 +231,15 @@ server/
 **Response:**
 ```json
 {
-  "message": "Config saved successfully",
-  "id": "harman-target"
+  "success": true
 }
 ```
 
 **Use case:** Save current EQ/pipeline as preset
 
-**File:** `server/data/configs/:id.json`
+**Protection:** Returns 403 if ID matches a read-only preset (e.g., AutoEQ library)
+
+**File:** `server/data/configs/<id>.json` (converted from kebab-case ID)
 
 ---
 
@@ -257,25 +278,38 @@ server/
 
 ### ConfigsLibrary (configsLibrary.ts)
 
-**Purpose:** Preset library management
+**Purpose:** Preset library management (user presets + AutoEQ library)
 
 **Key functions:**
 
 `listConfigs()`
-- Scans `server/data/configs/*.json`
-- Returns list with ID, name, timestamps
+- Returns metadata for all presets (user + AutoEQ)
+- **Performance optimization:** Uses `autoeq/index.json` manifest for fast AutoEQ lookups (O(1) read vs recursive scan)
+- Falls back to full recursive scan if manifest missing
+- Excludes `index.json` files from scan results
+- Sorts by name
 
 `getConfig(id)`
-- Reads `server/data/configs/:id.json`
-- Returns parsed pipeline-config
+- Reads preset file by ID
+- Returns `PipelineConfig` format
+- **AutoEQ conversion:** EqPresetV1 files are converted on-the-fly to PipelineConfig (legacy filterArray format)
 
 `saveConfig(id, data)`
-- Writes `server/data/configs/:id.json`
-- Uses `configStore.writeConfig()` for atomicity
+- Writes preset to `server/data/configs/<id>.json`
+- **Read-only enforcement:** Returns 403 if ID matches a preset with `readOnly: true`
+- Uses atomic write via `configStore.writeConfig()`
 
 **ID normalization:**
-- Kebab-case filename
-- Example: `"Harman Target"` → `harman-target.json`
+- Kebab-case from relative path + filename
+- Subdirectories encoded: `/` → `--`
+- Example: `"autoeq/headphones/Sennheiser HD 6XX.json"` → `"autoeq--headphones--sennheiser-hd-6xx"`
+
+**AutoEQ Library:**
+- Pre-imported headphone/IEM EQ presets from [AutoEQ database](https://github.com/jaakkopasanen/AutoEq)
+- Located in `server/data/configs/autoeq/<category>/`
+- Marked as `readOnly: true` (cannot be overwritten)
+- Format: EqPresetV1 (converted to PipelineConfig on load)
+- Manifest file (`autoeq/index.json`) enables fast cold-start (no filesystem scan)
 
 ---
 
@@ -333,11 +367,14 @@ class AppError extends Error {
 - Network interface binding
 - Use `127.0.0.1` for localhost-only (behind reverse proxy)
 
-**DATA_DIR** (default: `./server/data`)
-- Data directory for presets + recovery cache
+**CONFIG_DIR** (default: `./data`)
+- Base data directory (relative to WorkingDirectory)
+
+**CONFIGS_DIR** (optional, default: `<CONFIG_DIR>/configs`)
+- Preset library directory
 
 **LOG_LEVEL** (default: `info`)
-- Winston log level (debug, info, warn, error)
+- Pino log level (error, warn, info, debug, trace)
 
 **NODE_ENV** (default: `development`)
 - `production` → serves built frontend
@@ -365,9 +402,9 @@ class AppError extends Error {
 
 **Functions:**
 
-`getDataDir()`
-- Returns absolute path to data directory
-- Checks `DATA_DIR` env, fallback to `./server/data`
+`getConfigDir()`
+- Returns absolute path to config directory
+- Checks `CONFIG_DIR` env, fallback to `./data`
 
 `getConfigsDir()`
 - Returns `<dataDir>/configs`
@@ -406,7 +443,7 @@ class AppError extends Error {
 
 ## Logging
 
-**Logger:** Winston (`server/src/logger.ts`)
+**Logger:** Pino (`server/src/logger.ts`)
 
 **Log levels:**
 - `error` - Unrecoverable errors
@@ -415,8 +452,8 @@ class AppError extends Error {
 - `debug` - Detailed operation traces
 
 **Output:**
-- Console (colorized in dev)
-- File: `server/logs/app.log` (production)
+- Console (colorized with pino-pretty in dev)
+- JSON structured logs in production
 
 **Request logging:**
 - Fastify plugin logs all requests

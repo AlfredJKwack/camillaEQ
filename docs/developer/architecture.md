@@ -25,7 +25,9 @@
 - `server/src/app.ts` - Fastify app setup, middleware, error handlers
 - `server/src/routes/*.ts` - REST endpoint handlers
 - `server/src/services/configStore.ts` - Atomic config persistence
-- `server/src/services/configsLibrary.ts` - Preset library management
+- `server/src/services/configsLibrary.ts` - Preset library management (user + AutoEQ)
+- `server/data/configs/autoeq/` - Pre-imported AutoEQ library (read-only)
+- `server/data/configs/autoeq/index.json` - AutoEQ manifest (performance optimization)
 
 ---
 

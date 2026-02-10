@@ -201,10 +201,13 @@ User enters preset name
 PUT /api/configs/:id
     │
     ├─► Generate kebab-case ID from name
+    ├─► Server checks: is ID read-only?
+    │   ├─► If AutoEQ preset: 403 Forbidden
+    │   └─► If user preset or new: proceed
     ├─► Write to server/data/configs/:id.json
     │   └─► Atomic write (temp file → rename)
     │
-    └─► Return success
+    └─► Return { success: true }
         │
         └─► Refresh preset list in UI
 ```

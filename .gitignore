@@ -35,3 +35,6 @@ coverage/
 # Temp
 *.tmp
 *.temp
+
+# Vendor (build-time only)
+vendor/

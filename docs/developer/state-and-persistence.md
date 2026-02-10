@@ -124,14 +124,25 @@ All UI state must eventually converge to what CamillaDSP confirms.
 
 **State:**
 - User-saved presets (pipeline-config format)
+- AutoEQ library presets (EqPresetV1 format, read-only)
 
-**Lifecycle:** Explicit user action (save/delete)
+**Lifecycle:**
+- User presets: explicit user action (save/delete)
+- AutoEQ presets: imported via `npm run import:autoeq` (build-time only)
 
 **Persistence:** Disk (survives server restart)
 
 **Use cases:**
 - Load known-good configurations
 - Share configurations across devices
+- Access professional EQ profiles from AutoEQ database
+
+**AutoEQ Library:**
+- Located in `server/data/configs/autoeq/<category>/`
+- Pre-imported headphone/IEM profiles from [AutoEQ project](https://github.com/jaakkopasanen/AutoEq)
+- Marked as `readOnly: true` (cannot be overwritten via API)
+- Format: EqPresetV1 (converted to PipelineConfig on load)
+- Manifest file (`autoeq/index.json`) enables fast cold-start
 
 **Note:** Devices section is **never** stored in presets
 

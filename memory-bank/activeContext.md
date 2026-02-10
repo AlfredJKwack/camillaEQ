@@ -1,10 +1,137 @@
 # Active Context
 
 ## Current Focus
-**Documentation + Test Fixes completed** (2026-02-04) - Production-ready persona-based documentation and full test suite passing.
+**MVP-27 Complete** (2026-02-11) - AutoEQ preset library with full test coverage and updated documentation.
 
 ## Recently Completed
-**Documentation Overhaul (Persona-Based)** (2026-02-04)
+
+**MVP-27: AutoEQ Library Integration** (2026-02-11)
+
+### Overview
+Integrated 800+ headphone/IEM EQ profiles from the AutoEQ database as read-only presets with manifest optimization, comprehensive test coverage, and updated documentation.
+
+### Implementation Details
+
+**1. Core Integration:**
+- AutoEQ presets stored in `server/data/configs/autoeq/<category>/` (committed to repo)
+- New preset format: EqPresetV1 schema with device metadata (manufacturer, model, variant, category)
+- Runtime conversion: EqPresetV1 → PipelineConfig (filterArray format) for client compatibility
+- Read-only enforcement: 403 error when attempting to overwrite AutoEQ presets
+
+**2. Performance Optimization:**
+- Manifest file: `server/data/configs/autoeq/index.json` with pre-computed metadata
+- Fast-path loading: O(1) manifest read vs O(n) recursive filesystem scan
+- Manifest includes: id, configName, file path, timestamps, size, metadata fields
+- Fallback: Full scan if manifest missing/invalid
+
+**3. API Changes:**
+- `GET /api/configs` now returns flat `ConfigMetadata[]` array (not wrapped object)
+- `PUT /api/configs/:id` returns `{ success: true }` (not `{ message, id }`)
+- ConfigMetadata includes: `presetType`, `source`, `readOnly`, `category`, `manufacturer`, `model`, `variant`
+- `index.json` files excluded from all directory scans
+
+**4. Client UI Enhancements:**
+- AutoEQ toggle button: "Show/Hide AutoEQ (N)" on Presets page
+- Progressive rendering: 200-item batches via requestAnimationFrame (smooth UX for large lists)
+- Keyboard navigation: arrow keys + auto-expand render count when navigating beyond rendered items
+- AutoEQ badge: visual indicator for imported presets
+- CSS-only hover (no mouseenter handlers for performance)
+
+**5. Import Tooling:**
+- `tools/import-autoeq.ts`: Build-time script to import from AutoEQ repo
+- `tools/autoeqParser.ts`: ParametricEQ.txt → EqPresetV1 converter
+- Sparse git checkout: only clones `results/` directory from AutoEQ repo
+- Deterministic output: sorted, normalized, idempotent
+- Automatic manifest generation during import
+
+### Test Coverage Added
+
+**Server Tests** (`server/src/services/__tests__/configsLibrary.test.ts`):
+- ✅ Manifest fast-path with mock `autoeq/index.json`
+- ✅ Fallback to filesystem scan when manifest missing
+- ✅ `index.json` exclusion during directory scanning
+- ✅ Read-only preset protection (403 on save attempt)
+- ✅ EqPresetV1 → PipelineConfig conversion
+- Total: 77 server tests passing
+
+**Client Tests** (`client/src/pages/PresetsPage.test.ts`):
+- ✅ Progressive rendering batch mechanics
+- ✅ AutoEQ toggle two-phase filtering
+- ✅ Keyboard navigation with auto-expand
+- ✅ No mouseenter handler (CSS hover only)
+- Total: All client tests passing
+
+**Tools Tests** (`tools/__tests__/`):
+- ✅ `autoeqParser.test.ts`: ParametricEQ.txt parsing, Q clamping, normalization
+- ✅ `import-autoeq.manifest.test.ts`: Manifest generation, ID consistency, sorting
+- Total: 17 tools tests passing
+
+**Bug Fixes During Testing:**
+- Fixed Q normalization expectation (parser warns for both clamping AND rounding)
+- Fixed `configsLibrary` malformed config test (NOT_FOUND vs INVALID_JSON)
+- Added `index.json` skip logic to `scanDirectory()` method
+- Fixed `test:tools` npm script path resolution
+
+### Documentation Updates
+
+**Developer Docs Updated:**
+- `docs/developer/backend.md`: Logger (Pino), env vars (CONFIG_DIR), API responses, ConfigsLibrary details, AutoEQ library
+- `docs/developer/architecture.md`: Added AutoEQ library + manifest to key files
+- `docs/developer/data-flow.md`: Updated preset save flow with read-only check
+- `docs/developer/state-and-persistence.md`: Added AutoEQ to preset library layer
+
+**Power-User Docs Updated:**
+- `docs/power-user/deployment-models.md`: Disk usage (~5-10 MB with AutoEQ), manifest optimization
+- `docs/power-user/recovery-and-backups.md`: Backup includes `configs/autoeq/` directory
+- `docs/power-user/linux-services.md`: Verified env var naming (already correct: CONFIG_DIR)
+- `docs/power-user/headless-sbc.md`: Already correct (no changes needed)
+
+### Files Modified/Created
+1. **Server:**
+   - `server/src/services/configsLibrary.ts` - Manifest loading, read-only enforcement, conversion
+   - `server/src/routes/configs.ts` - Response shape updates
+   - `server/src/configPaths.ts` - Already correct (CONFIG_DIR)
+   - `server/src/services/__tests__/configsLibrary.test.ts` - New tests for MVP-27
+
+2. **Client:**
+   - `client/src/pages/PresetsPage.svelte` - AutoEQ toggle, progressive rendering, keyboard nav
+   - `client/src/pages/PresetsPage.test.ts` - New tests for MVP-27
+   - `client/src/lib/api.ts` - Updated response types
+
+3. **Shared:**
+   - `shared/eqPresetSchema.ts` - New EqPresetV1 schema definition
+
+4. **Tools:**
+   - `tools/import-autoeq.ts` - AutoEQ import script with manifest generation
+   - `tools/autoeqParser.ts` - ParametricEQ.txt parser
+   - `tools/__tests__/autoeqParser.test.ts` - Parser unit tests
+   - `tools/__tests__/import-autoeq.manifest.test.ts` - Manifest generation tests
+   - `tools/README.md` - Updated with import-autoeq documentation
+
+5. **Root:**
+   - `package.json` - Added `test:tools` and `import:autoeq` scripts
+
+6. **Documentation:**
+   - All 7 developer + power-user docs updated per above
+
+### Test Results
+- **Before fixes:** 4 tests failing (server + tools)
+- **After fixes:** All tests passing
+  - Server: 77 tests
+  - Client: All passing
+  - Tools: 17 tests
+- **Total:** 240+ tests across entire suite
+
+### Key Decisions Made
+- ✅ **Manifest optimization:** O(1) fast-path for AutoEQ cold-start
+- ✅ **Read-only enforcement:** Server-side 403 protection for AutoEQ presets
+- ✅ **Progressive rendering:** 200-item batches for smooth large-list UX
+- ✅ **Two-phase filtering:** AutoEQ toggle + search query for clear mental model
+- ✅ **Runtime conversion:** EqPresetV1 → PipelineConfig maintains client compatibility
+
+---
+
+**Previous: Documentation Overhaul (Persona-Based)** (2026-02-04)
 
 ### Overview
 Created comprehensive production-ready documentation organized by three distinct personas, replacing old narrative-style docs.
@@ -49,7 +176,7 @@ Created comprehensive production-ready documentation organized by three distinct
 
 ---
 
-**Test Suite Fixes** (2026-02-04)
+**Previous: Test Suite Fixes** (2026-02-04)
 
 ### Overview
 Fixed 4 failing client tests across 3 modules by correcting implementation logic and test expectations.
@@ -95,6 +222,8 @@ Fixed 4 failing client tests across 3 modules by correcting implementation logic
 - ✅ **Bypassed filters:** Excluded from EQ page entirely (not just shown as disabled)
 - ✅ **Parameter rounding:** 2-decimal precision for all processor parameters
 - ✅ **Editable filters:** Only Biquad filters with known subtypes (Delay/Gain/etc. not editable)
+- ✅ **AutoEQ integration:** Manifest-optimized, read-only, progressive UI rendering
+- ✅ **Preset format:** EqPresetV1 for AutoEQ, PipelineConfig for user presets (both supported)
 
 ## Open Questions
 None at this stage.
@@ -105,9 +234,11 @@ None identified.
 ## Next Steps
 - Future enhancements per backlog
 - User feedback integration
+- Consider AutoEQ library updates (re-run import script)
 
 ## Context References
-- **`docs/`** - Complete persona-based documentation
-- **`docs/implementation-plan.md`** - Sequential MVP roadmap (authoritative)
-- **`docs/current-architecture.md`** - As-built architecture
+- **`docs/`** - Complete persona-based documentation (updated for MVP-27)
+- **`server/data/configs/autoeq/`** - 800+ imported AutoEQ presets
+- **`shared/eqPresetSchema.ts`** - EqPresetV1 canonical schema
+- **`tools/import-autoeq.ts`** - AutoEQ import tooling
 - `memory-bank/` - All context documents
