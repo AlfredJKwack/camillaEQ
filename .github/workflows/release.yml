@@ -1,0 +1,268 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+    
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Build
+      run: npm run build
+      env:
+        BUILD_HASH: ${{ github.sha }}
+        BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+    
+    - name: Verify build artifacts
+      run: |
+        test -f server/dist/index.js || { echo "ERROR: server/dist/index.js not found"; exit 1; }
+        test -f client/dist/index.html || { echo "ERROR: client/dist/index.html not found"; exit 1; }
+        test -d server/dist/client || { echo "ERROR: server/dist/client/ not found"; exit 1; }
+        test -f server/dist/client/index.html || { echo "ERROR: server/dist/client/index.html not found"; exit 1; }
+        echo "✓ Build artifacts verified"
+    
+    - name: Assemble release artifact
+      run: |
+        RELEASE_NAME="camillaeq-${{ steps.version.outputs.VERSION }}"
+        RELEASE_DIR="release/${RELEASE_NAME}"
+        
+        echo "Assembling release: ${RELEASE_NAME}"
+        mkdir -p "${RELEASE_DIR}"
+        
+        # Copy server build output
+        cp -r server/dist "${RELEASE_DIR}/server/"
+        
+        # Copy data directory (configs, presets)
+        cp -r server/data "${RELEASE_DIR}/data/"
+        
+        # Copy deployment resources
+        mkdir -p "${RELEASE_DIR}/deploy"
+        cp -r deploy/systemd "${RELEASE_DIR}/deploy/"
+        cp -r deploy/caddy "${RELEASE_DIR}/deploy/"
+        
+        # Copy tools
+        cp -r tools "${RELEASE_DIR}/"
+        
+        # Copy shared modules (if any runtime code depends on them)
+        cp -r shared "${RELEASE_DIR}/"
+        
+        # Copy LICENSE and README for release
+        cp LICENSE "${RELEASE_DIR}/"
+        
+        echo "✓ Files copied to ${RELEASE_DIR}"
+    
+    - name: Generate runtime package.json
+      run: |
+        RELEASE_NAME="camillaeq-${{ steps.version.outputs.VERSION }}"
+        RELEASE_DIR="release/${RELEASE_NAME}"
+        
+        # Extract runtime dependencies from server/package.json
+        cat > "${RELEASE_DIR}/package.json" << 'EOF'
+        {
+          "name": "camillaeq",
+          "version": "${{ steps.version.outputs.VERSION }}",
+          "description": "CamillaDSP graphical equalizer interface",
+          "type": "module",
+          "scripts": {
+            "start": "node server/dist/index.js"
+          },
+          "dependencies": {
+            "@fastify/static": "^7.0.4",
+            "dotenv": "^16.4.1",
+            "fastify": "^4.26.0",
+            "pino": "^8.19.0",
+            "pino-pretty": "^10.3.1",
+            "ws": "^8.19.0"
+          },
+          "engines": {
+            "node": ">=18.0.0 <25.0.0",
+            "npm": ">=9.0.0"
+          }
+        }
+        EOF
+        
+        # Replace version placeholder
+        sed -i "s/\${{ steps.version.outputs.VERSION }}/${GITHUB_REF#refs/tags/v}/g" "${RELEASE_DIR}/package.json"
+        
+        echo "✓ Generated runtime package.json"
+        cat "${RELEASE_DIR}/package.json"
+    
+    - name: Generate package-lock.json and install dependencies
+      run: |
+        RELEASE_NAME="camillaeq-${{ steps.version.outputs.VERSION }}"
+        RELEASE_DIR="release/${RELEASE_NAME}"
+        
+        cd "${RELEASE_DIR}"
+        
+        # Generate package-lock.json
+        npm install --package-lock-only --omit=dev
+        
+        # Validate by installing
+        npm ci --omit=dev
+        
+        echo "✓ Dependencies installed and validated"
+        echo "✓ node_modules size: $(du -sh node_modules | cut -f1)"
+    
+    - name: Smoke test the artifact
+      run: |
+        RELEASE_NAME="camillaeq-${{ steps.version.outputs.VERSION }}"
+        RELEASE_DIR="release/${RELEASE_NAME}"
+        
+        cd "${RELEASE_DIR}"
+        
+        # Start server in background with production config
+        NODE_ENV=production SERVER_PORT=3000 SERVER_HOST=127.0.0.1 node server/dist/index.js &
+        SERVER_PID=$!
+        
+        echo "Started server (PID: ${SERVER_PID})"
+        
+        # Wait for server to be ready (max 10 seconds)
+        for i in {1..20}; do
+          if curl -s http://127.0.0.1:3000/health > /dev/null; then
+            echo "✓ Server responded to health check"
+            break
+          fi
+          if [ $i -eq 20 ]; then
+            echo "ERROR: Server did not respond within 10 seconds"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+          sleep 0.5
+        done
+        
+        # Test 1: Root serves HTML
+        echo "Testing: GET /"
+        RESPONSE=$(curl -s http://127.0.0.1:3000/)
+        if echo "$RESPONSE" | grep -q '<div id="app">'; then
+          echo "✓ Root serves UI (HTML with #app)"
+        else
+          echo "ERROR: Root did not return expected HTML"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1
+        fi
+        
+        # Test 2: API endpoint returns JSON
+        echo "Testing: GET /api/version"
+        RESPONSE=$(curl -s http://127.0.0.1:3000/api/version)
+        if echo "$RESPONSE" | grep -q '"version"'; then
+          echo "✓ API endpoint returns JSON"
+        else
+          echo "ERROR: API endpoint did not return expected JSON"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1
+        fi
+        
+        # Test 3: SPA fallback for unknown routes
+        echo "Testing: GET /some-ui-route (SPA fallback)"
+        RESPONSE=$(curl -s http://127.0.0.1:3000/some-ui-route)
+        if echo "$RESPONSE" | grep -q '<div id="app">'; then
+          echo "✓ SPA fallback works"
+        else
+          echo "ERROR: SPA fallback did not return HTML"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1
+        fi
+        
+        # Test 4: Unknown API route returns JSON 404
+        echo "Testing: GET /api/nonexistent (JSON 404)"
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/nonexistent)
+        if [ "$HTTP_CODE" = "404" ]; then
+          echo "✓ Unknown API route returns 404"
+        else
+          echo "ERROR: Unknown API route returned HTTP $HTTP_CODE (expected 404)"
+          kill $SERVER_PID 2>/dev/null || true
+          exit 1
+        fi
+        
+        # Clean up
+        kill $SERVER_PID 2>/dev/null || true
+        wait $SERVER_PID 2>/dev/null || true
+        
+        echo "✓ All smoke tests passed"
+    
+    - name: Create tarball
+      run: |
+        RELEASE_NAME="camillaeq-${{ steps.version.outputs.VERSION }}"
+        
+        cd release
+        tar -czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}/"
+        
+        echo "✓ Created release tarball"
+        ls -lh "${RELEASE_NAME}.tar.gz"
+        
+        # Move to root for upload
+        mv "${RELEASE_NAME}.tar.gz" ../
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: camillaeq-${{ steps.version.outputs.VERSION }}.tar.gz
+        body: |
+          ## CamillaEQ ${{ steps.version.outputs.VERSION }}
+          
+          **Ready-to-run release** - No build required!
+          
+          ### Quick Start
+          
+          ```bash
+          # Download and extract
+          wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.VERSION }}/camillaeq-${{ steps.version.outputs.VERSION }}.tar.gz
+          tar -xzf camillaeq-${{ steps.version.outputs.VERSION }}.tar.gz
+          cd camillaeq-${{ steps.version.outputs.VERSION }}
+          
+          # Install dependencies (Node.js >= 18 required)
+          npm ci --omit=dev
+          
+          # Start server
+          npm start
+          ```
+          
+          The UI will be available at `http://localhost:3000`
+          
+          ### What's Included
+          
+          - Pre-built server + UI (single-process runtime)
+          - Deployment guides (systemd, Caddy)
+          - Helper tools (AutoEQ import, device wizard)
+          - Sample configurations
+          
+          ### Deployment
+          
+          See `deploy/systemd/README.md` for production deployment instructions.
+          
+          ### Requirements
+          
+          - Node.js >= 18.0.0 (LTS recommended)
+          - CamillaDSP (for audio processing)
+          
+          ---
+          
+          **Build info:**
+          - Commit: ${{ github.sha }}
+          - Node: 20.x
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

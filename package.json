@@ -11,16 +11,17 @@
     "dev": "npm-run-all --parallel dev:server dev:client",
     "dev:server": "npm run dev --workspace=server",
     "dev:client": "npm run dev --workspace=client",
-    "build": "npm-run-all build:client build:server copy:client",
+    "build": "npm-run-all build:client copy:client build:server",
     "build:server": "npm run build --workspace=server",
     "build:client": "npm run build --workspace=client",
-    "copy:client": "mkdir -p server/dist/client && cp -r client/dist/* server/dist/client/",
+    "copy:client": "rm -rf server/dist/client && mkdir -p server/dist/client && cp -r client/dist/* server/dist/client/",
     "test": "npm-run-all test:server test:client test:tools",
     "test:server": "npm run test --workspace=server",
     "test:client": "npm run test --workspace=client",
     "test:tools": "cd tools && npx --prefix ../client vitest run __tests__",
     "start": "NODE_ENV=production npm run start --workspace=server",
     "start:prod": "npm run build && npm run start",
+    "release:local": "node tools/release/assemble-release.mjs",
     "import:autoeq": "tsx tools/import-autoeq.ts"
   },
   "devDependencies": {
@@ -29,7 +30,7 @@
     "tsx": "^4.21.0"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=18.0.0 <25.0.0",
     "npm": ">=9.0.0"
   }
 }

@@ -33,16 +33,37 @@ describe('Production Static Serving', () => {
     // Create a static asset
     await fs.writeFile(join(tempDir, 'test.txt'), 'static file content');
 
+    // Create conflicting paths that should NOT shadow API routes
+    await fs.mkdir(join(tempDir, 'api'), { recursive: true });
+    await fs.writeFile(join(tempDir, 'api', 'shadow-test.txt'), 'This should NOT be served');
+    await fs.mkdir(join(tempDir, 'health'), { recursive: true });
+    await fs.writeFile(join(tempDir, 'health', 'index.html'), 'This should NOT be served');
+
     // Create server with static serving (simulating production mode)
     server = Fastify({ logger: false });
 
-    // Register minimal health route (to test API routes still work)
+    // IMPORTANT: Register API routes BEFORE static plugin
+    // This ensures API routes take precedence over static files
     server.get('/health', async () => ({ status: 'ok' }));
-
-    // Register API route
     server.get('/api/test', async () => ({ data: 'api response' }));
 
-    // Register static file serving
+    // Catch-all for unmatched /api/* routes to prevent static file shadowing
+    // This matches production behavior in server/src/index.ts
+    server.route({
+      method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      url: '/api/*',
+      handler: async (request, reply) => {
+        return reply.status(404).send({
+          error: {
+            code: 'ERR_NOT_FOUND',
+            message: 'Resource not found',
+            statusCode: 404,
+          },
+        });
+      },
+    });
+
+    // Register static file serving AFTER API routes
     await server.register(fastifyStatic, {
       root: tempDir,
       prefix: '/',
@@ -154,6 +175,36 @@ describe('Production Static Serving', () => {
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
       expect(body).toEqual({ data: 'api response' });
+    });
+
+    it('should NOT serve static files from /api/* path (no shadowing)', async () => {
+      // Even though we created api/shadow-test.txt in the static dir,
+      // the API route should take precedence
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/shadow-test.txt',
+      });
+
+      // Should get 404 JSON (not the static file content)
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.body);
+      expect(body).toHaveProperty('error');
+      expect(body.error.code).toBe('ERR_NOT_FOUND');
+      expect(response.body).not.toContain('This should NOT be served');
+    });
+
+    it('should NOT serve static files from /health path (no shadowing)', async () => {
+      // Even though we created health/index.html in the static dir,
+      // the /health route should take precedence
+      const response = await server.inject({
+        method: 'GET',
+        url: '/health',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toEqual({ status: 'ok' });
+      expect(response.body).not.toContain('This should NOT be served');
     });
 
     it('should return JSON 404 for unknown API routes', async () => {

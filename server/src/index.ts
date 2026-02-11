@@ -1,3 +1,8 @@
+import { enforceNodeVersion } from './runtime/checkNodeVersion.js';
+
+// Enforce Node.js version before any other imports or operations
+enforceNodeVersion();
+
 import dotenv from 'dotenv';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -46,9 +51,32 @@ const start = async () => {
     registerStateRoutes(app);
     registerConfigsRoutes(app);
     
-    // In production, serve the built client from server/dist
-    // The client/dist is copied to server/dist/client during build
-    const isProduction = process.env.NODE_ENV === 'production';
+    // Catch-all for unmatched /api/* routes to prevent static file shadowing
+    // This ensures /api/* always returns JSON, never static files
+    app.route({
+      method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+      url: '/api/*',
+      handler: async (request, reply) => {
+        return reply.status(404).send({
+          error: {
+            code: 'ERR_NOT_FOUND',
+            message: 'Resource not found',
+            statusCode: 404,
+          },
+        });
+      },
+    });
+    
+    // Auto-detect production mode:
+    // - If NODE_ENV is explicitly set to 'production', use production mode
+    // - Otherwise, check if built client exists at server/dist/client/index.html
+    // - This allows release artifacts to work without explicit NODE_ENV=production
+    const clientDistPath = join(__dirname, 'client');
+    const clientIndexPath = join(clientDistPath, 'index.html');
+    const hasBuiltClient = existsSync(clientIndexPath);
+    
+    const isProduction = process.env.NODE_ENV === 'production' || 
+                         (process.env.NODE_ENV === undefined && hasBuiltClient);
     
     if (isProduction) {
       // Resolve client dist relative to compiled server/dist
