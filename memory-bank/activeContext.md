@@ -1,11 +1,11 @@
 # Active Context
 
 ## Current Focus
-**MVP-27 Complete** (2026-02-11) - AutoEQ preset library with full test coverage and updated documentation.
+**MVP-28 Complete** (2026-02-11) - AutoEQ preset library with full test coverage and updated documentation.
 
 ## Recently Completed
 
-**MVP-27: AutoEQ Library Integration** (2026-02-11)
+**MVP-28: AutoEQ Library Integration** (2026-02-11)
 
 ### Overview
 Integrated 800+ headphone/IEM EQ profiles from the AutoEQ database as read-only presets with manifest optimization, comprehensive test coverage, and updated documentation.
@@ -91,11 +91,11 @@ Integrated 800+ headphone/IEM EQ profiles from the AutoEQ database as read-only 
    - `server/src/services/configsLibrary.ts` - Manifest loading, read-only enforcement, conversion
    - `server/src/routes/configs.ts` - Response shape updates
    - `server/src/configPaths.ts` - Already correct (CONFIG_DIR)
-   - `server/src/services/__tests__/configsLibrary.test.ts` - New tests for MVP-27
+   - `server/src/services/__tests__/configsLibrary.test.ts` - New tests for MVP-28
 
 2. **Client:**
    - `client/src/pages/PresetsPage.svelte` - AutoEQ toggle, progressive rendering, keyboard nav
-   - `client/src/pages/PresetsPage.test.ts` - New tests for MVP-27
+   - `client/src/pages/PresetsPage.test.ts` - New tests for MVP-28
    - `client/src/lib/api.ts` - Updated response types
 
 3. **Shared:**
@@ -237,7 +237,7 @@ None identified.
 - Consider AutoEQ library updates (re-run import script)
 
 ## Context References
-- **`docs/`** - Complete persona-based documentation (updated for MVP-27)
+- **`docs/`** - Complete persona-based documentation (updated for MVP-28)
 - **`server/data/configs/autoeq/`** - 800+ imported AutoEQ presets
 - **`shared/eqPresetSchema.ts`** - EqPresetV1 canonical schema
 - **`tools/import-autoeq.ts`** - AutoEQ import tooling

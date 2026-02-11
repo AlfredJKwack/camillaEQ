@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-describe('PresetsPage MVP-27 Implementation', () => {
+describe('PresetsPage MVP-28 Implementation', () => {
   it('component file exists and can be imported', async () => {
     // Verify the component module can be loaded
     const module = await import('./PresetsPage.svelte');

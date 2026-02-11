@@ -24,7 +24,7 @@
     - Preserves user precision (e.g., 0.05s attack time)
   - All 385 tests passing (33 test files, 2 skipped)
 
-- [x] **MVP-27: AutoEQ Library Integration** (2026-02-11)
+- [x] **MVP-28: AutoEQ Library Integration** (2026-02-11)
   - Integrated 800+ headphone/IEM EQ profiles from AutoEQ database
   - Core implementation:
     - EqPresetV1 schema with device metadata (manufacturer, model, variant, category)
@@ -54,10 +54,10 @@
   - Documentation updates:
     - Updated 7 developer + power-user docs with AutoEQ details
     - API response shapes, env vars, backup procedures, disk usage
-    - All docs now reflect MVP-27 implementation
+    - All docs now reflect MVP-28 implementation
 
 ## Current Status (2026-02-11)
-**Phase:** MVP-27 complete with full test coverage and documentation
+**Phase:** MVP-28 complete with full test coverage and documentation
 
 **Latest work:**
 - AutoEQ preset library integrated with manifest optimization
