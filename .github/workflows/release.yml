@@ -1,17 +1,20 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.release.tag_name }}
     
     - name: Setup Node.js 20.x
       uses: actions/setup-node@v4
@@ -21,7 +24,11 @@ jobs:
     
     - name: Extract version from tag
       id: version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      run: |
+        TAG="${{ github.event.release.tag_name }}"
+        VERSION="${TAG#v}"
+        echo "TAG=${TAG}" >> $GITHUB_OUTPUT
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
     
     - name: Install dependencies
       run: npm ci
@@ -110,7 +117,7 @@ jobs:
         EOF
         
         # Replace version placeholder
-        sed -i "s/\${{ steps.version.outputs.VERSION }}/${GITHUB_REF#refs/tags/v}/g" "${RELEASE_DIR}/package.json"
+        sed -i "s/\${{ steps.version.outputs.VERSION }}/${{ steps.version.outputs.VERSION }}/g" "${RELEASE_DIR}/package.json"
         
         echo "✓ Generated runtime package.json"
         cat "${RELEASE_DIR}/package.json"
@@ -233,65 +240,24 @@ jobs:
     
     - name: Create tarball
       run: |
-        RELEASE_NAME="camillaeq-${{ steps.version.outputs.VERSION }}"
+        TAG="${{ steps.version.outputs.TAG }}"
         
         cd release
-        tar -czf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}/"
+        tar -czf "camillaeq-${TAG}.tar.gz" "camillaeq-${{ steps.version.outputs.VERSION }}/"
         
         echo "✓ Created release tarball"
-        ls -lh "${RELEASE_NAME}.tar.gz"
+        ls -lh "camillaeq-${TAG}.tar.gz"
         
         # Move to root for upload
-        mv "${RELEASE_NAME}.tar.gz" ../
+        mv "camillaeq-${TAG}.tar.gz" ../
     
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: camillaeq-${{ steps.version.outputs.VERSION }}.tar.gz
-        body: |
-          ## CamillaEQ ${{ steps.version.outputs.VERSION }}
-          
-          **Ready-to-run release** - No build required!
-          
-          ### Quick Start
-          
-          ```bash
-          # Download and extract
-          wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.VERSION }}/camillaeq-${{ steps.version.outputs.VERSION }}.tar.gz
-          tar -xzf camillaeq-${{ steps.version.outputs.VERSION }}.tar.gz
-          cd camillaeq-${{ steps.version.outputs.VERSION }}
-          
-          # Install dependencies (Node.js >= 18 required)
-          npm ci --omit=dev
-          
-          # Start server
-          npm start
-          ```
-          
-          The UI will be available at `http://localhost:3000`
-          
-          ### What's Included
-          
-          - Pre-built server + UI (single-process runtime)
-          - Deployment guides (systemd, Caddy)
-          - Helper tools (AutoEQ import, device wizard)
-          - Sample configurations
-          
-          ### Deployment
-          
-          See `deploy/systemd/README.md` for production deployment instructions.
-          
-          ### Requirements
-          
-          - Node.js >= 18.0.0 (LTS recommended)
-          - CamillaDSP (for audio processing)
-          
-          ---
-          
-          **Build info:**
-          - Commit: ${{ github.sha }}
-          - Node: 20.x
-        draft: false
-        prerelease: false
+    - name: Upload tarball to release
+      run: |
+        TAG="${{ steps.version.outputs.TAG }}"
+        
+        echo "Uploading camillaeq-${TAG}.tar.gz to release ${TAG}"
+        gh release upload "${TAG}" "camillaeq-${TAG}.tar.gz" --clobber
+        
+        echo "✓ Tarball uploaded successfully"
       env:
         GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
