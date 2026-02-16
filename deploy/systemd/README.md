@@ -16,7 +16,7 @@ This guide describes how to deploy a **CamillaEQ release artifact** on Linux sys
 
 ```bash
 # Download the release (replace VERSION with actual version)
-wget https://github.com/AlfredJKwack/camillaEQ/releases/download/v0.1.0/camillaeq-v0.1.0.tar.gz
+wget https://github.com/AlfredJKwack/camillaEQ/releases/download/v0.1.2b/camillaeq-v0.1.2b.tar.gz
 
 # Extract to temporary location
 tar -xzf camillaeq-v0.1.0.tar.gz
