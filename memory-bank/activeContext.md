@@ -1,9 +1,37 @@
 # Active Context
 
 ## Current Focus
-**MVP-28 Complete** (2026-02-11) - AutoEQ preset library with full test coverage and updated documentation.
+**MVP-29 Complete** (2026-02-16) - Single-process runtime + ready-to-run releases (server serves API + built UI from one Node process).
 
 ## Recently Completed
+
+**MVP-29: Single-Process Runtime & Ready-to-Run Releases** (2026-02-16)
+
+### Overview
+Delivered a single-process deployment model where the Node.js server serves both the API/WebSocket endpoints and the pre-built client UI as static assets.
+
+### Key Changes
+
+**1. Deterministic build output (monorepo build pipeline):**
+- Build order enforced:
+  - build client → `client/dist`
+  - copy client output → `server/dist/client`
+  - build server → `server/dist/index.js`
+- Production server serves UI from `server/dist/client` with SPA fallback to `index.html`.
+- Explicit protections ensure `/api/*` routes are never shadowed by static file serving.
+
+**2. Ready-to-run release artifacts:**
+- GitHub Actions release workflow added: `.github/workflows/release.yml` (runs on tags `v*`).
+- Release artifact contains runtime-only files (server dist + built UI + deploy docs + tools + data).
+- Local parity tooling added: `tools/release/assemble-release.mjs` (`npm run release:local`) assembles the artifact and runs a smoke test.
+
+**3. Runtime contract & checks:**
+- Enforced Node.js version range: `>=18.0.0 <25.0.0`.
+- Runtime version enforcement implemented in `server/src/runtime/checkNodeVersion.ts` with Jest coverage.
+
+**4. Test/CI reliability:**
+- Client tests default to non-watch mode (`vitest run`).
+- Release smoke tests use an ephemeral port to avoid `EADDRINUSE` collisions.
 
 **MVP-28: AutoEQ Library Integration** (2026-02-11)
 

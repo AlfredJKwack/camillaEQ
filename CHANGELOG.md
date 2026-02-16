@@ -1,3 +1,32 @@
+## [0.1.2] - 2026-02-16
+
+### Added
+
+- __AutoEQ import tooling (build-time)__ via `tools/import-autoeq.ts`, including a parser + manifest generation and supporting tests. This enables importing AutoEQ profiles into the local `data/configs` library.
+- AutoEQ preset/schema support (`shared/eqPresetSchema.ts`) and server-side library enhancements to detect and list imported AutoEQ configurations.
+- __Ready-to-run release artifacts__ (single-process runtime): GitHub Actions workflow (`.github/workflows/release.yml`) builds server + UI and publishes a runtime-only `.tar.gz` on version tags (`v*`).
+- Local release assembly + validation script: `npm run release:local` (mirrors CI build/release steps, generates runtime-only package.json/lock, and runs a smoke test).
+- Runtime Node.js version enforcement (`>=18.0.0 <25.0.0`) with dedicated unit tests.
+
+### Changed
+
+- __Build pipeline__ now produces a deterministic runtime layout:
+
+  - build client → `client/dist`
+  - copy UI assets → `server/dist/client`
+  - build server → `server/dist/index.js`
+  - production server serves the UI from the compiled output.
+
+- Client test script now defaults to non-watch mode (`vitest run`) to avoid hanging CI.
+
+- Deployment and architecture docs updated to reflect the new release/runtime model and AutoEQ import behavior.
+
+### Fixed
+
+- Release/runtime startup: UI is served correctly from the single Node process (static serving + SPA fallback) and API routes are protected from static shadowing.
+
+---
+
 ## [0.1.1] - 2026-02-07
 
 ### Added

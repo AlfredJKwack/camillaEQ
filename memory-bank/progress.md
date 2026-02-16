@@ -56,15 +56,30 @@
     - API response shapes, env vars, backup procedures, disk usage
     - All docs now reflect MVP-28 implementation
 
-## Current Status (2026-02-11)
-**Phase:** MVP-28 complete with full test coverage and documentation
+- [x] **MVP-29: Single-Process Runtime & Ready-to-Run Releases** (2026-02-16)
+  - Unified runtime: Node server serves REST + WebSocket endpoints and pre-built UI static assets from one process.
+  - Deterministic build output:
+    - Client build output `client/dist` is copied to `server/dist/client` during build.
+    - Server serves static UI from `server/dist/client` with explicit SPA fallback to `index.html`.
+    - API paths are protected from static-shadowing (`/api/*` always returns JSON).
+  - Release artifact assembly:
+    - GitHub Actions workflow `.github/workflows/release.yml` assembles a runtime-only tarball on tags (`v*`).
+    - Local parity script `tools/release/assemble-release.mjs` (`npm run release:local`) builds, assembles, installs runtime deps, and smoke-tests the artifact.
+  - Runtime contract:
+    - Enforced Node.js version range `>=18.0.0 <25.0.0` with runtime check + Jest tests.
+    - `npm start` runs `node server/dist/index.js` (no frontend tooling required at runtime).
+  - Test/CI reliability improvements:
+    - Client tests default to non-watch mode (`vitest run`) to avoid hanging CI.
+    - Release smoke tests use an ephemeral port to avoid `EADDRINUSE` collisions.
+
+## Current Status (2026-02-16)
+**Phase:** MVP-29 complete (ready-to-run single-process releases)
 
 **Latest work:**
-- AutoEQ preset library integrated with manifest optimization
-- Read-only enforcement and runtime format conversion
-- Progressive UI rendering for large preset lists
-- Comprehensive test coverage (server, client, tools)
-- Documentation updated across all personas
+- AutoEQ preset library + import tooling (build-time)
+- Single-process runtime serving API + UI from one Node process
+- Ready-to-run GitHub Releases packaging + local release assembly/smoke test
+- Node.js version enforcement + improved CI/test determinism
 
 ## Known Issues
 None at this stage.
