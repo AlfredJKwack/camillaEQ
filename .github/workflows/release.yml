@@ -51,8 +51,9 @@ jobs:
         echo "Assembling release: ${RELEASE_NAME}"
         mkdir -p "${RELEASE_DIR}"
         
-        # Copy server build output
-        cp -r server/dist "${RELEASE_DIR}/server/"
+        # Copy server build output (preserve dist/ directory structure)
+        mkdir -p "${RELEASE_DIR}/server"
+        cp -r server/dist "${RELEASE_DIR}/server/dist"
         
         # Copy data directory (configs, presets)
         cp -r server/data "${RELEASE_DIR}/data/"
@@ -72,6 +73,11 @@ jobs:
         cp LICENSE "${RELEASE_DIR}/"
         
         echo "✓ Files copied to ${RELEASE_DIR}"
+        
+        # Debug: Show release directory structure
+        echo "Release directory structure:"
+        ls -la "${RELEASE_DIR}/server/" || echo "WARNING: server/ directory not found"
+        test -f "${RELEASE_DIR}/server/dist/index.js" && echo "✓ server/dist/index.js exists" || echo "ERROR: server/dist/index.js NOT found"
     
     - name: Generate runtime package.json
       run: |
@@ -132,20 +138,37 @@ jobs:
         
         cd "${RELEASE_DIR}"
         
+        # Use ephemeral port to avoid EADDRINUSE collisions
+        TEST_PORT=$(node -e "require('net').createServer().listen(0, function() { console.log(this.address().port); this.close(); })")
+        echo "Using ephemeral port: ${TEST_PORT}"
+        
         # Start server in background with production config
-        NODE_ENV=production SERVER_PORT=3000 SERVER_HOST=127.0.0.1 node server/dist/index.js &
+        NODE_ENV=production SERVER_PORT=${TEST_PORT} SERVER_HOST=127.0.0.1 node server/dist/index.js > server.log 2>&1 &
         SERVER_PID=$!
         
         echo "Started server (PID: ${SERVER_PID})"
         
+        # Helper to check if server is still running
+        check_server_alive() {
+          if ! kill -0 $SERVER_PID 2>/dev/null; then
+            echo "ERROR: Server process exited unexpectedly"
+            echo "Server logs:"
+            cat server.log
+            exit 1
+          fi
+        }
+        
         # Wait for server to be ready (max 10 seconds)
         for i in {1..20}; do
-          if curl -s http://127.0.0.1:3000/health > /dev/null; then
+          check_server_alive
+          if curl -s http://127.0.0.1:${TEST_PORT}/health > /dev/null 2>&1; then
             echo "✓ Server responded to health check"
             break
           fi
           if [ $i -eq 20 ]; then
             echo "ERROR: Server did not respond within 10 seconds"
+            echo "Server logs:"
+            cat server.log
             kill $SERVER_PID 2>/dev/null || true
             exit 1
           fi
@@ -154,29 +177,34 @@ jobs:
         
         # Test 1: Root serves HTML
         echo "Testing: GET /"
-        RESPONSE=$(curl -s http://127.0.0.1:3000/)
+        check_server_alive
+        RESPONSE=$(curl -s http://127.0.0.1:${TEST_PORT}/)
         if echo "$RESPONSE" | grep -q '<div id="app">'; then
           echo "✓ Root serves UI (HTML with #app)"
         else
           echo "ERROR: Root did not return expected HTML"
+          echo "Response preview: ${RESPONSE:0:200}"
           kill $SERVER_PID 2>/dev/null || true
           exit 1
         fi
         
         # Test 2: API endpoint returns JSON
         echo "Testing: GET /api/version"
-        RESPONSE=$(curl -s http://127.0.0.1:3000/api/version)
+        check_server_alive
+        RESPONSE=$(curl -s http://127.0.0.1:${TEST_PORT}/api/version)
         if echo "$RESPONSE" | grep -q '"version"'; then
           echo "✓ API endpoint returns JSON"
         else
           echo "ERROR: API endpoint did not return expected JSON"
+          echo "Response: ${RESPONSE}"
           kill $SERVER_PID 2>/dev/null || true
           exit 1
         fi
         
         # Test 3: SPA fallback for unknown routes
         echo "Testing: GET /some-ui-route (SPA fallback)"
-        RESPONSE=$(curl -s http://127.0.0.1:3000/some-ui-route)
+        check_server_alive
+        RESPONSE=$(curl -s http://127.0.0.1:${TEST_PORT}/some-ui-route)
         if echo "$RESPONSE" | grep -q '<div id="app">'; then
           echo "✓ SPA fallback works"
         else
@@ -187,7 +215,8 @@ jobs:
         
         # Test 4: Unknown API route returns JSON 404
         echo "Testing: GET /api/nonexistent (JSON 404)"
-        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/api/nonexistent)
+        check_server_alive
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:${TEST_PORT}/api/nonexistent)
         if [ "$HTTP_CODE" = "404" ]; then
           echo "✓ Unknown API route returns 404"
         else
