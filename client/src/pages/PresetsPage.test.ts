@@ -1,5 +1,5 @@
 /**
- * PresetsPage MVP-27 Performance Optimization Tests
+ * PresetsPage MVP-28 Performance Optimization Tests
  */
 
 import { describe, it, expect } from 'vitest';
