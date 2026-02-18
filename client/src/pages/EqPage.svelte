@@ -319,9 +319,10 @@
     const isReady = state === 'connected' && dsp?.isSpectrumSocketOpen();
     
     if (overlayEnabled && isReady && !spectrumPollingInterval) {
-      // Start polling
-      spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
-      console.log('Spectrum polling started');
+      // Start polling (use high precision interval if enabled)
+      const pollInterval = getEffectivePollInterval(heatmapHighPrecision);
+      spectrumPollingInterval = window.setInterval(pollSpectrum, pollInterval);
+      console.log('Spectrum polling started', { pollInterval, highPrecision: heatmapHighPrecision });
     } else if ((!overlayEnabled || !isReady) && spectrumPollingInterval !== null) {
       // Stop polling when overlay disabled OR spectrum socket not ready
       clearInterval(spectrumPollingInterval);
@@ -348,8 +349,9 @@
         const nowMs = Date.now();
         lastSpectrumFrame = nowMs;
         
-        // Apply fractional-octave smoothing
-        const smoothedDb = smoothDbBins(spectrumData.binsDb, smoothingMode);
+        // Apply fractional-octave smoothing (use effective mode for high precision)
+        const effectiveSmoothing = getEffectiveSmoothing(smoothingMode, heatmapHighPrecision);
+        const smoothedDb = smoothDbBins(spectrumData.binsDb, effectiveSmoothing);
         
         // Update analyzer state (STA/LTA/Peak computation)
         analyzer.update(smoothedDb, nowMs);
