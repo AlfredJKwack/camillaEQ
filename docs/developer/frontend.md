@@ -59,6 +59,8 @@ client/src/
 │   ├── pipelineViewModel.ts    # Pipeline → UI blocks
 │   ├── pipelineBlockEdit.ts    # Pipeline mutations
 │   ├── filterEnablement.ts     # Filter disable/enable
+│   ├── disabledFiltersOverlay.ts # Disabled filter localStorage persistence
+│   ├── vizOptionsPersistence.ts  # Viz-options localStorage persistence
 │   └── knownTypes.ts           # Filter/processor type registry
 │
 ├── dsp/                   # DSP math (pure functions)
@@ -73,6 +75,7 @@ client/src/
 │   │   ├── SpectrumCanvasRenderer.ts  # Spectrum overlay (Canvas)
 │   │   └── canvasLayers/              # Pluggable layers
 │   │       ├── SpectrumAnalyzerLayer.ts
+│   │       ├── SpectrumHeatmapLayer.ts
 │   │       └── SpectrumAreaLayer.ts
 │   └── tokens/
 │       └── EqTokensLayer.svelte  # Draggable EQ tokens (DOM)

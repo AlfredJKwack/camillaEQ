@@ -218,6 +218,11 @@
 **canvasLayers/SpectrumAnalyzerLayer.ts**
 - Renders STA/LTA/Peak series as lines
 - Color-coded for pre/post modes
+
+**canvasLayers/SpectrumHeatmapLayer.ts**
+- Renders spectrum as vertical orange lines (heatmap)
+- Amplitude via opacity and brightness
+- Supports masking (top/bottom/full) relative to histogram curve
 - Opacity and line width per series
 
 ---

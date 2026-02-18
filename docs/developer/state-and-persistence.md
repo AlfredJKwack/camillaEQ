@@ -85,6 +85,7 @@ All UI state must eventually converge to what CamillaDSP confirms.
 - DSP connection settings (server, ports)
 - Auto-reconnect preference
 - Disabled filters overlay (per-step disabled filter indices)
+- Viz-options + heatmap settings (spectrum/analyzer toggles, smoothing, heatmap tuning)
 
 **Lifecycle:** Survives browser reload, cleared by user/browser
 
@@ -93,8 +94,54 @@ All UI state must eventually converge to what CamillaDSP confirms.
 **Use cases:**
 - Auto-reconnect on page load
 - Restore disabled filter state across sessions
+- Restore EQ visualization preferences across sessions
 
 **Note:** This is UI-only state, not authoritative for DSP config
+
+**Storage keys:**
+- `camillaDSP.server`, `camillaDSP.controlPort`, `camillaDSP.spectrumPort` - Connection params
+- `camillaDSP.autoReconnect` - Auto-reconnect preference
+- `camillaEQ.disabledFilters` - Disabled filter overlay (versioned)
+- `camillaEQ.vizOptions` - Viz-options state (versioned, see details below)
+
+---
+
+#### Viz-Options Persistence
+
+**Location:** `client/src/lib/vizOptionsPersistence.ts`
+
+**Storage key:** `camillaEQ.vizOptions`
+
+**State persisted (15 settings):**
+- Spectrum mode (pre/post)
+- Smoothing mode (off, 1/12, 1/6, 1/3)
+- Analyzer series (showSTA, showLTA, showPeak)
+- EQ view options (showPerBandCurves, showBandwidthMarkers, bandFillOpacity)
+- Heatmap (enabled, maskMode, highPrecision, visual tuning parameters)
+
+**Lifecycle:**
+- Loaded on EqPage mount
+- Saved on change (debounced 200ms)
+- Validated and clamped on load (invalid values → defaults)
+
+**Versioning:**
+- Schema version: 1
+- Version mismatch → reset to defaults
+- Invalid JSON → reset to defaults
+
+**Validation:**
+- Enum values checked (spectrum mode, smoothing mode, mask mode)
+- Numeric values clamped to valid ranges:
+  - `bandFillOpacity`: [0, 1]
+  - `heatmapAlphaGamma`: [0.8, 4.0]
+  - `heatmapMagnitudeGain`: [0.5, 4.0]
+  - `heatmapGateThreshold`: [0.0, 0.2]
+  - `heatmapMaxAlpha`: [0.2, 1.0]
+
+**Design rationale:**
+- Follows same pattern as `disabledFiltersOverlay` (versioned, validated)
+- No impact on DSP (UI-only preferences)
+- Graceful degradation (corrupt data → defaults, not crashes)
 
 ---
 

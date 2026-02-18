@@ -5,6 +5,7 @@
   import KnobDial from '../components/KnobDial.svelte';
   import FaderTooltip from '../components/FaderTooltip.svelte';
   import FilterTypePicker from '../components/FilterTypePicker.svelte';
+  import HeatmapSettings from '../components/HeatmapSettings.svelte';
   import preEqSpectrumUrl from '../assets/vis-opt-spectrum-preeq.webp';
   import postEqSpectrumUrl from '../assets/vis-opt-spectrum-posteq.webp';
   import type { EqBand } from '../dsp/filterResponse';
@@ -30,9 +31,16 @@
   import { connectionState, dspConfig, getDspInstance } from '../state/dspStore';
   import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
   import { SpectrumAnalyzerLayer } from '../ui/rendering/canvasLayers/SpectrumAnalyzerLayer';
+  import { SpectrumHeatmapLayer, type HeatmapMaskMode } from '../ui/rendering/canvasLayers/SpectrumHeatmapLayer';
   import { parseSpectrumData, dbArrayToNormalized } from '../dsp/spectrumParser';
   import { SpectrumAnalyzer } from '../dsp/spectrumAnalyzer';
   import { smoothDbBins, type SmoothingMode } from '../dsp/fractionalOctaveSmoothing';
+  import {
+    selectPrimarySeries,
+    getEffectiveSmoothing,
+    getEffectivePollInterval,
+    getEffectiveAnalyzerTau,
+  } from '../dsp/heatmapSeries';
   import EqTokensLayer from '../ui/tokens/EqTokensLayer.svelte';
   import { calculateBandwidthMarkers } from '../dsp/bandwidthMarkers';
   import {
@@ -43,6 +51,8 @@
     generateNotchHaloPath,
   } from '../ui/rendering/eqFocusViz';
   import { generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
+  import { loadVizOptions, saveVizOptions } from '../lib/vizOptionsPersistence';
+  import { debounce } from '../lib/debounce';
 
   let showPerBandCurves = false;
   let spectrumMode: 'pre' | 'post' = 'pre'; // pre or post (no off mode)
@@ -55,9 +65,35 @@
   
   // Derived: overlay is enabled if at least one series is on
   $: overlayEnabled = showSTA || showLTA || showPeak;
+  
+  // Derived: spectrum visualization needed (analyzer OR heatmap)
+  $: spectrumVizEnabled = overlayEnabled || heatmapEnabled;
+  
   let analyzerOpacity = 0.5; // 0-1 range (default 50%)
   let peakHoldTime = 2.0; // seconds (default 2.0, range 1.0-5.0)
   let peakDecayRate = 12; // dB/s (default 12, range 6-24)
+  
+  // MVP-30: Heatmap controls
+  let heatmapEnabled = false; // Default: OFF
+  let heatmapMaskMode: HeatmapMaskMode = 'full'; // Default: full
+  let heatmapHighPrecision = false; // Default: OFF
+  
+  // MVP-30: Heatmap dB range tuning (for better contrast)
+  const heatmapMinDb = -85; // Floor for normalized mapping (tweak for more/less contrast)
+  const heatmapMaxDb = -10; // Ceiling for normalized mapping (tweak for punch)
+  
+  // MVP-30: Heatmap visual tuning parameters (exposed via settings popover)
+  let heatmapAlphaGamma = 2.8; // Contrast (0.8-4.0)
+  let heatmapMagnitudeGain = 2.5; // Gain (0.5-4.0)
+  let heatmapGateThreshold = 0.05; // Gate (0.0-0.20)
+  let heatmapMaxAlpha = 0.95; // Max opacity (0.2-1.0)
+  
+  // MVP-30: Heatmap settings popover state
+  let heatmapSettingsOpen = false;
+  let heatmapSettingsButtonEl: HTMLButtonElement | null = null;
+  let heatmapSettingsButtonLeft = 0;
+  let heatmapSettingsButtonRight = 0;
+  let heatmapSettingsButtonCenterY = 0;
   
   // MVP-14: Focus mode and visualization controls
   let showBandwidthMarkers = true; // Default: ON per spec
@@ -72,10 +108,11 @@
   let canvasElement: HTMLCanvasElement;
   let spectrumRenderer: SpectrumCanvasRenderer | null = null;
   let analyzerLayer: SpectrumAnalyzerLayer | null = null;
+  let heatmapLayer: SpectrumHeatmapLayer | null = null; // MVP-30
   let analyzer: SpectrumAnalyzer | null = null;
   let spectrumPollingInterval: number | null = null;
   let lastSpectrumFrame: number = 0;
-  const SPECTRUM_POLL_INTERVAL = 100; // 10 Hz
+  const SPECTRUM_POLL_INTERVAL = 100; // 10 Hz (base, overridden by high precision)
   const SPECTRUM_STALE_THRESHOLD = 500; // ms
   
   // Token drag state
@@ -156,6 +193,30 @@
   let plotElement: HTMLDivElement;
   let resizeObserver: ResizeObserver | null = null;
   
+  // Load persisted viz options on mount
+  onMount(() => {
+    const saved = loadVizOptions();
+    
+    // Restore all persisted settings
+    spectrumMode = saved.spectrumMode;
+    smoothingMode = saved.smoothingMode;
+    showSTA = saved.showSTA;
+    showLTA = saved.showLTA;
+    showPeak = saved.showPeak;
+    showPerBandCurves = saved.showPerBandCurves;
+    showBandwidthMarkers = saved.showBandwidthMarkers;
+    bandFillOpacity = saved.bandFillOpacity;
+    heatmapEnabled = saved.heatmapEnabled;
+    heatmapMaskMode = saved.heatmapMaskMode;
+    heatmapHighPrecision = saved.heatmapHighPrecision;
+    heatmapAlphaGamma = saved.heatmapAlphaGamma;
+    heatmapMagnitudeGain = saved.heatmapMagnitudeGain;
+    heatmapGateThreshold = saved.heatmapGateThreshold;
+    heatmapMaxAlpha = saved.heatmapMaxAlpha;
+    
+    console.log('Loaded viz options from localStorage');
+  });
+  
   // Lifecycle: Initialize canvas renderer + analyzer
   onMount(() => {
     // Initialize analyzer with peak hold config
@@ -164,14 +225,22 @@
       decayRateDbPerSec: peakDecayRate,
     });
     
-    // Initialize canvas renderer with analyzer layer
+    // Initialize canvas renderer with heatmap + analyzer layers
     if (canvasElement) {
+      // MVP-30: Heatmap layer (rendered first, so curves appear on top)
+      heatmapLayer = new SpectrumHeatmapLayer({
+        enabled: heatmapEnabled,
+        maskMode: heatmapMaskMode,
+        primarySeries: null,
+      });
+      
       analyzerLayer = new SpectrumAnalyzerLayer({
         showSTA,
         showLTA,
         showPeak,
       });
-      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [analyzerLayer]);
+      
+      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [heatmapLayer, analyzerLayer]);
       spectrumRenderer.resize(plotWidth, plotHeight);
     }
     
@@ -251,6 +320,36 @@
     });
   }
   
+  // MVP-30: Reactive: Update analyzer time constants for high precision mode
+  $: if (analyzer && heatmapHighPrecision) {
+    const tau = getEffectiveAnalyzerTau(heatmapHighPrecision);
+    analyzer.updateConfig({
+      ...analyzer.getConfig(),
+      tauShort: tau.tauShort,
+      tauLong: tau.tauLong,
+    });
+  }
+  
+  // MVP-30: Reactive: Update heatmap layer config (including visual tuning)
+  $: if (heatmapLayer) {
+    heatmapLayer.setConfig({
+      enabled: heatmapEnabled,
+      maskMode: heatmapMaskMode,
+      primarySeries: null, // Updated in pollSpectrum
+      visualTuning: {
+        minAlpha: 0.0,
+        maxAlpha: heatmapMaxAlpha,
+        alphaGamma: heatmapAlphaGamma,
+        colorGamma: 1.2,
+        gateThreshold: heatmapGateThreshold,
+        gateSoftness: 0.03,
+        magnitudeGain: heatmapMagnitudeGain,
+        darkOrange: { r: 180, g: 80, b: 20 },
+        brightOrange: { r: 255, g: 140, b: 40 },
+      },
+    });
+  }
+  
   onDestroy(() => {
     // Clean up polling interval
     if (spectrumPollingInterval !== null) {
@@ -267,19 +366,20 @@
     // It persists across page navigation
   });
   
-  // Reactive: Start/stop spectrum polling based on overlayEnabled and spectrum socket readiness
+  // Reactive: Start/stop spectrum polling based on spectrumVizEnabled and spectrum socket readiness
   $: {
     // Add reactive dependency on connectionState so this block re-runs after auto-connect
     const state = $connectionState;
     const dsp = getDspInstance();
     const isReady = state === 'connected' && dsp?.isSpectrumSocketOpen();
     
-    if (overlayEnabled && isReady && !spectrumPollingInterval) {
-      // Start polling
-      spectrumPollingInterval = window.setInterval(pollSpectrum, SPECTRUM_POLL_INTERVAL);
-      console.log('Spectrum polling started');
-    } else if ((!overlayEnabled || !isReady) && spectrumPollingInterval !== null) {
-      // Stop polling when overlay disabled OR spectrum socket not ready
+    if (spectrumVizEnabled && isReady && !spectrumPollingInterval) {
+      // Start polling (use high precision interval if enabled)
+      const pollInterval = getEffectivePollInterval(heatmapHighPrecision);
+      spectrumPollingInterval = window.setInterval(pollSpectrum, pollInterval);
+      console.log('Spectrum polling started', { pollInterval, highPrecision: heatmapHighPrecision });
+    } else if ((!spectrumVizEnabled || !isReady) && spectrumPollingInterval !== null) {
+      // Stop polling when spectrum viz disabled OR spectrum socket not ready
       clearInterval(spectrumPollingInterval);
       spectrumPollingInterval = null;
       
@@ -287,7 +387,7 @@
       if (spectrumRenderer) {
         spectrumRenderer.clear();
       }
-      console.log('Spectrum polling stopped', { overlayEnabled, isReady });
+      console.log('Spectrum polling stopped', { spectrumVizEnabled, isReady });
     }
   }
   
@@ -304,8 +404,9 @@
         const nowMs = Date.now();
         lastSpectrumFrame = nowMs;
         
-        // Apply fractional-octave smoothing
-        const smoothedDb = smoothDbBins(spectrumData.binsDb, smoothingMode);
+        // Apply fractional-octave smoothing (use effective mode for high precision)
+        const effectiveSmoothing = getEffectiveSmoothing(smoothingMode, heatmapHighPrecision);
+        const smoothedDb = smoothDbBins(spectrumData.binsDb, effectiveSmoothing);
         
         // Update analyzer state (STA/LTA/Peak computation)
         analyzer.update(smoothedDb, nowMs);
@@ -314,9 +415,13 @@
         const state = analyzer.getState();
         
         // Prepare series for rendering (convert dB to normalized [0..1])
+        // For histogram curves: use default range (-100..0)
         const staNorm = state.staDb ? dbArrayToNormalized(state.staDb) : null;
         const ltaNorm = state.ltaDb ? dbArrayToNormalized(state.ltaDb) : null;
         const peakNorm = state.peakDb ? dbArrayToNormalized(state.peakDb) : null;
+        
+        // MVP-30: For heatmap: use custom dB range for better contrast
+        const staHeatNorm = state.staDb ? dbArrayToNormalized(state.staDb, heatmapMinDb, heatmapMaxDb) : null;
         
         // Update analyzer layer with new series data
         analyzerLayer.setSeries({
@@ -326,9 +431,21 @@
           peakNorm,
         });
         
-        // Render (pass STA as the primary bins for the layer interface)
+        // MVP-30: Update heatmap layer with primary series for masking
+        if (heatmapLayer) {
+          const primarySeries = selectPrimarySeries(
+            { showSTA, showLTA, showPeak },
+            { staNorm, ltaNorm, peakNorm }
+          );
+          heatmapLayer.setConfig({
+            primarySeries,
+          });
+        }
+        
+        // Render (pass heatmap bins with custom dB range to renderer)
+        // Note: analyzerLayer ignores binsNormalized and uses internal series state
         spectrumRenderer.resetOpacity();
-        spectrumRenderer.render(staNorm || [], {
+        spectrumRenderer.render(staHeatNorm || staNorm || [], {
           mode: spectrumMode as 'pre' | 'post',
         });
       }
@@ -646,6 +763,60 @@
     typePickerBandIndex = null;
   }
 
+  // MVP-30: Heatmap settings popover handlers
+  function handleHeatmapSettingsClick(event: MouseEvent) {
+    event.stopPropagation();
+    
+    // Toggle: if already open, close it
+    if (heatmapSettingsOpen) {
+      heatmapSettingsOpen = false;
+      return;
+    }
+    
+    // Otherwise, open it with updated position
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    
+    heatmapSettingsButtonLeft = rect.left;
+    heatmapSettingsButtonRight = rect.right;
+    heatmapSettingsButtonCenterY = rect.top + rect.height / 2;
+    heatmapSettingsOpen = true;
+  }
+  
+  function handleHeatmapSettingsChange(event: CustomEvent<{
+    maskMode?: HeatmapMaskMode;
+    highPrecision?: boolean;
+    alphaGamma?: number;
+    magnitudeGain?: number;
+    gateThreshold?: number;
+    maxAlpha?: number;
+  }>) {
+    const changes = event.detail;
+    
+    if (changes.maskMode !== undefined) {
+      heatmapMaskMode = changes.maskMode;
+    }
+    if (changes.highPrecision !== undefined) {
+      heatmapHighPrecision = changes.highPrecision;
+    }
+    if (changes.alphaGamma !== undefined) {
+      heatmapAlphaGamma = changes.alphaGamma;
+    }
+    if (changes.magnitudeGain !== undefined) {
+      heatmapMagnitudeGain = changes.magnitudeGain;
+    }
+    if (changes.gateThreshold !== undefined) {
+      heatmapGateThreshold = changes.gateThreshold;
+    }
+    if (changes.maxAlpha !== undefined) {
+      heatmapMaxAlpha = changes.maxAlpha;
+    }
+  }
+  
+  function handleHeatmapSettingsClose() {
+    heatmapSettingsOpen = false;
+  }
+
   // Master fader interaction (preamp gain control)
   function handleMasterFaderPointerDown(event: PointerEvent) {
     event.preventDefault();
@@ -825,6 +996,35 @@
     
     return calculateBandwidthMarkers(selectedBand);
   })();
+  
+  // Persist viz options to localStorage (debounced)
+  const debouncedSaveVizOptions = debounce((state: any) => {
+    saveVizOptions(state);
+  }, 200);
+  
+  $: {
+    // Watch all viz-options variables and save changes
+    const vizState = {
+      version: 1,
+      spectrumMode,
+      smoothingMode,
+      showSTA,
+      showLTA,
+      showPeak,
+      showPerBandCurves,
+      showBandwidthMarkers,
+      bandFillOpacity,
+      heatmapEnabled,
+      heatmapMaskMode,
+      heatmapHighPrecision,
+      heatmapAlphaGamma,
+      heatmapMagnitudeGain,
+      heatmapGateThreshold,
+      heatmapMaxAlpha,
+    };
+    
+    debouncedSaveVizOptions(vizState);
+  }
 </script>
 
 <div class="eq-layout">
@@ -1101,11 +1301,11 @@
       <div class="viz-options-area">
       <div class="viz-options">
         <div class="option-group">
-          <div class="spectrum-selector" class:disabled={!overlayEnabled}>
+          <div class="spectrum-selector" class:disabled={!spectrumVizEnabled}>
             <button 
               class="spectrum-button" 
               class:active={spectrumMode === 'pre'} 
-              class:dimmed={!overlayEnabled}
+              class:dimmed={!spectrumVizEnabled}
               on:click={() => (spectrumMode = 'pre')}
               title="Pre-EQ Spectrum"
             >
@@ -1114,7 +1314,7 @@
             <button 
               class="spectrum-button" 
               class:active={spectrumMode === 'post'} 
-              class:dimmed={!overlayEnabled}
+              class:dimmed={!spectrumVizEnabled}
               on:click={() => (spectrumMode = 'post')}
               title="Post-EQ Spectrum"
             >
@@ -1184,6 +1384,41 @@
             <input type="checkbox" bind:checked={showBandwidthMarkers} />
             BW markers
           </label>
+        </div>
+        
+        <!-- MVP-30: Heatmap controls (compact) -->
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={heatmapEnabled} />
+            Heatmap
+          </label>
+          <button
+            class="heatmap-settings-btn"
+            bind:this={heatmapSettingsButtonEl}
+            disabled={!heatmapEnabled}
+            on:click={handleHeatmapSettingsClick}
+            title="Heatmap settings"
+            aria-label="Heatmap settings"
+          >
+            <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                stroke="currentColor"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"
+                stroke="currentColor"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </div>
         
         <div class="option-group">
@@ -1364,6 +1599,24 @@
       iconCenterY={typePickerIconCenterY}
       on:select={handleTypeSelect}
       on:close={handleTypePickerClose}
+    />
+  {/if}
+  
+  <!-- MVP-30: Heatmap settings popover -->
+  {#if heatmapSettingsOpen}
+    <HeatmapSettings
+      maskMode={heatmapMaskMode}
+      highPrecision={heatmapHighPrecision}
+      alphaGamma={heatmapAlphaGamma}
+      magnitudeGain={heatmapMagnitudeGain}
+      gateThreshold={heatmapGateThreshold}
+      maxAlpha={heatmapMaxAlpha}
+      anchorEl={heatmapSettingsButtonEl}
+      buttonLeft={heatmapSettingsButtonLeft}
+      buttonRight={heatmapSettingsButtonRight}
+      buttonCenterY={heatmapSettingsButtonCenterY}
+      on:change={handleHeatmapSettingsChange}
+      on:close={handleHeatmapSettingsClose}
     />
   {/if}
 </div>
@@ -1610,7 +1863,7 @@
     font-size: 0.875rem;
   }
 
-  .option-group button {
+  .option-group button:not(.heatmap-settings-btn) {
     padding: 0.375rem 0.75rem;
     background: transparent;
     border: 1px solid var(--ui-border);
@@ -1620,12 +1873,12 @@
     transition: all 0.15s ease;
   }
 
-  .option-group button:hover {
+  .option-group button:not(.heatmap-settings-btn):hover {
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.15);
   }
 
-  .option-group button.active {
+  .option-group button:not(.heatmap-settings-btn).active {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
     color: var(--ui-text);
@@ -1720,6 +1973,63 @@
   
   .analyzer-btn.reset-btn {
     font-size: 1.25rem;
+  }
+
+  /* MVP-30: Heatmap mask buttons */
+  .heatmap-mask-buttons {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mask-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 48px;
+  }
+
+  .mask-btn.dimmed {
+    opacity: 0.4;
+  }
+
+  .mask-btn:disabled {
+    cursor: not-allowed;
+  }
+
+  /* MVP-30: Heatmap settings button */
+  .heatmap-settings-btn {
+    width: 1.8rem;
+    height: 1.8rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    font-size: 1rem;
+    line-height: 1;
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .heatmap-settings-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--ui-text);
+  }
+
+  .heatmap-settings-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .settings-icon {
+    width: 0.9rem;
+    height: 0.9rem;
+    display: block;
+    stroke: currentColor;
+    fill: none;
   }
 
   /* Band Columns: use subgrid to participate in parent's 3 rows */

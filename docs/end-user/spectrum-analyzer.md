@@ -149,7 +149,7 @@ Spectrum: 256 bins
 
 Click the **EQ** icon in the navigation rail.
 
-### 2. Enable Analyzer Series
+### 2. Enable Analyzer Series or Heatmap
 
 In the **Visualization Options** bar (bottom of plot):
 
@@ -158,9 +158,13 @@ In the **Visualization Options** bar (bottom of plot):
 - **LTA** (Long-Term Average): Default **OFF**, shows long-term balance (~8s window)
 - **PEAK** (Peak Hold): Default **OFF**, tracks maximum levels with decay
 
+**Heatmap overlay:**
+- **Heatmap** checkbox: Default **OFF**, displays spectrum as vertical orange lines with opacity/brightness representing amplitude
+- **Settings button (⚙)**: Opens advanced heatmap controls when heatmap is enabled
+
 **Overlay behavior:**
-- Overlay is **enabled** when **any** series toggle is ON
-- Overlay is **disabled** when **all** toggles are OFF
+- Overlay is **enabled** when **any** series toggle is ON **or** heatmap is enabled
+- Overlay is **disabled** when **all** toggles are OFF **and** heatmap is OFF
 
 ### 3. Select Visualization Mode
 
@@ -215,6 +219,33 @@ Click **↺** button to reset STA/LTA/Peak to current live values.
 - Tracks maximum level per bin
 - Holds peaks for 2 seconds, then decays at 12 dB/s
 - Shows loudest moments in each frequency range
+
+### Heatmap Overlay
+
+**Heatmap visualization:**
+- Displays spectrum as vertical orange lines (one per pixel column)
+- Amplitude represented by **opacity** and **brightness**
+  - Louder = brighter and more opaque
+  - Quieter = darker and more transparent
+- Provides dense, continuous frequency representation
+
+**Heatmap settings (via ⚙ button):**
+
+**Mask Mode:**
+- **Top:** Show heatmap only above the histogram curve
+- **Bottom:** Show heatmap only below the histogram curve  
+- **Full:** Show full-height heatmap (no masking)
+
+**High Precision:**
+- Slower update rate (250ms vs 100ms)
+- Longer integration time for more stable display
+- Minimal smoothing for maximum detail
+
+**Advanced visual tuning (knobs):**
+- **Contrast:** Adjust opacity curve (higher = more contrast)
+- **Gain:** Boost overall brightness
+- **Gate:** Hide low-level noise below threshold
+- **Max α:** Limit maximum opacity
 
 ---
 

@@ -12,11 +12,20 @@
 
 **Use case:** New spectrum overlay (e.g., spectrogram, waterfall)
 
+**Example:** See `SpectrumHeatmapLayer.ts` for a complete implementation
+
 **Steps:**
 1. Implement `CanvasVisualizationLayer` interface:
    ```typescript
    interface CanvasVisualizationLayer {
-     draw(ctx: CanvasRenderingContext2D, state: RenderState): void;
+     readonly id: string;
+     render(args: {
+       ctx: CanvasRenderingContext2D;
+       width: number;
+       height: number;
+       binsNormalized: number[];
+       mode: 'pre' | 'post';
+     }): void;
    }
    ```
 
@@ -35,7 +44,7 @@
    ```
 
 **Constraints:**
-- No DOM mutations in `draw()`
+- No DOM mutations in `render()`
 - No allocations in hot loop (reuse buffers)
 - Use typed arrays for numeric data
 

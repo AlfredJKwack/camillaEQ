@@ -1,3 +1,43 @@
+## [0.1.3] - 2026-02-19
+
+### Added
+
+- __Heatmap overlay visualization__ on the EQ plot:
+  - Displays spectrum as vertical orange lines with amplitude represented by opacity and brightness.
+  - Provides dense, continuous frequency representation that complements the histogram analyzer curves.
+  - Three mask modes: **Top** (above histogram), **Bottom** (below histogram), **Full** (no masking).
+  - Heatmap settings popover (⚙ button) with:
+    - **High Precision** mode: slower update rate (250ms vs 100ms), longer integration time for stable display.
+    - **Advanced tuning controls**: Contrast (opacity gamma), Gain (brightness boost), Gate (noise threshold), Max Alpha (opacity ceiling).
+
+- __Visualization options persistence__ (`localStorage`):
+  - All EQ visualization settings now persist across browser sessions:
+    - Spectrum mode (pre/post)
+    - Smoothing mode (off, 1/12, 1/6, 1/3 octave)
+    - Analyzer series toggles (STA/LTA/Peak)
+    - EQ view options (per-band curves, bandwidth markers, band fill opacity)
+    - Heatmap settings (enabled, mask mode, high precision, visual tuning parameters)
+  - Settings validated and clamped on load (version 1 schema with migration support).
+  - Storage key: `camillaEQ.vizOptions`
+
+### Changed
+
+- Heatmap and analyzer overlays operate independently:
+  - Heatmap can be enabled without analyzer curves, and vice versa.
+  - Spectrum polling runs when *either* is enabled.
+  - High Precision mode adjusts both poll interval and analyzer time constants.
+
+- Developer documentation updated:
+  - `docs/developer/state-and-persistence.md`: Added Layer 4 subsection for viz-options persistence (storage keys, lifecycle, validation).
+  - `docs/developer/frontend.md`: Added `vizOptionsPersistence.ts` to module directory listing.
+  - End-user spectrum analyzer docs updated with heatmap usage guidance.
+
+### Notes
+- Heatmap is a real-time overlay, not a time-history spectrogram (no ring buffer or scrolling rows).
+- STA/LTA/Peak analyzer series remain available alongside the heatmap.
+
+---
+
 ## [0.1.2] - 2026-02-16
 
 ### Added
