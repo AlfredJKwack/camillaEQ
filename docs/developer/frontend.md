@@ -73,6 +73,7 @@ client/src/
 │   │   ├── SpectrumCanvasRenderer.ts  # Spectrum overlay (Canvas)
 │   │   └── canvasLayers/              # Pluggable layers
 │   │       ├── SpectrumAnalyzerLayer.ts
+│   │       ├── SpectrumHeatmapLayer.ts
 │   │       └── SpectrumAreaLayer.ts
 │   └── tokens/
 │       └── EqTokensLayer.svelte  # Draggable EQ tokens (DOM)
