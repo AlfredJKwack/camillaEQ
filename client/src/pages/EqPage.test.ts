@@ -167,3 +167,39 @@ describe('EqPage MVP-12 Informative Tokens', () => {
     expect(source).toContain('r={');
   });
 });
+
+describe('EqPage MVP-30 Heatmap Controls', () => {
+  it('contains heatmap control elements', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify heatmap checkbox
+    expect(source).toContain('heatmapEnabled');
+    expect(source).toContain('Heatmap');
+    
+    // Verify mask mode buttons
+    expect(source).toContain('heatmapMaskMode');
+    expect(source).toContain('heatmap-mask-buttons');
+    expect(source).toContain('Top');
+    expect(source).toContain('Bottom');
+    expect(source).toContain('Full');
+    
+    // Verify high precision control
+    expect(source).toContain('heatmapHighPrecision');
+    expect(source).toContain('High precision');
+    
+    // Verify enhanced frequency control
+    expect(source).toContain('heatmapEnhancedFrequency');
+    expect(source).toContain('Enhanced freq');
+    
+    // Verify heatmap layer imports and instantiation
+    expect(source).toContain('SpectrumHeatmapLayer');
+    expect(source).toContain('heatmapLayer');
+  });
+});

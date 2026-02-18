@@ -30,9 +30,16 @@
   import { connectionState, dspConfig, getDspInstance } from '../state/dspStore';
   import { SpectrumCanvasRenderer } from '../ui/rendering/SpectrumCanvasRenderer';
   import { SpectrumAnalyzerLayer } from '../ui/rendering/canvasLayers/SpectrumAnalyzerLayer';
+  import { SpectrumHeatmapLayer, type HeatmapMaskMode } from '../ui/rendering/canvasLayers/SpectrumHeatmapLayer';
   import { parseSpectrumData, dbArrayToNormalized } from '../dsp/spectrumParser';
   import { SpectrumAnalyzer } from '../dsp/spectrumAnalyzer';
   import { smoothDbBins, type SmoothingMode } from '../dsp/fractionalOctaveSmoothing';
+  import {
+    selectPrimarySeries,
+    getEffectiveSmoothing,
+    getEffectivePollInterval,
+    getEffectiveAnalyzerTau,
+  } from '../dsp/heatmapSeries';
   import EqTokensLayer from '../ui/tokens/EqTokensLayer.svelte';
   import { calculateBandwidthMarkers } from '../dsp/bandwidthMarkers';
   import {
@@ -59,6 +66,12 @@
   let peakHoldTime = 2.0; // seconds (default 2.0, range 1.0-5.0)
   let peakDecayRate = 12; // dB/s (default 12, range 6-24)
   
+  // MVP-30: Heatmap controls
+  let heatmapEnabled = false; // Default: OFF
+  let heatmapMaskMode: HeatmapMaskMode = 'full'; // Default: full
+  let heatmapHighPrecision = false; // Default: OFF
+  let heatmapEnhancedFrequency = false; // Default: OFF
+  
   // MVP-14: Focus mode and visualization controls
   let showBandwidthMarkers = true; // Default: ON per spec
   let bandFillOpacity = 0.4; // Default: 40% per spec
@@ -72,10 +85,11 @@
   let canvasElement: HTMLCanvasElement;
   let spectrumRenderer: SpectrumCanvasRenderer | null = null;
   let analyzerLayer: SpectrumAnalyzerLayer | null = null;
+  let heatmapLayer: SpectrumHeatmapLayer | null = null; // MVP-30
   let analyzer: SpectrumAnalyzer | null = null;
   let spectrumPollingInterval: number | null = null;
   let lastSpectrumFrame: number = 0;
-  const SPECTRUM_POLL_INTERVAL = 100; // 10 Hz
+  const SPECTRUM_POLL_INTERVAL = 100; // 10 Hz (base, overridden by high precision)
   const SPECTRUM_STALE_THRESHOLD = 500; // ms
   
   // Token drag state
@@ -164,14 +178,23 @@
       decayRateDbPerSec: peakDecayRate,
     });
     
-    // Initialize canvas renderer with analyzer layer
+    // Initialize canvas renderer with heatmap + analyzer layers
     if (canvasElement) {
+      // MVP-30: Heatmap layer (rendered first, so curves appear on top)
+      heatmapLayer = new SpectrumHeatmapLayer({
+        enabled: heatmapEnabled,
+        maskMode: heatmapMaskMode,
+        enhancedFrequency: heatmapEnhancedFrequency,
+        primarySeries: null,
+      });
+      
       analyzerLayer = new SpectrumAnalyzerLayer({
         showSTA,
         showLTA,
         showPeak,
       });
-      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [analyzerLayer]);
+      
+      spectrumRenderer = new SpectrumCanvasRenderer(canvasElement, [heatmapLayer, analyzerLayer]);
       spectrumRenderer.resize(plotWidth, plotHeight);
     }
     
@@ -251,6 +274,26 @@
     });
   }
   
+  // MVP-30: Reactive: Update analyzer time constants for high precision mode
+  $: if (analyzer && heatmapHighPrecision) {
+    const tau = getEffectiveAnalyzerTau(heatmapHighPrecision);
+    analyzer.updateConfig({
+      ...analyzer.getConfig(),
+      tauShort: tau.tauShort,
+      tauLong: tau.tauLong,
+    });
+  }
+  
+  // MVP-30: Reactive: Update heatmap layer config
+  $: if (heatmapLayer) {
+    heatmapLayer.setConfig({
+      enabled: heatmapEnabled,
+      maskMode: heatmapMaskMode,
+      enhancedFrequency: heatmapEnhancedFrequency,
+      primarySeries: null, // Updated in pollSpectrum
+    });
+  }
+  
   onDestroy(() => {
     // Clean up polling interval
     if (spectrumPollingInterval !== null) {
@@ -325,6 +368,18 @@
           ltaNorm,
           peakNorm,
         });
+        
+        // MVP-30: Update heatmap layer with primary series for masking
+        if (heatmapLayer) {
+          const primarySeries = selectPrimarySeries(
+            { showSTA, showLTA, showPeak },
+            { staNorm, ltaNorm, peakNorm }
+          );
+          heatmapLayer.setConfig({
+            ...heatmapLayer['config'], // Access private config via bracket notation
+            primarySeries,
+          });
+        }
         
         // Render (pass STA as the primary bins for the layer interface)
         spectrumRenderer.resetOpacity();
@@ -1186,6 +1241,63 @@
           </label>
         </div>
         
+        <!-- MVP-30: Heatmap controls -->
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={heatmapEnabled} />
+            Heatmap
+          </label>
+        </div>
+        
+        <div class="option-group">
+          <div class="heatmap-mask-buttons">
+            <button
+              class="mask-btn"
+              class:active={heatmapMaskMode === 'top'}
+              class:dimmed={!heatmapEnabled}
+              disabled={!heatmapEnabled}
+              on:click={() => (heatmapMaskMode = 'top')}
+              title="Heatmap above curve"
+            >
+              Top
+            </button>
+            <button
+              class="mask-btn"
+              class:active={heatmapMaskMode === 'bottom'}
+              class:dimmed={!heatmapEnabled}
+              disabled={!heatmapEnabled}
+              on:click={() => (heatmapMaskMode = 'bottom')}
+              title="Heatmap below curve"
+            >
+              Bottom
+            </button>
+            <button
+              class="mask-btn"
+              class:active={heatmapMaskMode === 'full'}
+              class:dimmed={!heatmapEnabled}
+              disabled={!heatmapEnabled}
+              on:click={() => (heatmapMaskMode = 'full')}
+              title="Full heatmap (no masking)"
+            >
+              Full
+            </button>
+          </div>
+        </div>
+        
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={heatmapHighPrecision} disabled={!heatmapEnabled} />
+            High precision
+          </label>
+        </div>
+        
+        <div class="option-group">
+          <label>
+            <input type="checkbox" bind:checked={heatmapEnhancedFrequency} disabled={!heatmapEnabled} />
+            Enhanced freq
+          </label>
+        </div>
+        
         <div class="option-group">
           <span class="option-label">Band fill:</span>
           <span style="--knob-arc: var(--sum-curve);">
@@ -1720,6 +1832,27 @@
   
   .analyzer-btn.reset-btn {
     font-size: 1.25rem;
+  }
+
+  /* MVP-30: Heatmap mask buttons */
+  .heatmap-mask-buttons {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mask-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 48px;
+  }
+
+  .mask-btn.dimmed {
+    opacity: 0.4;
+  }
+
+  .mask-btn:disabled {
+    cursor: not-allowed;
   }
 
   /* Band Columns: use subgrid to participate in parent's 3 rows */
