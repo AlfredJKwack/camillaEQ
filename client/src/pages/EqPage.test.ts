@@ -194,10 +194,6 @@ describe('EqPage MVP-30 Heatmap Controls', () => {
     expect(source).toContain('heatmapHighPrecision');
     expect(source).toContain('High precision');
     
-    // Verify enhanced frequency control
-    expect(source).toContain('heatmapEnhancedFrequency');
-    expect(source).toContain('Enhanced freq');
-    
     // Verify heatmap layer imports and instantiation
     expect(source).toContain('SpectrumHeatmapLayer');
     expect(source).toContain('heatmapLayer');

@@ -44,7 +44,6 @@ export const DEFAULT_HEATMAP_TUNING: HeatmapVisualTuning = {
 export interface HeatmapLayerConfig {
   enabled: boolean;
   maskMode: HeatmapMaskMode;
-  enhancedFrequency: boolean; // true = thin 1px lines, false = fill bin width
   primarySeries: number[] | null; // Reference curve for masking
   visualTuning: HeatmapVisualTuning;
 }
@@ -57,7 +56,6 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
     this.config = {
       enabled: false,
       maskMode: 'full',
-      enhancedFrequency: false,
       primarySeries: null,
       visualTuning: DEFAULT_HEATMAP_TUNING,
       ...config,
@@ -93,7 +91,7 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
   }
 
   /**
-   * Render full heatmap (no masking)
+   * Render full heatmap (no masking) using pixel-column resampling
    */
   private renderFullHeatmap(
     ctx: CanvasRenderingContext2D,
@@ -103,27 +101,6 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
   ): void {
     const numBins = bins.length;
     const tuning = this.config.visualTuning;
-
-    if (this.config.enhancedFrequency) {
-      // Enhanced mode: iterate pixel columns and resample from bins (no gaps)
-      this.renderEnhancedFrequency(ctx, width, height, bins, tuning);
-    } else {
-      // Normal mode: iterate bins and draw rectangles (bin-domain rendering)
-      this.renderNormalBinMode(ctx, width, height, bins, tuning);
-    }
-  }
-
-  /**
-   * Enhanced frequency mode: pixel-column resampling (continuous, no gaps)
-   */
-  private renderEnhancedFrequency(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    bins: number[],
-    tuning: HeatmapVisualTuning
-  ): void {
-    const numBins = bins.length;
 
     // Iterate every pixel column
     for (let x = 0; x < width; x++) {
@@ -170,61 +147,6 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
 
       ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
       ctx.fillRect(x, 0, 1, height);
-    }
-  }
-
-  /**
-   * Normal bin mode: iterate bins and draw rectangles (bin-domain rendering)
-   */
-  private renderNormalBinMode(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    bins: number[],
-    tuning: HeatmapVisualTuning
-  ): void {
-    const numBins = bins.length;
-
-    for (let i = 0; i < numBins; i++) {
-      let magnitude = Math.max(0, Math.min(1, bins[i]));
-
-      // Apply overall gain
-      magnitude = Math.min(1, magnitude * tuning.magnitudeGain);
-
-      // Apply noise gate with soft knee
-      if (magnitude < tuning.gateThreshold) {
-        const gateEnd = tuning.gateThreshold + tuning.gateSoftness;
-        if (magnitude < tuning.gateThreshold - tuning.gateSoftness) {
-          // Below gate - skip bin
-          continue;
-        } else if (magnitude < gateEnd) {
-          // In soft-knee region - apply smooth attenuation
-          const kneePos =
-            (magnitude - (tuning.gateThreshold - tuning.gateSoftness)) /
-            (2 * tuning.gateSoftness);
-          magnitude = magnitude * kneePos;
-        }
-      }
-
-      // Compute opacity (power curve for contrast)
-      const alphaMag = Math.pow(magnitude, tuning.alphaGamma);
-      const alpha = tuning.minAlpha + alphaMag * (tuning.maxAlpha - tuning.minAlpha);
-
-      // Compute brightness (separate power curve)
-      const colorMag = Math.pow(magnitude, tuning.colorGamma);
-      const r =
-        tuning.darkOrange.r + colorMag * (tuning.brightOrange.r - tuning.darkOrange.r);
-      const g =
-        tuning.darkOrange.g + colorMag * (tuning.brightOrange.g - tuning.darkOrange.g);
-      const b =
-        tuning.darkOrange.b + colorMag * (tuning.brightOrange.b - tuning.darkOrange.b);
-
-      ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
-
-      // Normal: fill bin width (appears blended)
-      const xStart = (i / numBins) * width;
-      const xEnd = ((i + 1) / numBins) * width;
-      ctx.fillRect(xStart, 0, xEnd - xStart, height);
     }
   }
 

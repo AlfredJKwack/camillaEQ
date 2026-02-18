@@ -70,7 +70,6 @@
   let heatmapEnabled = false; // Default: OFF
   let heatmapMaskMode: HeatmapMaskMode = 'full'; // Default: full
   let heatmapHighPrecision = false; // Default: OFF
-  let heatmapEnhancedFrequency = false; // Default: OFF
   
   // MVP-30: Heatmap dB range tuning (for better contrast)
   const heatmapMinDb = -85; // Floor for normalized mapping (tweak for more/less contrast)
@@ -188,7 +187,6 @@
       heatmapLayer = new SpectrumHeatmapLayer({
         enabled: heatmapEnabled,
         maskMode: heatmapMaskMode,
-        enhancedFrequency: heatmapEnhancedFrequency,
         primarySeries: null,
       });
       
@@ -293,7 +291,6 @@
     heatmapLayer.setConfig({
       enabled: heatmapEnabled,
       maskMode: heatmapMaskMode,
-      enhancedFrequency: heatmapEnhancedFrequency,
       primarySeries: null, // Updated in pollSpectrum
     });
   }
@@ -1296,13 +1293,6 @@
           <label>
             <input type="checkbox" bind:checked={heatmapHighPrecision} disabled={!heatmapEnabled} />
             High precision
-          </label>
-        </div>
-        
-        <div class="option-group">
-          <label>
-            <input type="checkbox" bind:checked={heatmapEnhancedFrequency} disabled={!heatmapEnabled} />
-            Enhanced freq
           </label>
         </div>
         
