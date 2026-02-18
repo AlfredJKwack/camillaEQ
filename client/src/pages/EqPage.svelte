@@ -72,6 +72,10 @@
   let heatmapHighPrecision = false; // Default: OFF
   let heatmapEnhancedFrequency = false; // Default: OFF
   
+  // MVP-30: Heatmap dB range tuning (for better contrast)
+  const heatmapMinDb = -85; // Floor for normalized mapping (tweak for more/less contrast)
+  const heatmapMaxDb = -10; // Ceiling for normalized mapping (tweak for punch)
+  
   // MVP-14: Focus mode and visualization controls
   let showBandwidthMarkers = true; // Default: ON per spec
   let bandFillOpacity = 0.4; // Default: 40% per spec
@@ -357,9 +361,13 @@
         const state = analyzer.getState();
         
         // Prepare series for rendering (convert dB to normalized [0..1])
+        // For histogram curves: use default range (-100..0)
         const staNorm = state.staDb ? dbArrayToNormalized(state.staDb) : null;
         const ltaNorm = state.ltaDb ? dbArrayToNormalized(state.ltaDb) : null;
         const peakNorm = state.peakDb ? dbArrayToNormalized(state.peakDb) : null;
+        
+        // MVP-30: For heatmap: use custom dB range for better contrast
+        const staHeatNorm = state.staDb ? dbArrayToNormalized(state.staDb, heatmapMinDb, heatmapMaxDb) : null;
         
         // Update analyzer layer with new series data
         analyzerLayer.setSeries({
@@ -376,14 +384,14 @@
             { staNorm, ltaNorm, peakNorm }
           );
           heatmapLayer.setConfig({
-            ...heatmapLayer['config'], // Access private config via bracket notation
             primarySeries,
           });
         }
         
-        // Render (pass STA as the primary bins for the layer interface)
+        // Render (pass heatmap bins with custom dB range to renderer)
+        // Note: analyzerLayer ignores binsNormalized and uses internal series state
         spectrumRenderer.resetOpacity();
-        spectrumRenderer.render(staNorm || [], {
+        spectrumRenderer.render(staHeatNorm || staNorm || [], {
           mode: spectrumMode as 'pre' | 'post',
         });
       }

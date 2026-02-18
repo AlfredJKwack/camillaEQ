@@ -8,25 +8,50 @@ import type { CanvasVisualizationLayer } from './CanvasVisualizationLayer';
 
 export type HeatmapMaskMode = 'top' | 'bottom' | 'full';
 
+export interface HeatmapVisualTuning {
+  // Opacity mapping
+  minAlpha: number;      // Minimum opacity for faint bins (0..1, default 0.0)
+  maxAlpha: number;      // Maximum opacity for strong bins (0..1, default 0.95)
+  alphaGamma: number;    // Power curve for opacity contrast (>1 = more contrast, default 1.8)
+  
+  // Color brightness mapping
+  colorGamma: number;    // Power curve for brightness (default 1.2)
+  
+  // Noise gate
+  gateThreshold: number; // Below this magnitude, bin is invisible (0..1, default 0.05)
+  gateSoftness: number;  // Soft-knee width for gate (0..1, default 0.03)
+  
+  // Overall gain
+  magnitudeGain: number; // Scalar applied before mapping (default 1.5)
+  
+  // Orange color palette (dark → bright)
+  darkOrange: { r: number; g: number; b: number };
+  brightOrange: { r: number; g: number; b: number };
+}
+
+export const DEFAULT_HEATMAP_TUNING: HeatmapVisualTuning = {
+  minAlpha: 0.0,
+  maxAlpha: 0.95,
+  alphaGamma: 2.8,
+  colorGamma: 1.2,
+  gateThreshold: 0.05,
+  gateSoftness: 0.03,
+  magnitudeGain: 2.5,
+  darkOrange: { r: 180, g: 80, b: 20 },
+  brightOrange: { r: 255, g: 140, b: 40 },
+};
+
 export interface HeatmapLayerConfig {
   enabled: boolean;
   maskMode: HeatmapMaskMode;
   enhancedFrequency: boolean; // true = thin 1px lines, false = fill bin width
   primarySeries: number[] | null; // Reference curve for masking
+  visualTuning: HeatmapVisualTuning;
 }
 
 export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
   public readonly id = 'spectrum-heatmap';
   private config: HeatmapLayerConfig;
-
-  // Heatmap visual parameters
-  private readonly minAlpha = 0.1; // Minimum opacity for faint bins
-  private readonly maxAlpha = 0.9; // Maximum opacity for strong bins
-  private readonly gamma = 0.8; // Power curve for opacity mapping
-  
-  // Orange color palette (dark → bright)
-  private readonly darkOrange = { r: 180, g: 80, b: 20 };   // Deep orange
-  private readonly brightOrange = { r: 255, g: 140, b: 40 }; // Vibrant orange
 
   constructor(config: Partial<HeatmapLayerConfig> = {}) {
     this.config = {
@@ -34,6 +59,7 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
       maskMode: 'full',
       enhancedFrequency: false,
       primarySeries: null,
+      visualTuning: DEFAULT_HEATMAP_TUNING,
       ...config,
     };
   }
@@ -76,17 +102,36 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
     bins: number[]
   ): void {
     const numBins = bins.length;
+    const tuning = this.config.visualTuning;
 
     for (let i = 0; i < numBins; i++) {
-      const magnitude = Math.max(0, Math.min(1, bins[i]));
+      let magnitude = Math.max(0, Math.min(1, bins[i]));
       
-      // Compute opacity (power curve for better perceptual scaling)
-      const alpha = this.minAlpha + Math.pow(magnitude, this.gamma) * (this.maxAlpha - this.minAlpha);
+      // Apply overall gain
+      magnitude = Math.min(1, magnitude * tuning.magnitudeGain);
       
-      // Compute brightness (interpolate between dark and bright orange)
-      const r = this.darkOrange.r + magnitude * (this.brightOrange.r - this.darkOrange.r);
-      const g = this.darkOrange.g + magnitude * (this.brightOrange.g - this.darkOrange.g);
-      const b = this.darkOrange.b + magnitude * (this.brightOrange.b - this.darkOrange.b);
+      // Apply noise gate with soft knee
+      if (magnitude < tuning.gateThreshold) {
+        const gateEnd = tuning.gateThreshold + tuning.gateSoftness;
+        if (magnitude < tuning.gateThreshold - tuning.gateSoftness) {
+          // Below gate - skip bin
+          continue;
+        } else if (magnitude < gateEnd) {
+          // In soft-knee region - apply smooth attenuation
+          const kneePos = (magnitude - (tuning.gateThreshold - tuning.gateSoftness)) / (2 * tuning.gateSoftness);
+          magnitude = magnitude * kneePos;
+        }
+      }
+      
+      // Compute opacity (power curve for contrast)
+      const alphaMag = Math.pow(magnitude, tuning.alphaGamma);
+      const alpha = tuning.minAlpha + alphaMag * (tuning.maxAlpha - tuning.minAlpha);
+      
+      // Compute brightness (separate power curve)
+      const colorMag = Math.pow(magnitude, tuning.colorGamma);
+      const r = tuning.darkOrange.r + colorMag * (tuning.brightOrange.r - tuning.darkOrange.r);
+      const g = tuning.darkOrange.g + colorMag * (tuning.brightOrange.g - tuning.darkOrange.g);
+      const b = tuning.darkOrange.b + colorMag * (tuning.brightOrange.b - tuning.darkOrange.b);
       
       ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
 
