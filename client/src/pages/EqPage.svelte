@@ -51,6 +51,8 @@
     generateNotchHaloPath,
   } from '../ui/rendering/eqFocusViz';
   import { generateBandCurvePath } from '../ui/rendering/EqSvgRenderer';
+  import { loadVizOptions, saveVizOptions } from '../lib/vizOptionsPersistence';
+  import { debounce } from '../lib/debounce';
 
   let showPerBandCurves = false;
   let spectrumMode: 'pre' | 'post' = 'pre'; // pre or post (no off mode)
@@ -190,6 +192,30 @@
   let plotHeight = 400;
   let plotElement: HTMLDivElement;
   let resizeObserver: ResizeObserver | null = null;
+  
+  // Load persisted viz options on mount
+  onMount(() => {
+    const saved = loadVizOptions();
+    
+    // Restore all persisted settings
+    spectrumMode = saved.spectrumMode;
+    smoothingMode = saved.smoothingMode;
+    showSTA = saved.showSTA;
+    showLTA = saved.showLTA;
+    showPeak = saved.showPeak;
+    showPerBandCurves = saved.showPerBandCurves;
+    showBandwidthMarkers = saved.showBandwidthMarkers;
+    bandFillOpacity = saved.bandFillOpacity;
+    heatmapEnabled = saved.heatmapEnabled;
+    heatmapMaskMode = saved.heatmapMaskMode;
+    heatmapHighPrecision = saved.heatmapHighPrecision;
+    heatmapAlphaGamma = saved.heatmapAlphaGamma;
+    heatmapMagnitudeGain = saved.heatmapMagnitudeGain;
+    heatmapGateThreshold = saved.heatmapGateThreshold;
+    heatmapMaxAlpha = saved.heatmapMaxAlpha;
+    
+    console.log('Loaded viz options from localStorage');
+  });
   
   // Lifecycle: Initialize canvas renderer + analyzer
   onMount(() => {
@@ -970,6 +996,35 @@
     
     return calculateBandwidthMarkers(selectedBand);
   })();
+  
+  // Persist viz options to localStorage (debounced)
+  const debouncedSaveVizOptions = debounce((state: any) => {
+    saveVizOptions(state);
+  }, 200);
+  
+  $: {
+    // Watch all viz-options variables and save changes
+    const vizState = {
+      version: 1,
+      spectrumMode,
+      smoothingMode,
+      showSTA,
+      showLTA,
+      showPeak,
+      showPerBandCurves,
+      showBandwidthMarkers,
+      bandFillOpacity,
+      heatmapEnabled,
+      heatmapMaskMode,
+      heatmapHighPrecision,
+      heatmapAlphaGamma,
+      heatmapMagnitudeGain,
+      heatmapGateThreshold,
+      heatmapMaxAlpha,
+    };
+    
+    debouncedSaveVizOptions(vizState);
+  }
 </script>
 
 <div class="eq-layout">

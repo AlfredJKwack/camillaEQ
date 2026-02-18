@@ -59,6 +59,8 @@ client/src/
 │   ├── pipelineViewModel.ts    # Pipeline → UI blocks
 │   ├── pipelineBlockEdit.ts    # Pipeline mutations
 │   ├── filterEnablement.ts     # Filter disable/enable
+│   ├── disabledFiltersOverlay.ts # Disabled filter localStorage persistence
+│   ├── vizOptionsPersistence.ts  # Viz-options localStorage persistence
 │   └── knownTypes.ts           # Filter/processor type registry
 │
 ├── dsp/                   # DSP math (pure functions)
