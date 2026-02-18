@@ -5,6 +5,7 @@
   import KnobDial from '../components/KnobDial.svelte';
   import FaderTooltip from '../components/FaderTooltip.svelte';
   import FilterTypePicker from '../components/FilterTypePicker.svelte';
+  import HeatmapSettings from '../components/HeatmapSettings.svelte';
   import preEqSpectrumUrl from '../assets/vis-opt-spectrum-preeq.webp';
   import postEqSpectrumUrl from '../assets/vis-opt-spectrum-posteq.webp';
   import type { EqBand } from '../dsp/filterResponse';
@@ -74,6 +75,19 @@
   // MVP-30: Heatmap dB range tuning (for better contrast)
   const heatmapMinDb = -85; // Floor for normalized mapping (tweak for more/less contrast)
   const heatmapMaxDb = -10; // Ceiling for normalized mapping (tweak for punch)
+  
+  // MVP-30: Heatmap visual tuning parameters (exposed via settings popover)
+  let heatmapAlphaGamma = 2.8; // Contrast (0.8-4.0)
+  let heatmapMagnitudeGain = 2.5; // Gain (0.5-4.0)
+  let heatmapGateThreshold = 0.05; // Gate (0.0-0.20)
+  let heatmapMaxAlpha = 0.95; // Max opacity (0.2-1.0)
+  
+  // MVP-30: Heatmap settings popover state
+  let heatmapSettingsOpen = false;
+  let heatmapSettingsButtonEl: HTMLButtonElement | null = null;
+  let heatmapSettingsButtonLeft = 0;
+  let heatmapSettingsButtonRight = 0;
+  let heatmapSettingsButtonCenterY = 0;
   
   // MVP-14: Focus mode and visualization controls
   let showBandwidthMarkers = true; // Default: ON per spec
@@ -286,12 +300,23 @@
     });
   }
   
-  // MVP-30: Reactive: Update heatmap layer config
+  // MVP-30: Reactive: Update heatmap layer config (including visual tuning)
   $: if (heatmapLayer) {
     heatmapLayer.setConfig({
       enabled: heatmapEnabled,
       maskMode: heatmapMaskMode,
       primarySeries: null, // Updated in pollSpectrum
+      visualTuning: {
+        minAlpha: 0.0,
+        maxAlpha: heatmapMaxAlpha,
+        alphaGamma: heatmapAlphaGamma,
+        colorGamma: 1.2,
+        gateThreshold: heatmapGateThreshold,
+        gateSoftness: 0.03,
+        magnitudeGain: heatmapMagnitudeGain,
+        darkOrange: { r: 180, g: 80, b: 20 },
+        brightOrange: { r: 255, g: 140, b: 40 },
+      },
     });
   }
   
@@ -706,6 +731,60 @@
   function handleTypePickerClose() {
     typePickerOpen = false;
     typePickerBandIndex = null;
+  }
+
+  // MVP-30: Heatmap settings popover handlers
+  function handleHeatmapSettingsClick(event: MouseEvent) {
+    event.stopPropagation();
+    
+    // Toggle: if already open, close it
+    if (heatmapSettingsOpen) {
+      heatmapSettingsOpen = false;
+      return;
+    }
+    
+    // Otherwise, open it with updated position
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    
+    heatmapSettingsButtonLeft = rect.left;
+    heatmapSettingsButtonRight = rect.right;
+    heatmapSettingsButtonCenterY = rect.top + rect.height / 2;
+    heatmapSettingsOpen = true;
+  }
+  
+  function handleHeatmapSettingsChange(event: CustomEvent<{
+    maskMode?: HeatmapMaskMode;
+    highPrecision?: boolean;
+    alphaGamma?: number;
+    magnitudeGain?: number;
+    gateThreshold?: number;
+    maxAlpha?: number;
+  }>) {
+    const changes = event.detail;
+    
+    if (changes.maskMode !== undefined) {
+      heatmapMaskMode = changes.maskMode;
+    }
+    if (changes.highPrecision !== undefined) {
+      heatmapHighPrecision = changes.highPrecision;
+    }
+    if (changes.alphaGamma !== undefined) {
+      heatmapAlphaGamma = changes.alphaGamma;
+    }
+    if (changes.magnitudeGain !== undefined) {
+      heatmapMagnitudeGain = changes.magnitudeGain;
+    }
+    if (changes.gateThreshold !== undefined) {
+      heatmapGateThreshold = changes.gateThreshold;
+    }
+    if (changes.maxAlpha !== undefined) {
+      heatmapMaxAlpha = changes.maxAlpha;
+    }
+  }
+  
+  function handleHeatmapSettingsClose() {
+    heatmapSettingsOpen = false;
   }
 
   // Master fader interaction (preamp gain control)
@@ -1248,54 +1327,39 @@
           </label>
         </div>
         
-        <!-- MVP-30: Heatmap controls -->
+        <!-- MVP-30: Heatmap controls (compact) -->
         <div class="option-group">
           <label>
             <input type="checkbox" bind:checked={heatmapEnabled} />
             Heatmap
           </label>
-        </div>
-        
-        <div class="option-group">
-          <div class="heatmap-mask-buttons">
-            <button
-              class="mask-btn"
-              class:active={heatmapMaskMode === 'top'}
-              class:dimmed={!heatmapEnabled}
-              disabled={!heatmapEnabled}
-              on:click={() => (heatmapMaskMode = 'top')}
-              title="Heatmap above curve"
-            >
-              Top
-            </button>
-            <button
-              class="mask-btn"
-              class:active={heatmapMaskMode === 'bottom'}
-              class:dimmed={!heatmapEnabled}
-              disabled={!heatmapEnabled}
-              on:click={() => (heatmapMaskMode = 'bottom')}
-              title="Heatmap below curve"
-            >
-              Bottom
-            </button>
-            <button
-              class="mask-btn"
-              class:active={heatmapMaskMode === 'full'}
-              class:dimmed={!heatmapEnabled}
-              disabled={!heatmapEnabled}
-              on:click={() => (heatmapMaskMode = 'full')}
-              title="Full heatmap (no masking)"
-            >
-              Full
-            </button>
-          </div>
-        </div>
-        
-        <div class="option-group">
-          <label>
-            <input type="checkbox" bind:checked={heatmapHighPrecision} disabled={!heatmapEnabled} />
-            High precision
-          </label>
+          <button
+            class="heatmap-settings-btn"
+            bind:this={heatmapSettingsButtonEl}
+            disabled={!heatmapEnabled}
+            on:click={handleHeatmapSettingsClick}
+            title="Heatmap settings"
+            aria-label="Heatmap settings"
+          >
+            <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                stroke="currentColor"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"
+                stroke="currentColor"
+                fill="none"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </div>
         
         <div class="option-group">
@@ -1476,6 +1540,24 @@
       iconCenterY={typePickerIconCenterY}
       on:select={handleTypeSelect}
       on:close={handleTypePickerClose}
+    />
+  {/if}
+  
+  <!-- MVP-30: Heatmap settings popover -->
+  {#if heatmapSettingsOpen}
+    <HeatmapSettings
+      maskMode={heatmapMaskMode}
+      highPrecision={heatmapHighPrecision}
+      alphaGamma={heatmapAlphaGamma}
+      magnitudeGain={heatmapMagnitudeGain}
+      gateThreshold={heatmapGateThreshold}
+      maxAlpha={heatmapMaxAlpha}
+      anchorEl={heatmapSettingsButtonEl}
+      buttonLeft={heatmapSettingsButtonLeft}
+      buttonRight={heatmapSettingsButtonRight}
+      buttonCenterY={heatmapSettingsButtonCenterY}
+      on:change={handleHeatmapSettingsChange}
+      on:close={handleHeatmapSettingsClose}
     />
   {/if}
 </div>
@@ -1722,7 +1804,7 @@
     font-size: 0.875rem;
   }
 
-  .option-group button {
+  .option-group button:not(.heatmap-settings-btn) {
     padding: 0.375rem 0.75rem;
     background: transparent;
     border: 1px solid var(--ui-border);
@@ -1732,12 +1814,12 @@
     transition: all 0.15s ease;
   }
 
-  .option-group button:hover {
+  .option-group button:not(.heatmap-settings-btn):hover {
     background: rgba(255, 255, 255, 0.05);
     border-color: rgba(255, 255, 255, 0.15);
   }
 
-  .option-group button.active {
+  .option-group button:not(.heatmap-settings-btn).active {
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.25);
     color: var(--ui-text);
@@ -1853,6 +1935,42 @@
 
   .mask-btn:disabled {
     cursor: not-allowed;
+  }
+
+  /* MVP-30: Heatmap settings button */
+  .heatmap-settings-btn {
+    width: 1.8rem;
+    height: 1.8rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    font-size: 1rem;
+    line-height: 1;
+    background: transparent;
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    color: var(--ui-text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .heatmap-settings-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--ui-text);
+  }
+
+  .heatmap-settings-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .settings-icon {
+    width: 0.9rem;
+    height: 0.9rem;
+    display: block;
+    stroke: currentColor;
+    fill: none;
   }
 
   /* Band Columns: use subgrid to participate in parent's 3 rows */
