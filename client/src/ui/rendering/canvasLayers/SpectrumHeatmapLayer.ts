@@ -104,12 +104,93 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
     const numBins = bins.length;
     const tuning = this.config.visualTuning;
 
-    for (let i = 0; i < numBins; i++) {
-      let magnitude = Math.max(0, Math.min(1, bins[i]));
-      
+    if (this.config.enhancedFrequency) {
+      // Enhanced mode: iterate pixel columns and resample from bins (no gaps)
+      this.renderEnhancedFrequency(ctx, width, height, bins, tuning);
+    } else {
+      // Normal mode: iterate bins and draw rectangles (bin-domain rendering)
+      this.renderNormalBinMode(ctx, width, height, bins, tuning);
+    }
+  }
+
+  /**
+   * Enhanced frequency mode: pixel-column resampling (continuous, no gaps)
+   */
+  private renderEnhancedFrequency(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    bins: number[],
+    tuning: HeatmapVisualTuning
+  ): void {
+    const numBins = bins.length;
+
+    // Iterate every pixel column
+    for (let x = 0; x < width; x++) {
+      // Map pixel x to fractional bin index
+      const f = (x / (width - 1)) * (numBins - 1);
+      const i0 = Math.floor(f);
+      const i1 = Math.min(numBins - 1, i0 + 1);
+      const t = f - i0; // interpolation factor
+
+      // Linear interpolation between neighboring bins
+      const rawMagnitude = bins[i0] * (1 - t) + bins[i1] * t;
+      let magnitude = Math.max(0, Math.min(1, rawMagnitude));
+
       // Apply overall gain
       magnitude = Math.min(1, magnitude * tuning.magnitudeGain);
-      
+
+      // Apply noise gate with soft knee
+      if (magnitude < tuning.gateThreshold) {
+        const gateEnd = tuning.gateThreshold + tuning.gateSoftness;
+        if (magnitude < tuning.gateThreshold - tuning.gateSoftness) {
+          // Below gate - skip pixel
+          continue;
+        } else if (magnitude < gateEnd) {
+          // In soft-knee region - apply smooth attenuation
+          const kneePos =
+            (magnitude - (tuning.gateThreshold - tuning.gateSoftness)) /
+            (2 * tuning.gateSoftness);
+          magnitude = magnitude * kneePos;
+        }
+      }
+
+      // Compute opacity (power curve for contrast)
+      const alphaMag = Math.pow(magnitude, tuning.alphaGamma);
+      const alpha = tuning.minAlpha + alphaMag * (tuning.maxAlpha - tuning.minAlpha);
+
+      // Compute brightness (separate power curve)
+      const colorMag = Math.pow(magnitude, tuning.colorGamma);
+      const r =
+        tuning.darkOrange.r + colorMag * (tuning.brightOrange.r - tuning.darkOrange.r);
+      const g =
+        tuning.darkOrange.g + colorMag * (tuning.brightOrange.g - tuning.darkOrange.g);
+      const b =
+        tuning.darkOrange.b + colorMag * (tuning.brightOrange.b - tuning.darkOrange.b);
+
+      ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
+      ctx.fillRect(x, 0, 1, height);
+    }
+  }
+
+  /**
+   * Normal bin mode: iterate bins and draw rectangles (bin-domain rendering)
+   */
+  private renderNormalBinMode(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    bins: number[],
+    tuning: HeatmapVisualTuning
+  ): void {
+    const numBins = bins.length;
+
+    for (let i = 0; i < numBins; i++) {
+      let magnitude = Math.max(0, Math.min(1, bins[i]));
+
+      // Apply overall gain
+      magnitude = Math.min(1, magnitude * tuning.magnitudeGain);
+
       // Apply noise gate with soft knee
       if (magnitude < tuning.gateThreshold) {
         const gateEnd = tuning.gateThreshold + tuning.gateSoftness;
@@ -118,34 +199,32 @@ export class SpectrumHeatmapLayer implements CanvasVisualizationLayer {
           continue;
         } else if (magnitude < gateEnd) {
           // In soft-knee region - apply smooth attenuation
-          const kneePos = (magnitude - (tuning.gateThreshold - tuning.gateSoftness)) / (2 * tuning.gateSoftness);
+          const kneePos =
+            (magnitude - (tuning.gateThreshold - tuning.gateSoftness)) /
+            (2 * tuning.gateSoftness);
           magnitude = magnitude * kneePos;
         }
       }
-      
+
       // Compute opacity (power curve for contrast)
       const alphaMag = Math.pow(magnitude, tuning.alphaGamma);
       const alpha = tuning.minAlpha + alphaMag * (tuning.maxAlpha - tuning.minAlpha);
-      
+
       // Compute brightness (separate power curve)
       const colorMag = Math.pow(magnitude, tuning.colorGamma);
-      const r = tuning.darkOrange.r + colorMag * (tuning.brightOrange.r - tuning.darkOrange.r);
-      const g = tuning.darkOrange.g + colorMag * (tuning.brightOrange.g - tuning.darkOrange.g);
-      const b = tuning.darkOrange.b + colorMag * (tuning.brightOrange.b - tuning.darkOrange.b);
-      
+      const r =
+        tuning.darkOrange.r + colorMag * (tuning.brightOrange.r - tuning.darkOrange.r);
+      const g =
+        tuning.darkOrange.g + colorMag * (tuning.brightOrange.g - tuning.darkOrange.g);
+      const b =
+        tuning.darkOrange.b + colorMag * (tuning.brightOrange.b - tuning.darkOrange.b);
+
       ctx.fillStyle = `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${alpha})`;
 
-      // Draw vertical line/column
-      if (this.config.enhancedFrequency) {
-        // Enhanced: thin 1px line at exact bin position
-        const x = (i / (numBins - 1)) * width;
-        ctx.fillRect(x, 0, 1, height);
-      } else {
-        // Normal: fill bin width (appears blended)
-        const xStart = (i / numBins) * width;
-        const xEnd = ((i + 1) / numBins) * width;
-        ctx.fillRect(xStart, 0, xEnd - xStart, height);
-      }
+      // Normal: fill bin width (appears blended)
+      const xStart = (i / numBins) * width;
+      const xEnd = ((i + 1) / numBins) * width;
+      ctx.fillRect(xStart, 0, xEnd - xStart, height);
     }
   }
 
