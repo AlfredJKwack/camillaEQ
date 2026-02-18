@@ -63,6 +63,10 @@
   
   // Derived: overlay is enabled if at least one series is on
   $: overlayEnabled = showSTA || showLTA || showPeak;
+  
+  // Derived: spectrum visualization needed (analyzer OR heatmap)
+  $: spectrumVizEnabled = overlayEnabled || heatmapEnabled;
+  
   let analyzerOpacity = 0.5; // 0-1 range (default 50%)
   let peakHoldTime = 2.0; // seconds (default 2.0, range 1.0-5.0)
   let peakDecayRate = 12; // dB/s (default 12, range 6-24)
@@ -336,20 +340,20 @@
     // It persists across page navigation
   });
   
-  // Reactive: Start/stop spectrum polling based on overlayEnabled and spectrum socket readiness
+  // Reactive: Start/stop spectrum polling based on spectrumVizEnabled and spectrum socket readiness
   $: {
     // Add reactive dependency on connectionState so this block re-runs after auto-connect
     const state = $connectionState;
     const dsp = getDspInstance();
     const isReady = state === 'connected' && dsp?.isSpectrumSocketOpen();
     
-    if (overlayEnabled && isReady && !spectrumPollingInterval) {
+    if (spectrumVizEnabled && isReady && !spectrumPollingInterval) {
       // Start polling (use high precision interval if enabled)
       const pollInterval = getEffectivePollInterval(heatmapHighPrecision);
       spectrumPollingInterval = window.setInterval(pollSpectrum, pollInterval);
       console.log('Spectrum polling started', { pollInterval, highPrecision: heatmapHighPrecision });
-    } else if ((!overlayEnabled || !isReady) && spectrumPollingInterval !== null) {
-      // Stop polling when overlay disabled OR spectrum socket not ready
+    } else if ((!spectrumVizEnabled || !isReady) && spectrumPollingInterval !== null) {
+      // Stop polling when spectrum viz disabled OR spectrum socket not ready
       clearInterval(spectrumPollingInterval);
       spectrumPollingInterval = null;
       
@@ -357,7 +361,7 @@
       if (spectrumRenderer) {
         spectrumRenderer.clear();
       }
-      console.log('Spectrum polling stopped', { overlayEnabled, isReady });
+      console.log('Spectrum polling stopped', { spectrumVizEnabled, isReady });
     }
   }
   
@@ -1242,11 +1246,11 @@
       <div class="viz-options-area">
       <div class="viz-options">
         <div class="option-group">
-          <div class="spectrum-selector" class:disabled={!overlayEnabled}>
+          <div class="spectrum-selector" class:disabled={!spectrumVizEnabled}>
             <button 
               class="spectrum-button" 
               class:active={spectrumMode === 'pre'} 
-              class:dimmed={!overlayEnabled}
+              class:dimmed={!spectrumVizEnabled}
               on:click={() => (spectrumMode = 'pre')}
               title="Pre-EQ Spectrum"
             >
@@ -1255,7 +1259,7 @@
             <button 
               class="spectrum-button" 
               class:active={spectrumMode === 'post'} 
-              class:dimmed={!overlayEnabled}
+              class:dimmed={!spectrumVizEnabled}
               on:click={() => (spectrumMode = 'post')}
               title="Post-EQ Spectrum"
             >
