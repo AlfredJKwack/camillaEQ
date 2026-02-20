@@ -1299,129 +1299,154 @@
 
       <!-- MVP-16: Visualization Options Bar -->
       <div class="viz-options-area">
-      <div class="viz-options">
-        <div class="option-group">
-          <div class="spectrum-selector" class:disabled={!spectrumVizEnabled}>
-            <button 
-              class="spectrum-button" 
-              class:active={spectrumMode === 'pre'} 
-              class:dimmed={!spectrumVizEnabled}
-              on:click={() => (spectrumMode = 'pre')}
-              title="Pre-EQ Spectrum"
-            >
-              <img src={preEqSpectrumUrl} alt="Pre-EQ Spectrum" />
-            </button>
-            <button 
-              class="spectrum-button" 
-              class:active={spectrumMode === 'post'} 
-              class:dimmed={!spectrumVizEnabled}
-              on:click={() => (spectrumMode = 'post')}
-              title="Post-EQ Spectrum"
-            >
-              <img src={postEqSpectrumUrl} alt="Post-EQ Spectrum" />
+      <div class="viz-options" 
+        data-lta={showLTA ? 'on' : 'off'} 
+        data-sta={showSTA ? 'on' : 'off'} 
+        data-peak={showPeak ? 'on' : 'off'}
+        data-power={heatmapEnabled ? 'on' : 'off'}>
+        
+        <!-- Signal Tap -->
+        <div class="group group-signal-tap">
+          <h3>Spectrum Signal Tap</h3>
+          <div class="sigTapGroup" data-sel={spectrumMode}>
+            <svg class="sigTap" viewBox="0 0 190 50" width="190" height="50" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="tapGlow" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="2.2" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+
+            <!-- Signal path: left segment (dim base, active overlay) -->
+            <line class="sigLine" x1="6" y1="30" x2="72" y2="30"/>
+            <line class="sigSegActive pre" x1="6" y1="30" x2="72" y2="30"/>
+
+            <!-- EQ processing block -->
+            <rect class="eqBlock" x="72" y="20" width="46" height="20" rx="3"/>
+            <!-- Tiny bell curve inside block to suggest parametric EQ -->
+            <path class="eqBlockCurve" d="M76 30 C80 30 83 23 95 23 C107 23 110 30 114 30"/>
+            <text class="eqBlockLabel" x="95" y="17">EQ</text>
+
+            <!-- Signal path: right segment -->
+            <line class="sigLine" x1="118" y1="30" x2="184" y2="30"/>
+            <line class="sigSegActive post" x1="118" y1="30" x2="184" y2="30"/>
+
+            <!-- PRE tap (x=42) — before EQ block -->
+            <g class="tap" data-pos="pre" on:click={() => (spectrumMode = 'pre')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && (spectrumMode = 'pre')}>
+              <line class="tapStem" x1="42" y1="10" x2="42" y2="24.5"/>
+              <circle class="tapNode" cx="42" cy="30" r="5.5"/>
+              <circle class="tapHead" cx="42" cy="7" r="3.5"/>
+              <text class="tapLabel" x="42" y="46">PRE</text>
+            </g>
+
+            <!-- POST tap (x=148) — after EQ block -->
+            <g class="tap" data-pos="post" on:click={() => (spectrumMode = 'post')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && (spectrumMode = 'post')}>
+              <line class="tapStem" x1="148" y1="10" x2="148" y2="24.5"/>
+              <circle class="tapNode" cx="148" cy="30" r="5.5"/>
+              <circle class="tapHead" cx="148" cy="7" r="3.5"/>
+              <text class="tapLabel" x="148" y="46">POST</text>
+            </g>
+
+            </svg>
+          </div>
+        </div>
+        
+        <!-- Spectrum Analyzer -->
+        <div class="group">
+          <h3>Spectrum Curves</h3>
+          <div class="row">
+            <div class="waveStack">
+              <svg viewBox="0 0 120 24" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="ltaGrad" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%"   stop-color="#00b4cc"/>
+                  <stop offset="50%"  stop-color="#00d4b8"/>
+                  <stop offset="100%" stop-color="#0099bb"/>
+                </linearGradient>
+                <filter id="ltaGlow" x="-20%" y="-100%" width="140%" height="300%">
+                  <feGaussianBlur stdDeviation="1.4" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <pattern id="ltaWaveP" width="60" height="24" patternUnits="userSpaceOnUse">
+                  <path d="M0 12 C10 12 10 8.5 15 8.5 S20 15.5 30 15.5 S40 8.5 45 8.5 S50 12 60 12"
+                    stroke="url(#ltaGrad)" fill="none" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
+                  <animateTransform attributeName="patternTransform"
+                    type="translate" from="0 0" to="-60 0" dur="9s" repeatCount="indefinite"/>
+                </pattern>
+                <linearGradient id="staGrad" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%"   stop-color="#7CFF00"/>
+                  <stop offset="55%"  stop-color="#a8ff00"/>
+                  <stop offset="100%" stop-color="#c6f000"/>
+                </linearGradient>
+                <filter id="staGlow" x="-20%" y="-120%" width="140%" height="340%">
+                  <feGaussianBlur stdDeviation="2.0" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <pattern id="staWaveP" width="40" height="24" patternUnits="userSpaceOnUse">
+                  <path d="M0 12 C4 12 5 5 10 5 S16 19 20 19 S26 5 30 5 S36 12 40 12"
+                    stroke="url(#staGrad)" fill="none" stroke-width="2" stroke-linecap="round"/>
+                  <animateTransform attributeName="patternTransform"
+                    type="translate" from="0 0" to="-40 0" dur="4.5s" repeatCount="indefinite"/>
+                </pattern>
+                <linearGradient id="peakGrad" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%"   stop-color="#e6c200"/>
+                  <stop offset="45%"  stop-color="#f0a800"/>
+                  <stop offset="100%" stop-color="#d4b800"/>
+                </linearGradient>
+                <filter id="peakGlow" x="-20%" y="-140%" width="140%" height="380%">
+                  <feGaussianBlur stdDeviation="2.4" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+                <pattern id="peakWaveP" width="40" height="24" patternUnits="userSpaceOnUse">
+                  <path d="M0 10 L5 7 L8 11 L11 4 L14 9 L18 6 L21 12 L25 5 L29 9 L32 6 L36 10 L40 9"
+                    stroke="url(#peakGrad)" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                  <animateTransform attributeName="patternTransform"
+                    type="translate" from="0 0" to="-40 0" dur="2.8s" repeatCount="indefinite"/>
+                </pattern>
+              </defs>
+
+              <line class="waveFlat" x1="2" y1="12" x2="118" y2="12"/>
+              <rect class="ltaFill"  x="2" y="0" width="116" height="24" fill="url(#ltaWaveP)"  filter="url(#ltaGlow)"/>
+              <rect class="staFill"  x="2" y="0" width="116" height="24" fill="url(#staWaveP)"  filter="url(#staGlow)"/>
+              <rect class="peakFill" x="2" y="0" width="116" height="24" fill="url(#peakWaveP)" filter="url(#peakGlow)"/>
+              </svg>
+            </div>
+
+            <button class="chip waveSwitch" data-on={showLTA} data-mode="lta" on:click={() => (showLTA = !showLTA)}>LTA</button>
+            <button class="chip waveSwitch" data-on={showSTA} data-mode="sta" on:click={() => (showSTA = !showSTA)}>STA</button>
+            <button class="chip waveSwitch" data-on={showPeak} data-mode="peak" on:click={() => (showPeak = !showPeak)}>Peak</button>
+            <button class="button button--icon" id="resetBtn" aria-label="Reset averages" title="Reset" on:click={resetAverages}>
+              <svg class="resetIcon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path d="M20 12a8 8 0 1 1-2.1-5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M19.8 3.8v3.9h-3.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M7 14h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".75"/>
+                <path d="M8 11c1 0 1 .9 2 .9s1-1.8 2-1.8 1 1.8 2 1.8 1-.9 2-.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".75"/>
+              </svg>
             </button>
           </div>
         </div>
         
-        <div class="option-group">
-          <label for="smoothing-mode">Smoothing:</label>
-          <select id="smoothing-mode" bind:value={smoothingMode}>
-            <option value="off">Off</option>
-            <option value="1/12">1/12 Oct</option>
-            <option value="1/6">1/6 Oct</option>
-            <option value="1/3">1/3 Oct</option>
-          </select>
-        </div>
-        
-        <div class="option-group">
-          <div class="analyzer-grid">
-            <button
-              class="analyzer-btn"
-              class:active={showSTA}
-              aria-pressed={showSTA}
-              on:click={() => (showSTA = !showSTA)}
-              title="Short-Term Average (STA)"
-            >
-              STA
-            </button>
-            <button
-              class="analyzer-btn"
-              class:active={showLTA}
-              aria-pressed={showLTA}
-              on:click={() => (showLTA = !showLTA)}
-              title="Long-Term Average (LTA)"
-            >
-              LTA
-            </button>
-            <button
-              class="analyzer-btn"
-              class:active={showPeak}
-              aria-pressed={showPeak}
-              on:click={() => (showPeak = !showPeak)}
-              title="Peak Hold"
-            >
-              PEAK
-            </button>
-            <button
-              class="analyzer-btn reset-btn"
-              on:click={resetAverages}
-              title="Reset averages and peak hold"
-            >
-              ↺
-            </button>
+        <!-- Curve Smoothing -->
+        <div class="group">
+          <h3>Curve Smoothing</h3>
+          <div class="row">
+            <button class="chip option" class:active={smoothingMode === 'off'} on:click={() => (smoothingMode = 'off')}>Off</button>
+            <button class="chip option" class:active={smoothingMode === '1/12'} on:click={() => (smoothingMode = '1/12')}>1/12 Oct</button>
+            <button class="chip option" class:active={smoothingMode === '1/6'} on:click={() => (smoothingMode = '1/6')}>1/6 Oct</button>
+            <button class="chip option" class:active={smoothingMode === '1/3'} on:click={() => (smoothingMode = '1/3')}>1/3 Oct</button>
           </div>
         </div>
-        
-        <div class="option-group">
+
+        <!-- Hidden legacy controls (kept for state, hidden from UI) -->
+        <div class="group" style="display: none;">
           <label>
             <input type="checkbox" bind:checked={showPerBandCurves} />
             Per-band curves
           </label>
-        </div>
-        
-        <div class="option-group">
           <label>
             <input type="checkbox" bind:checked={showBandwidthMarkers} />
             BW markers
           </label>
-        </div>
-        
-        <!-- MVP-30: Heatmap controls (compact) -->
-        <div class="option-group">
-          <label>
-            <input type="checkbox" bind:checked={heatmapEnabled} />
-            Heatmap
-          </label>
-          <button
-            class="heatmap-settings-btn"
-            bind:this={heatmapSettingsButtonEl}
-            disabled={!heatmapEnabled}
-            on:click={handleHeatmapSettingsClick}
-            title="Heatmap settings"
-            aria-label="Heatmap settings"
-          >
-            <svg class="settings-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                stroke="currentColor"
-                fill="none"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"
-                stroke="currentColor"
-                fill="none"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-        </div>
-        
-        <div class="option-group">
           <span class="option-label">Band fill:</span>
           <span style="--knob-arc: var(--sum-curve);">
             <KnobDial 
@@ -1434,6 +1459,63 @@
             />
           </span>
         </div>
+
+        <!-- Heatmap -->
+        <div class="group">
+          <h3>Heatmap</h3>
+          <div class="row">
+            <button class="heatmapToggle" on:click={() => (heatmapEnabled = !heatmapEnabled)}>
+              <div class="halo">
+                <svg width="30" height="30" viewBox="0 0 64 64">
+                <defs>
+                  <radialGradient id="metalGrad" cx="28%" cy="22%" r="72%" fx="28%" fy="22%">
+                    <stop offset="0%"   stop-color="#8a96a3" stop-opacity=".55"/>
+                    <stop offset="30%"  stop-color="#5a6370" stop-opacity=".38"/>
+                    <stop offset="70%"  stop-color="#2e343c" stop-opacity=".28"/>
+                    <stop offset="100%" stop-color="#1c2028" stop-opacity=".22"/>
+                  </radialGradient>
+                  <linearGradient id="neonGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%"   stop-color="#5affa0"/>
+                    <stop offset="50%"  stop-color="#39ff8f"/>
+                    <stop offset="100%" stop-color="#00e06b"/>
+                  </linearGradient>
+                  <radialGradient id="bloomGrad" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%"   stop-color="#39ff8f" stop-opacity=".22"/>
+                    <stop offset="55%"  stop-color="#39ff8f" stop-opacity=".07"/>
+                    <stop offset="100%" stop-color="#39ff8f" stop-opacity="0"/>
+                  </radialGradient>
+                  <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                    <feMerge>
+                      <feMergeNode in="blur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <circle class="bloom"      cx="32" cy="32" r="28" fill="url(#bloomGrad)"/>
+                <circle class="ring-metal" cx="32" cy="32" r="18" stroke="url(#metalGrad)" stroke-width="1.8" fill="none"/>
+                <circle class="ring-neon"  cx="32" cy="32" r="18" stroke="url(#neonGrad)"  stroke-width="1.4" fill="none" filter="url(#neonGlow)"/>
+                <circle class="dot"        cx="32" cy="32" r="3.5"/>
+                </svg>
+              </div>
+              <span class="powerLabel">On / Off</span>
+            </button>
+
+            <button 
+              class="chip disclosureChip" 
+              data-open={heatmapSettingsOpen}
+              disabled={!heatmapEnabled}
+              bind:this={heatmapSettingsButtonEl}
+              on:click={handleHeatmapSettingsClick}
+              title="Heatmap settings"
+              aria-label="Heatmap settings"
+            >
+              <span>Prefs</span>
+              <span class="arrow">▲</span>
+            </button>
+          </div>
+        </div>
+        
       </div>
       <div class="viz-options-spacer"></div>
       </div>
@@ -1845,6 +1927,7 @@
     background: var(--ui-panel);
     border: 1px solid var(--ui-border);
     border-radius: 4px;
+    overflow-x: auto;
   }
 
   .viz-options-spacer {
@@ -2068,6 +2151,7 @@
     align-items: center;
     justify-content: start;
     gap: 0.5rem;
+    padding-top: 1.5rem;
   }
 
   .band-column[data-enabled='false'] {
@@ -2236,6 +2320,481 @@
     font-weight: 600;
     letter-spacing: 0.05em;
     height: 31px;
+  }
+
+  /* ====== VIZ-OPTIONS: DEMO DESIGN SYSTEM ====== */
+  /* Scoped styling for the new group-based viz-options UI */
+
+  .viz-options .group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    margin: 8px 8px;
+    border-right: 1px solid var(--ui-border);
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .viz-options .group:last-child {
+    border-right: none;
+    margin-right: 0;
+  }
+
+  /* Signal Tap group: fixed-size, never shrinks */
+  .viz-options .group-signal-tap {
+    flex: 0 0 auto;
+    min-width: 200px;
+    overflow: visible;
+  }
+
+  .viz-options .group h3 {
+    margin: 0 0 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ui-text-dim);
+  }
+
+  .viz-options .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* Shared chip base for waveSwitch, option, and disclosureChip */
+  .viz-options .chip {
+    padding: 3px 8px;
+    border: 1px solid var(--ui-border);
+    border-radius: 5px;
+    font-size: 11px;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    background: transparent;
+    color: var(--ui-text-muted);
+    transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  }
+
+  /* Wave stack SVG container */
+  .viz-options .waveStack {
+    flex-shrink: 0;
+  }
+
+  .viz-options .waveStack svg {
+    width: 56px;
+    height: 20px;
+    display: block;
+  }
+
+  .viz-options .waveFlat {
+    stroke: #5f6b7a;
+    stroke-width: 1.5;
+    transition: opacity 0.2s ease;
+  }
+
+  .viz-options .ltaFill,
+  .viz-options .staFill,
+  .viz-options .peakFill {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .viz-options[data-lta="on"] .ltaFill {
+    opacity: 1;
+  }
+
+  .viz-options[data-sta="on"] .staFill {
+    opacity: 1;
+  }
+
+  .viz-options[data-peak="on"] .peakFill {
+    opacity: 1;
+  }
+
+  .viz-options[data-lta="on"] .waveFlat,
+  .viz-options[data-sta="on"] .waveFlat,
+  .viz-options[data-peak="on"] .waveFlat {
+    opacity: 0;
+  }
+
+  /* Wave toggle buttons (LTA/STA/Peak) */
+  .viz-options .waveSwitch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Per-mode hover tints */
+  .viz-options .waveSwitch[data-mode="lta"]:hover {
+    border-color: #1a6060;
+    background: rgba(0, 212, 184, 0.06);
+  }
+
+  .viz-options .waveSwitch[data-mode="sta"]:hover {
+    border-color: #3d5a00;
+    background: rgba(168, 255, 0, 0.06);
+  }
+
+  .viz-options .waveSwitch[data-mode="peak"]:hover {
+    border-color: #604010;
+    background: rgba(240, 168, 0, 0.06);
+  }
+
+  /* Active states */
+  .viz-options .waveSwitch[data-on="true"][data-mode="lta"] {
+    border-color: #00d4b8;
+    color: #b0fff4;
+  }
+
+  .viz-options .waveSwitch[data-on="true"][data-mode="sta"] {
+    border-color: #a8ff00;
+    color: #eaffd0;
+  }
+
+  .viz-options .waveSwitch[data-on="true"][data-mode="peak"] {
+    border-color: #f0a800;
+    color: #fff3cc;
+  }
+
+  /* Smoothing option chips */
+  .viz-options .option:hover {
+    border-color: #1a5c3a;
+    background: rgba(0, 255, 163, 0.06);
+  }
+
+  .viz-options .option.active {
+    border-color: #00ffa3;
+    color: #eafff5;
+  }
+
+  /* Reset button (filled surface style) */
+  .viz-options .button {
+    background: var(--ui-panel-2);
+    padding: 4px 7px;
+    border-radius: 5px;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+    font-size: 11px;
+    white-space: nowrap;
+    border: none;
+    color: var(--ui-text-muted);
+  }
+
+  .viz-options .button:hover {
+    background: #3a424c;
+  }
+
+  .viz-options .button.button--icon {
+    padding: 3px 8px;
+    min-width: 0;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    border: none;
+    outline: none;
+    font: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .viz-options .resetIcon {
+    display: block;
+    color: #6f7a86;
+    transition: color 0.2s ease, filter 0.2s ease;
+  }
+
+  .viz-options .button.button--icon:hover .resetIcon {
+    color: #c8d1db;
+    filter: drop-shadow(0 0 4px rgba(0, 255, 163, 0.25));
+  }
+
+  .viz-options .button.button--icon:active .resetIcon {
+    filter: drop-shadow(0 0 6px rgba(0, 255, 163, 0.35));
+  }
+
+  /* Disclosure chip (Heatmap Prefs) */
+  .viz-options .disclosureChip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .viz-options .disclosureChip:hover:not(:disabled) {
+    border-color: #4a5260;
+  }
+
+  .viz-options .disclosureChip[data-open="true"] {
+    border-color: #39ff8f;
+    color: #caffea;
+  }
+
+  .viz-options .disclosureChip:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .viz-options .disclosureChip .arrow {
+    font-size: 10px;
+    opacity: 0.7;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .viz-options .disclosureChip[data-open="true"] .arrow {
+    transform: rotate(180deg);
+    opacity: 1;
+  }
+
+  /* Heatmap power toggle */
+  .viz-options .heatmapToggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  .viz-options .heatmapToggle:hover .ring-metal {
+    stroke: #7a8a90;
+  }
+
+  .viz-options .heatmapToggle:hover .powerLabel {
+    color: #2a7a50;
+  }
+
+  .viz-options .halo {
+    user-select: none;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .viz-options .halo svg {
+    display: block;
+  }
+
+  .viz-options .halo .bloom {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  .viz-options[data-power="on"] .halo .bloom {
+    opacity: 1;
+    animation: haloPulse 2.8s ease-in-out infinite;
+  }
+
+  @keyframes haloPulse {
+    0% {
+      opacity: 0.5;
+      transform: scale(0.95);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+    100% {
+      opacity: 0.5;
+      transform: scale(0.95);
+    }
+  }
+
+  .viz-options .halo .ring-neon {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  .viz-options[data-power="on"] .halo .ring-neon {
+    opacity: 1;
+  }
+
+  .viz-options .halo .ring-metal {
+    transition: opacity 0.35s ease, stroke 0.2s ease;
+  }
+
+  .viz-options[data-power="on"] .halo .ring-metal {
+    opacity: 0;
+  }
+
+  .viz-options .halo .dot {
+    fill: #4a5260;
+    transition: fill 0.35s ease;
+  }
+
+  .viz-options[data-power="on"] .halo .dot {
+    fill: #39ff8f;
+  }
+
+  .viz-options .powerLabel {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7785;
+    line-height: 1;
+    transition: color 0.35s ease;
+  }
+
+  .viz-options[data-power="on"] .powerLabel {
+    color: #39ff8f;
+  }
+
+  /* ====== SIGNAL TAP SELECTOR (EQ Source) ====== */
+
+  .viz-options .sigTapGroup {
+    display: block;
+  }
+
+  .viz-options .sigTap {
+    display: block;
+  }
+
+  .viz-options .sigLine {
+    stroke: #4a5260;
+    stroke-width: 1.3;
+  }
+
+  /* Active signal segment — lights up on the selected side */
+  .viz-options .sigSegActive {
+    stroke: #7b8fff;
+    stroke-width: 1.3;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .viz-options .sigTapGroup[data-sel="pre"] .sigSegActive.pre {
+    opacity: 1;
+  }
+
+  .viz-options .sigTapGroup[data-sel="post"] .sigSegActive.post {
+    opacity: 1;
+  }
+
+  .viz-options .eqBlock {
+    fill: #2a3037;
+    stroke: #4a5260;
+    stroke-width: 1;
+  }
+
+  .viz-options .eqBlockCurve {
+    fill: none;
+    stroke: #00ffa3;
+    stroke-width: 1;
+    stroke-linecap: round;
+    opacity: 0.5;
+  }
+
+  .viz-options .eqBlockLabel {
+    fill: #6b7785;
+    font-size: 7px;
+    font-family: system-ui;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Tap groups */
+  .viz-options .tap {
+    cursor: pointer;
+  }
+
+  .viz-options .tapNode {
+    fill: rgb(17, 20, 25);
+    stroke: #4a5260;
+    stroke-width: 1.5;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+  }
+
+  .viz-options .tapStem {
+    stroke: #4a5260;
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+    transition: stroke 0.2s ease;
+  }
+
+  .viz-options .tapHead {
+    fill: #4a5260;
+    transition: fill 0.2s ease;
+  }
+
+  .viz-options .tapLabel {
+    fill: #6b7785;
+    font-size: 8px;
+    font-family: system-ui;
+    text-anchor: middle;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    transition: fill 0.2s ease;
+    user-select: none;
+  }
+
+  /* Hover */
+  .viz-options .tap:hover .tapNode {
+    stroke: #7b8fff;
+  }
+
+  .viz-options .tap:hover .tapStem {
+    stroke: #2e3580;
+  }
+
+  .viz-options .tap:hover .tapHead {
+    fill: #2e3580;
+  }
+
+  .viz-options .tap:hover .tapLabel {
+    fill: #9aa4af;
+  }
+
+  /* Active — driven by data-sel on parent */
+  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapNode {
+    fill: #7b8fff;
+    stroke: #7b8fff;
+    filter: url(#tapGlow);
+  }
+
+  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapStem {
+    stroke: #7b8fff;
+    stroke-dasharray: none;
+  }
+
+  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapHead {
+    fill: #7b8fff;
+    filter: url(#tapGlow);
+  }
+
+  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapLabel {
+    fill: #dde0ff;
+  }
+
+  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapNode {
+    fill: #7b8fff;
+    stroke: #7b8fff;
+    filter: url(#tapGlow);
+  }
+
+  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapStem {
+    stroke: #7b8fff;
+    stroke-dasharray: none;
+  }
+
+  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapHead {
+    fill: #7b8fff;
+    filter: url(#tapGlow);
+  }
+
+  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapLabel {
+    fill: #dde0ff;
   }
 
 </style>

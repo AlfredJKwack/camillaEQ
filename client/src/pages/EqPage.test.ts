@@ -169,7 +169,7 @@ describe('EqPage MVP-12 Informative Tokens', () => {
 });
 
 describe('EqPage MVP-30 Heatmap Controls', () => {
-  it('contains compact heatmap controls with settings popover', async () => {
+  it('contains new group-based viz-options with demo visual language', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
@@ -179,15 +179,52 @@ describe('EqPage MVP-30 Heatmap Controls', () => {
     const componentPath = path.join(__dirname, 'EqPage.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
-    // Verify heatmap checkbox (main control in viz-options bar)
-    expect(source).toContain('heatmapEnabled');
-    expect(source).toContain('Heatmap');
+    // Verify group-based structure
+    expect(source).toContain('viz-options .group');
+    expect(source).toContain('<h3>Spectrum Signal Tap</h3>');
+    expect(source).toContain('<h3>Spectrum Curves</h3>');
+    expect(source).toContain('<h3>Curve Smoothing</h3>');
+    expect(source).toContain('<h3>Heatmap</h3>');
     
-    // Verify settings button
-    expect(source).toContain('heatmap-settings-btn');
+    // Verify Signal Tap (replaces Spectrum Source image buttons)
+    expect(source).toContain('sigTapGroup');
+    expect(source).toContain('class="sigTap"');
+    expect(source).toContain('class="tap"');
+    expect(source).toContain('data-pos="pre"');
+    expect(source).toContain('data-pos="post"');
+    expect(source).toContain('data-sel={spectrumMode}');
+    expect(source).toContain('class="eqBlock"');
+    expect(source).toContain('class="sigLine"');
+    expect(source).toContain('class="sigSegActive pre"');
+    expect(source).toContain('class="sigSegActive post"');
+    
+    // Verify waveStack SVG for analyzer visualization
+    expect(source).toContain('waveStack');
+    expect(source).toContain('waveSwitch');
+    expect(source).toContain('data-mode="lta"');
+    expect(source).toContain('data-mode="sta"');
+    expect(source).toContain('data-mode="peak"');
+    
+    // Verify smoothing changed from select to chip buttons
+    expect(source).toContain('class="chip option"');
+    expect(source).toContain('smoothingMode === \'off\'');
+    expect(source).toContain('smoothingMode === \'1/12\'');
+    expect(source).toContain('smoothingMode === \'1/6\'');
+    expect(source).toContain('smoothingMode === \'1/3\'');
+    
+    // Verify heatmap power toggle (replaces checkbox)
+    expect(source).toContain('heatmapToggle');
+    expect(source).toContain('class="halo"');
+    expect(source).toContain('powerLabel');
+    expect(source).toContain('data-power={heatmapEnabled');
+    
+    // Verify disclosure chip for heatmap settings (replaces gear button)
+    expect(source).toContain('disclosureChip');
+    expect(source).toContain('data-open={heatmapSettingsOpen}');
+    expect(source).toContain('disabled={!heatmapEnabled}');
     expect(source).toContain('handleHeatmapSettingsClick');
     
-    // Verify HeatmapSettings component import and usage
+    // Verify HeatmapSettings component still used
     expect(source).toContain('HeatmapSettings');
     expect(source).toContain('heatmapSettingsOpen');
     
@@ -205,5 +242,10 @@ describe('EqPage MVP-30 Heatmap Controls', () => {
     
     // Verify visual tuning is passed to layer
     expect(source).toContain('visualTuning');
+    
+    // Verify hidden legacy controls group exists
+    expect(source).toContain('showPerBandCurves');
+    expect(source).toContain('showBandwidthMarkers');
+    expect(source).toContain('bandFillOpacity');
   });
 });
