@@ -54,6 +54,251 @@
   import { loadVizOptions, saveVizOptions } from '../lib/vizOptionsPersistence';
   import { debounce } from '../lib/debounce';
 
+  // VizLayoutManager: Responsive collapse/expand logic for viz-options groups
+  interface VizGroup {
+    id: string;
+    priority: number;
+    expandedWidth: number;
+    el: HTMLElement;
+  }
+
+  class VizLayoutManager {
+    private host: HTMLElement;
+    private viewport: HTMLElement;
+    private strip: HTMLElement;
+    private groups: VizGroup[];
+    private S: number; // stub width
+    private N: number; // number of groups
+    private capExpandedCount: number;
+    private maxWi: number;
+    private MIN_SCROLL_WIDTH: number;
+    private userChosen: Set<string>;
+    private lastUser: string | null;
+    private ro: ResizeObserver;
+    private _frozenId: string | null = null;
+    private _t: number | null = null;
+
+    constructor(hostEl: HTMLElement, viewportEl: HTMLElement, stripEl: HTMLElement, groups: VizGroup[], opts: { stubWidth?: number } = {}) {
+      this.host = hostEl;
+      this.viewport = viewportEl;
+      this.strip = stripEl;
+      this.groups = groups;
+
+      this.S = opts.stubWidth ?? 44;
+      this.N = groups.length;
+      this.capExpandedCount = this.N; // Allow all groups expanded when space permits
+
+      this.maxWi = Math.max(...groups.map(g => g.expandedWidth));
+      this.MIN_SCROLL_WIDTH = (this.N - 1) * this.S + this.maxWi;
+
+      this.userChosen = new Set();
+      this.lastUser = null;
+
+      this.strip.style.minWidth = this.MIN_SCROLL_WIDTH + 'px';
+
+      this.ro = new ResizeObserver(() => this.scheduleLayout());
+      this.ro.observe(this.host);
+
+      // Wire up stub click handlers
+      for (const g of this.groups) {
+        const stub = g.el.querySelector('.groupStub') as HTMLElement;
+        if (stub) {
+          stub.addEventListener('click', () => this.toggleChoice(g.id));
+          stub.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              this.toggleChoice(g.id);
+            }
+          });
+        }
+      }
+
+      this.viewport.addEventListener('scroll', () => this.updateOverflowAffordances());
+      this.layout(true);
+      this.updateOverflowAffordances();
+    }
+
+    scheduleLayout() {
+      if (this._t !== null) clearTimeout(this._t);
+      this._t = window.setTimeout(() => {
+        this.layout(false);
+        this.updateOverflowAffordances();
+      }, 30);
+    }
+
+    availableWidth() {
+      return this.host.clientWidth;
+    }
+
+    constrained() {
+      return this.availableWidth() < this.MIN_SCROLL_WIDTH;
+    }
+
+    groupById(id: string): VizGroup | null {
+      return this.groups.find(g => g.id === id) ?? null;
+    }
+
+    sortedByPriorityAsc(list: VizGroup[]): VizGroup[] {
+      return [...list].sort((a, b) => a.priority - b.priority);
+    }
+
+    resetVisual() {
+      for (const g of this.groups) {
+        g.el.classList.remove('expanded', 'chosen');
+      }
+    }
+
+    markChosen() {
+      for (const g of this.groups) {
+        if (this.userChosen.has(g.id)) g.el.classList.add('chosen');
+      }
+    }
+
+    totalWidthForExpandedSet(E: Set<string>): number {
+      let total = this.N * this.S;
+      for (const id of E) {
+        const g = this.groupById(id);
+        if (g) total += (g.expandedWidth - this.S);
+      }
+      return total;
+    }
+
+    defaultExpandedSetResponsive(): Set<string> {
+      const E = new Set<string>();
+      const budget = this.availableWidth() - this.N * this.S;
+      let used = 0;
+      for (const g of this.sortedByPriorityAsc(this.groups)) {
+        if (E.size >= this.capExpandedCount) break;
+        const extra = g.expandedWidth - this.S;
+        if (used + extra <= budget) {
+          E.add(g.id);
+          used += extra;
+        }
+      }
+      if (E.size === 0) E.add(this.sortedByPriorityAsc(this.groups)[0].id);
+      return E;
+    }
+
+    evictUntilFits(E: Set<string>, protectId: string | null = null) {
+      while (E.size > this.capExpandedCount) {
+        const v = this.pickEvictionCandidate(E, protectId);
+        if (!v) break;
+        E.delete(v.id);
+        this.userChosen.delete(v.id);
+        if (this.lastUser === v.id) this.lastUser = null;
+      }
+      while (this.totalWidthForExpandedSet(E) > this.availableWidth()) {
+        const v = this.pickEvictionCandidate(E, protectId);
+        if (!v) break;
+        E.delete(v.id);
+        this.userChosen.delete(v.id);
+        if (this.lastUser === v.id) this.lastUser = null;
+      }
+    }
+
+    pickEvictionCandidate(E: Set<string>, protectId: string | null): VizGroup | null {
+      const candidates = [...E]
+        .map(id => this.groupById(id))
+        .filter((g): g is VizGroup => g !== null)
+        .filter(g => g.id !== protectId);
+      if (!candidates.length) return null;
+      candidates.sort((a, b) => b.priority - a.priority);
+      return candidates[0];
+    }
+
+    toggleChoice(id: string) {
+      const already = this.userChosen.has(id);
+      if (already) {
+        this.userChosen.delete(id);
+        if (this.lastUser === id) this.lastUser = null;
+      } else {
+        this.userChosen.add(id);
+        this.lastUser = id;
+      }
+      this.layout(false);
+      const target = this.groupById(this.lastUser ?? id);
+      if (target) requestAnimationFrame(() => this.scrollGroupIntoView(target.el));
+    }
+
+    expandedIdConstrained(): string {
+      if (this.lastUser) return this.lastUser;
+      return this.sortedByPriorityAsc(this.groups)[0].id;
+    }
+
+    layout(first: boolean) {
+      const isCon = this.constrained();
+      this.viewport.classList.toggle('constrained', isCon);
+      this.resetVisual();
+      this.markChosen();
+
+      if (isCon) {
+        const id = this.expandedIdConstrained();
+        const g = this.groupById(id) ?? this.sortedByPriorityAsc(this.groups)[0];
+        g.el.classList.add('expanded');
+        if (this._frozenId !== g.id || first) {
+          this._frozenId = g.id;
+          requestAnimationFrame(() => this.scrollGroupIntoView(g.el));
+        }
+        return;
+      }
+
+      let E = this.defaultExpandedSetResponsive();
+      const orderedChosen: VizGroup[] = [];
+      if (this.lastUser) {
+        const lu = this.groupById(this.lastUser);
+        if (lu) orderedChosen.push(lu);
+      }
+      for (const g of this.sortedByPriorityAsc([...this.userChosen].map(id => this.groupById(id)).filter((g): g is VizGroup => g !== null))) {
+        if (!orderedChosen.find(x => x.id === g.id)) orderedChosen.push(g);
+      }
+      for (const cg of orderedChosen) {
+        E.add(cg.id);
+        this.evictUntilFits(E, this.lastUser ?? cg.id);
+      }
+      for (const g of this.sortedByPriorityAsc(this.groups)) {
+        if (E.size >= this.capExpandedCount) break;
+        if (E.has(g.id)) continue;
+        const t = new Set(E);
+        t.add(g.id);
+        if (this.totalWidthForExpandedSet(t) <= this.availableWidth()) E = t;
+      }
+      if (E.size === 0) E.add(this.sortedByPriorityAsc(this.groups)[0].id);
+      for (const id of E) {
+        const g = this.groupById(id);
+        if (g) g.el.classList.add('expanded');
+      }
+    }
+
+    scrollGroupIntoView(groupEl: HTMLElement) {
+      if (!this.viewport.classList.contains('constrained')) return;
+      const vp = this.viewport;
+      const vpR = vp.getBoundingClientRect();
+      const elR = groupEl.getBoundingClientRect();
+      if (elR.left >= vpR.left && elR.right <= vpR.right) return;
+      const ld = elR.left - vpR.left;
+      const rd = elR.right - vpR.right;
+      let t = vp.scrollLeft;
+      if (ld < 0) t += ld - 16;
+      else if (rd > 0) t += rd + 16;
+      vp.scrollTo({ left: t, behavior: 'smooth' });
+    }
+
+    updateOverflowAffordances() {
+      const vp = this.viewport;
+      const hasOverflow = vp.classList.contains('constrained') && (vp.scrollWidth > vp.clientWidth + 1);
+      if (!hasOverflow) {
+        vp.classList.remove('hasLeftOverflow', 'hasRightOverflow');
+        return;
+      }
+      vp.classList.toggle('hasLeftOverflow', vp.scrollLeft > 2);
+      vp.classList.toggle('hasRightOverflow', vp.scrollLeft < (vp.scrollWidth - vp.clientWidth - 2));
+    }
+
+    destroy() {
+      this.ro.disconnect();
+    }
+  }
+
   let showPerBandCurves = false;
   let spectrumMode: 'pre' | 'post' = 'pre'; // pre or post (no off mode)
   
@@ -193,6 +438,12 @@
   let plotElement: HTMLDivElement;
   let resizeObserver: ResizeObserver | null = null;
   
+  // VizLayoutManager refs
+  let vizHostEl: HTMLDivElement;
+  let vizViewportEl: HTMLDivElement;
+  let vizStripEl: HTMLDivElement;
+  let vizLayoutManager: VizLayoutManager | null = null;
+  
   // Load persisted viz options on mount
   onMount(() => {
     const saved = loadVizOptions();
@@ -215,6 +466,104 @@
     heatmapMaxAlpha = saved.heatmapMaxAlpha;
     
     console.log('Loaded viz options from localStorage');
+  });
+  
+  // Lifecycle: Initialize VizLayoutManager for collapsible viz-options
+  onMount(() => {
+    if (vizHostEl && vizViewportEl && vizStripEl) {
+      const gCurvesEl = document.getElementById('g_curves');
+      const gSmoothEl = document.getElementById('g_smooth');
+      const gHeatmapEl = document.getElementById('g_heatmap');
+      const gTapEl = document.getElementById('g_tap');
+      const gTokensEl = document.getElementById('g_tokens');
+      
+      if (gCurvesEl && gSmoothEl && gHeatmapEl && gTapEl && gTokensEl) {
+        const groups: VizGroup[] = [
+          { id: 'g_tap', priority: 4, expandedWidth: 256, el: gTapEl },
+          { id: 'g_curves', priority: 1, expandedWidth: 200, el: gCurvesEl },
+          { id: 'g_smooth', priority: 2, expandedWidth: 190, el: gSmoothEl },
+          { id: 'g_heatmap', priority: 3, expandedWidth: 210, el: gHeatmapEl },
+          { id: 'g_tokens', priority: 5, expandedWidth: 230, el: gTokensEl },
+        ];
+        
+        vizLayoutManager = new VizLayoutManager(
+          vizHostEl,
+          vizViewportEl,
+          vizStripEl,
+          groups,
+          { stubWidth: 44 }
+        );
+        console.log('VizLayoutManager initialized');
+        
+        // Drag-to-scroll: only captures after movement threshold to preserve stub clicks
+        let down = false;
+        let dragging = false;
+        let startX = 0;
+        let startScroll = 0;
+        let pointerId: number | null = null;
+        const THRESHOLD = 4;
+        
+        const handlePointerDown = (e: PointerEvent) => {
+          if (!vizViewportEl.classList.contains('constrained')) return;
+          down = true;
+          dragging = false;
+          startX = e.clientX;
+          startScroll = vizViewportEl.scrollLeft;
+          pointerId = e.pointerId;
+        };
+        
+        const handlePointerMove = (e: PointerEvent) => {
+          if (!down) return;
+          if (!dragging && Math.abs(e.clientX - startX) > THRESHOLD) {
+            dragging = true;
+            if (pointerId !== null) {
+              vizViewportEl.setPointerCapture(pointerId);
+            }
+          }
+          if (dragging) {
+            vizViewportEl.scrollLeft = startScroll - (e.clientX - startX);
+          }
+        };
+        
+        const handlePointerUp = (e: PointerEvent) => {
+          down = false;
+          dragging = false;
+          try {
+            vizViewportEl.releasePointerCapture(e.pointerId);
+          } catch {}
+        };
+        
+        const handlePointerCancel = () => {
+          down = false;
+          dragging = false;
+        };
+        
+        vizViewportEl.addEventListener('pointerdown', handlePointerDown);
+        vizViewportEl.addEventListener('pointermove', handlePointerMove);
+        vizViewportEl.addEventListener('pointerup', handlePointerUp);
+        vizViewportEl.addEventListener('pointercancel', handlePointerCancel);
+        
+        // Wheel pan: convert vertical wheel to horizontal scroll when constrained
+        const handleWheel = (e: WheelEvent) => {
+          if (!vizViewportEl.classList.contains('constrained')) return;
+          if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+          if (vizViewportEl.scrollWidth <= vizViewportEl.clientWidth + 1) return;
+          e.preventDefault();
+          vizViewportEl.scrollLeft += e.deltaY;
+        };
+        
+        vizViewportEl.addEventListener('wheel', handleWheel, { passive: false });
+        
+        // Cleanup
+        return () => {
+          vizViewportEl.removeEventListener('pointerdown', handlePointerDown);
+          vizViewportEl.removeEventListener('pointermove', handlePointerMove);
+          vizViewportEl.removeEventListener('pointerup', handlePointerUp);
+          vizViewportEl.removeEventListener('pointercancel', handlePointerCancel);
+          vizViewportEl.removeEventListener('wheel', handleWheel);
+        };
+      }
+    }
   });
   
   // Lifecycle: Initialize canvas renderer + analyzer
@@ -351,6 +700,12 @@
   }
   
   onDestroy(() => {
+    // Clean up VizLayoutManager
+    if (vizLayoutManager) {
+      vizLayoutManager.destroy();
+      vizLayoutManager = null;
+    }
+    
     // Clean up polling interval
     if (spectrumPollingInterval !== null) {
       clearInterval(spectrumPollingInterval);
@@ -1299,15 +1654,32 @@
 
       <!-- MVP-16: Visualization Options Bar -->
       <div class="viz-options-area">
-      <div class="viz-options" 
-        data-lta={showLTA ? 'on' : 'off'} 
-        data-sta={showSTA ? 'on' : 'off'} 
-        data-peak={showPeak ? 'on' : 'off'}
-        data-power={heatmapEnabled ? 'on' : 'off'}>
-        
-        <!-- Signal Tap -->
-        <div class="group group-signal-tap">
-          <h3>Spectrum Signal Tap</h3>
+      <div class="vizHost" id="vizHost" bind:this={vizHostEl}>
+        <div class="vizViewport" id="vizViewport" bind:this={vizViewportEl} aria-label="Visualization options">
+          <div class="edgeFade left"></div>
+          <div class="edgeFade right"></div>
+          
+          <div class="vizStrip" id="vizStrip" bind:this={vizStripEl}>
+            
+        <!-- ===== SPECTRUM SIGNAL TAP ===== -->
+        <div class="groupContainer expanded" id="g_tap" data-group="tap"
+             data-sel={spectrumMode}
+             style="--expandedWidth:256px">
+          
+          <!-- Glyph: line + block + two tap nodes, wired to data-sel -->
+          <div class="stubGlyph">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <line class="glyphTapLine"  x1="3"  y1="12" x2="21" y2="12"/>
+              <rect class="glyphTapBlock" x="9.5" y="9.5" width="5" height="5" rx="1"/>
+              <circle class="glyphTapNode" data-pos="pre"  cx="6"  cy="12" r="3"/>
+              <circle class="glyphTapNode" data-pos="post" cx="18" cy="12" r="3"/>
+            </svg>
+          </div>
+
+          <div class="groupStub" role="button" tabindex="0" aria-label="Spectrum signal tap"></div>
+
+          <div class="groupExpanded">
+            <div class="groupTitle">Spectrum Signal Tap</div>
           <div class="sigTapGroup" data-sel={spectrumMode}>
             <svg class="sigTap" viewBox="0 0 190 50" width="190" height="50" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -1349,11 +1721,29 @@
 
             </svg>
           </div>
-        </div>
+          </div><!-- end groupExpanded -->
+        </div><!-- end g_tap groupContainer -->
         
-        <!-- Spectrum Analyzer -->
-        <div class="group">
-          <h3>Spectrum Curves</h3>
+        <!-- ===== SPECTRUM CURVES ===== -->
+        <div class="groupContainer expanded" id="g_curves" data-group="curves"
+             data-lta={showLTA ? 'on' : 'off'}
+             data-sta={showSTA ? 'on' : 'off'}
+             data-peak={showPeak ? 'on' : 'off'}
+             style="--expandedWidth:200px">
+
+          <!-- Glyph: 3 lines ordered Peak/STA/LTA (top to bottom), each wired to its toggle state -->
+          <div class="stubGlyph">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <line class="glyphPeak" x1="4" y1="7"  x2="20" y2="7"  stroke="var(--amber)" stroke-width="1.9" stroke-linecap="round"/>
+              <line class="glyphSta"  x1="4" y1="12" x2="20" y2="12" stroke="var(--lime)"  stroke-width="1.9" stroke-linecap="round"/>
+              <line class="glyphLta"  x1="4" y1="17" x2="20" y2="17" stroke="var(--teal)"  stroke-width="1.9" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <div class="groupStub" role="button" tabindex="0" aria-label="Spectrum analyzer"></div>
+
+          <div class="groupExpanded">
+            <div class="groupTitle">Spectrum Curves</div>
           <div class="row">
             <div class="waveStack">
               <svg viewBox="0 0 120 24" xmlns="http://www.w3.org/2000/svg">
@@ -1424,45 +1814,59 @@
               </svg>
             </button>
           </div>
-        </div>
+          </div><!-- end groupExpanded -->
+        </div><!-- end g_curves groupContainer -->
         
-        <!-- Curve Smoothing -->
-        <div class="group">
-          <h3>Curve Smoothing</h3>
+        <!-- ===== CURVE SMOOTHING ===== -->
+        <div class="groupContainer expanded" id="g_smooth" data-group="smooth"
+             data-smooth={smoothingMode === 'off' ? '0' : smoothingMode === '1/12' ? '1' : smoothingMode === '1/6' ? '2' : '3'}
+             style="--expandedWidth:190px">
+
+          <!-- Glyph: 4 paths, one per smoothing level, wired to data-smooth -->
+          <div class="stubGlyph">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <!-- Off: jagged -->
+              <path class="gSmooth" data-level="0" d="M4 12 L7 8 L10 15 L13 8 L16 14 L20 12"/>
+              <!-- 1/12 Oct: slight curves -->
+              <path class="gSmooth" data-level="1" d="M4 14 C6 14 7 8 10 8 S14 14 17 14 S19 11 20 11"/>
+              <!-- 1/6 Oct: moderate -->
+              <path class="gSmooth" data-level="2" d="M4 14 C7 14 8 7 12 7 S17 14 20 14"/>
+              <!-- 1/3 Oct: very smooth -->
+              <path class="gSmooth" data-level="3" d="M4 12 C9 5 15 18 20 12"/>
+            </svg>
+          </div>
+
+          <div class="groupStub" role="button" tabindex="0" aria-label="Curve smoothing"></div>
+
+          <div class="groupExpanded">
+            <div class="groupTitle">Curve Smoothing</div>
           <div class="row">
             <button class="chip option" class:active={smoothingMode === 'off'} on:click={() => (smoothingMode = 'off')}>Off</button>
             <button class="chip option" class:active={smoothingMode === '1/12'} on:click={() => (smoothingMode = '1/12')}>1/12 Oct</button>
             <button class="chip option" class:active={smoothingMode === '1/6'} on:click={() => (smoothingMode = '1/6')}>1/6 Oct</button>
             <button class="chip option" class:active={smoothingMode === '1/3'} on:click={() => (smoothingMode = '1/3')}>1/3 Oct</button>
           </div>
-        </div>
+          </div><!-- end groupExpanded -->
+        </div><!-- end g_smooth groupContainer -->
 
-        <!-- Hidden legacy controls (kept for state, hidden from UI) -->
-        <div class="group" style="display: none;">
-          <label>
-            <input type="checkbox" bind:checked={showPerBandCurves} />
-            Per-band curves
-          </label>
-          <label>
-            <input type="checkbox" bind:checked={showBandwidthMarkers} />
-            BW markers
-          </label>
-          <span class="option-label">Band fill:</span>
-          <span style="--knob-arc: var(--sum-curve);">
-            <KnobDial 
-              value={bandFillOpacity}
-              min={0}
-              max={1}
-              scale="linear"
-              size={24}
-              on:change={(e) => (bandFillOpacity = Math.max(0, Math.min(1, e.detail.value)))}
-            />
-          </span>
-        </div>
+        <!-- ===== HEATMAP ===== -->
+        <div class="groupContainer expanded" id="g_heatmap" data-group="heatmap"
+             data-power={heatmapEnabled ? 'on' : 'off'}
+             style="--expandedWidth:210px">
 
-        <!-- Heatmap -->
-        <div class="group">
-          <h3>Heatmap</h3>
+          <!-- Glyph: ring wired to data-power -->
+          <div class="stubGlyph">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <circle class="glyphRingMetal" cx="12" cy="12" r="7"   stroke="#5a6370"       fill="none" stroke-width="1.6"/>
+              <circle class="glyphRingNeon"  cx="12" cy="12" r="7"   stroke="var(--green)"  fill="none" stroke-width="1.3"/>
+              <circle class="glyphDot"       cx="12" cy="12" r="2.5"/>
+            </svg>
+          </div>
+
+          <div class="groupStub" role="button" tabindex="0" aria-label="Heatmap"></div>
+
+          <div class="groupExpanded">
+            <div class="groupTitle">Heatmap</div>
           <div class="row">
             <button class="heatmapToggle" on:click={() => (heatmapEnabled = !heatmapEnabled)}>
               <div class="halo">
@@ -1514,9 +1918,64 @@
               <span class="arrow">▲</span>
             </button>
           </div>
-        </div>
-        
-      </div>
+          </div><!-- end groupExpanded -->
+        </div><!-- end g_heatmap groupContainer -->
+
+        <!-- ===== TOKEN VISUALS ===== -->
+        <div class="groupContainer expanded" id="g_tokens" data-group="tokens"
+             style="--expandedWidth:230px">
+
+          <!-- Glyph: dot + curve + tick marks suggesting EQ visualization -->
+          <div class="stubGlyph">
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+              <!-- Small curve -->
+              <path d="M4 16 Q8 8 12 12 T20 10" fill="none" stroke="var(--indigo)" stroke-width="1.8" stroke-linecap="round"/>
+              <!-- Center dot (token) -->
+              <circle cx="12" cy="12" r="2.5" fill="var(--indigo)"/>
+              <!-- Bandwidth tick marks -->
+              <line x1="8" y1="18" x2="8" y2="20" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="16" y1="18" x2="16" y2="20" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <div class="groupStub" role="button" tabindex="0" aria-label="Token visuals"></div>
+
+          <div class="groupExpanded">
+            <div class="groupTitle">Token Visuals</div>
+            <div class="row">
+              <button 
+                class="chip option" 
+                class:active={showPerBandCurves}
+                aria-pressed={showPerBandCurves}
+                on:click={() => (showPerBandCurves = !showPerBandCurves)}
+              >
+                Per-band
+              </button>
+              <button 
+                class="chip option" 
+                class:active={showBandwidthMarkers}
+                aria-pressed={showBandwidthMarkers}
+                on:click={() => (showBandwidthMarkers = !showBandwidthMarkers)}
+              >
+                BW
+              </button>
+              <span class="knob-wrapper-inline" style="--knob-arc: var(--indigo);">
+                <KnobDial 
+                  value={bandFillOpacity}
+                  min={0}
+                  max={1}
+                  scale="linear"
+                  size={20}
+                  on:change={(e) => (bandFillOpacity = Math.max(0, Math.min(1, e.detail.value)))}
+                />
+              </span>
+            </div>
+          </div><!-- end groupExpanded -->
+        </div><!-- end g_tokens groupContainer -->
+
+          </div><!-- end vizStrip -->
+        </div><!-- end vizViewport -->
+      </div><!-- end vizHost -->
       <div class="viz-options-spacer"></div>
       </div>
     </div>
@@ -1707,7 +2166,7 @@
   /* MVP-11: CSS Subgrid Layout */
   .eq-layout {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, clamp(240px, 32vw, 520px));
     grid-template-rows: auto 1fr auto;
     height: 100vh;
     padding: 1rem;
@@ -1722,6 +2181,7 @@
     grid-template-rows: subgrid;
     grid-row: 1 / span 3;
     min-height: 0;
+    min-width: 0;
   }
 
   .eq-left-top {
@@ -1744,6 +2204,7 @@
     grid-row: 1 / span 3;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
   }
 
   .band-grid {
@@ -1753,6 +2214,7 @@
     grid-row: 1 / span 3;
     gap: 0.375rem;
     height: 100%;
+    width: 100%;
     min-height: 0;
     overflow-x: auto;
     overflow-y: hidden;
@@ -1918,16 +2380,7 @@
     display: grid;
     grid-template-columns: 1fr 32px; /* Matches .eq-plot-area and .eq-freqscale-area */
     margin-top: 1rem;
-  }
-
-  .viz-options {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    background: var(--ui-panel);
-    border: 1px solid var(--ui-border);
-    border-radius: 4px;
-    overflow-x: auto;
+    min-width: 0;
   }
 
   .viz-options-spacer {
@@ -2311,6 +2764,12 @@
     opacity: 0.5;
   }
 
+  .knob-wrapper-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .knob-label {
     display: flex;
     align-items: center;
@@ -2323,41 +2782,9 @@
   }
 
   /* ====== VIZ-OPTIONS: DEMO DESIGN SYSTEM ====== */
-  /* Scoped styling for the new group-based viz-options UI */
+  /* Scoped styling for the collapsible group controls */
 
-  .viz-options .group {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    margin: 8px 8px;
-    border-right: 1px solid var(--ui-border);
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .viz-options .group:last-child {
-    border-right: none;
-    margin-right: 0;
-  }
-
-  /* Signal Tap group: fixed-size, never shrinks */
-  .viz-options .group-signal-tap {
-    flex: 0 0 auto;
-    min-width: 200px;
-    overflow: visible;
-  }
-
-  .viz-options .group h3 {
-    margin: 0 0 6px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ui-text-dim);
-  }
-
-  .viz-options .row {
+  .groupExpanded .row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2365,7 +2792,7 @@
   }
 
   /* Shared chip base for waveSwitch, option, and disclosureChip */
-  .viz-options .chip {
+  .chip {
     padding: 3px 8px;
     border: 1px solid var(--ui-border);
     border-radius: 5px;
@@ -2379,99 +2806,99 @@
   }
 
   /* Wave stack SVG container */
-  .viz-options .waveStack {
+  .waveStack {
     flex-shrink: 0;
   }
 
-  .viz-options .waveStack svg {
+  .waveStack svg {
     width: 56px;
     height: 20px;
     display: block;
   }
 
-  .viz-options .waveFlat {
+  .waveFlat {
     stroke: #5f6b7a;
     stroke-width: 1.5;
     transition: opacity 0.2s ease;
   }
 
-  .viz-options .ltaFill,
-  .viz-options .staFill,
-  .viz-options .peakFill {
+  .ltaFill,
+  .staFill,
+  .peakFill {
     opacity: 0;
     transition: opacity 0.2s ease;
   }
 
-  .viz-options[data-lta="on"] .ltaFill {
+  #g_curves[data-lta="on"] .ltaFill {
     opacity: 1;
   }
 
-  .viz-options[data-sta="on"] .staFill {
+  #g_curves[data-sta="on"] .staFill {
     opacity: 1;
   }
 
-  .viz-options[data-peak="on"] .peakFill {
+  #g_curves[data-peak="on"] .peakFill {
     opacity: 1;
   }
 
-  .viz-options[data-lta="on"] .waveFlat,
-  .viz-options[data-sta="on"] .waveFlat,
-  .viz-options[data-peak="on"] .waveFlat {
+  #g_curves[data-lta="on"] .waveFlat,
+  #g_curves[data-sta="on"] .waveFlat,
+  #g_curves[data-peak="on"] .waveFlat {
     opacity: 0;
   }
 
   /* Wave toggle buttons (LTA/STA/Peak) */
-  .viz-options .waveSwitch {
+  .waveSwitch {
     display: flex;
     align-items: center;
     gap: 4px;
   }
 
   /* Per-mode hover tints */
-  .viz-options .waveSwitch[data-mode="lta"]:hover {
+  .waveSwitch[data-mode="lta"]:hover {
     border-color: #1a6060;
     background: rgba(0, 212, 184, 0.06);
   }
 
-  .viz-options .waveSwitch[data-mode="sta"]:hover {
+  .waveSwitch[data-mode="sta"]:hover {
     border-color: #3d5a00;
     background: rgba(168, 255, 0, 0.06);
   }
 
-  .viz-options .waveSwitch[data-mode="peak"]:hover {
+  .waveSwitch[data-mode="peak"]:hover {
     border-color: #604010;
     background: rgba(240, 168, 0, 0.06);
   }
 
   /* Active states */
-  .viz-options .waveSwitch[data-on="true"][data-mode="lta"] {
+  .waveSwitch[data-on="true"][data-mode="lta"] {
     border-color: #00d4b8;
     color: #b0fff4;
   }
 
-  .viz-options .waveSwitch[data-on="true"][data-mode="sta"] {
+  .waveSwitch[data-on="true"][data-mode="sta"] {
     border-color: #a8ff00;
     color: #eaffd0;
   }
 
-  .viz-options .waveSwitch[data-on="true"][data-mode="peak"] {
+  .waveSwitch[data-on="true"][data-mode="peak"] {
     border-color: #f0a800;
     color: #fff3cc;
   }
 
   /* Smoothing option chips */
-  .viz-options .option:hover {
+  .option:hover {
     border-color: #1a5c3a;
     background: rgba(0, 255, 163, 0.06);
   }
 
-  .viz-options .option.active {
+  .option.active {
     border-color: #00ffa3;
     color: #eafff5;
   }
 
   /* Reset button (filled surface style) */
-  .viz-options .button {
+  .button {
     background: var(--ui-panel-2);
     padding: 4px 7px;
     border-radius: 5px;
@@ -2487,11 +2914,11 @@
     color: var(--ui-text-muted);
   }
 
-  .viz-options .button:hover {
+  .button:hover {
     background: #3a424c;
   }
 
-  .viz-options .button.button--icon {
+  .button.button--icon {
     padding: 3px 8px;
     min-width: 0;
     width: auto;
@@ -2506,55 +2933,55 @@
     appearance: none;
   }
 
-  .viz-options .resetIcon {
+  .resetIcon {
     display: block;
     color: #6f7a86;
     transition: color 0.2s ease, filter 0.2s ease;
   }
 
-  .viz-options .button.button--icon:hover .resetIcon {
+  .button.button--icon:hover .resetIcon {
     color: #c8d1db;
     filter: drop-shadow(0 0 4px rgba(0, 255, 163, 0.25));
   }
 
-  .viz-options .button.button--icon:active .resetIcon {
+  .button.button--icon:active .resetIcon {
     filter: drop-shadow(0 0 6px rgba(0, 255, 163, 0.35));
   }
 
   /* Disclosure chip (Heatmap Prefs) */
-  .viz-options .disclosureChip {
+  .disclosureChip {
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
-  .viz-options .disclosureChip:hover:not(:disabled) {
+  .disclosureChip:hover:not(:disabled) {
     border-color: #4a5260;
   }
 
-  .viz-options .disclosureChip[data-open="true"] {
+  .disclosureChip[data-open="true"] {
     border-color: #39ff8f;
     color: #caffea;
   }
 
-  .viz-options .disclosureChip:disabled {
+  .disclosureChip:disabled {
     opacity: 0.3;
     cursor: not-allowed;
   }
 
-  .viz-options .disclosureChip .arrow {
+  .disclosureChip .arrow {
     font-size: 10px;
     opacity: 0.7;
     transition: transform 0.2s ease, opacity 0.2s ease;
   }
 
-  .viz-options .disclosureChip[data-open="true"] .arrow {
+  .disclosureChip[data-open="true"] .arrow {
     transform: rotate(180deg);
     opacity: 1;
   }
 
   /* Heatmap power toggle */
-  .viz-options .heatmapToggle {
+  .heatmapToggle {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -2566,31 +2993,31 @@
     color: inherit;
   }
 
-  .viz-options .heatmapToggle:hover .ring-metal {
+  .heatmapToggle:hover .ring-metal {
     stroke: #7a8a90;
   }
 
-  .viz-options .heatmapToggle:hover .powerLabel {
+  .heatmapToggle:hover .powerLabel {
     color: #2a7a50;
   }
 
-  .viz-options .halo {
+  .halo {
     user-select: none;
     flex-shrink: 0;
     display: flex;
     align-items: center;
   }
 
-  .viz-options .halo svg {
+  .halo svg {
     display: block;
   }
 
-  .viz-options .halo .bloom {
+  .halo .bloom {
     opacity: 0;
     transition: opacity 0.35s ease;
   }
 
-  .viz-options[data-power="on"] .halo .bloom {
+  #g_heatmap[data-power="on"] .halo .bloom {
     opacity: 1;
     animation: haloPulse 2.8s ease-in-out infinite;
   }
@@ -2610,33 +3037,33 @@
     }
   }
 
-  .viz-options .halo .ring-neon {
+  .halo .ring-neon {
     opacity: 0;
     transition: opacity 0.35s ease;
   }
 
-  .viz-options[data-power="on"] .halo .ring-neon {
+  #g_heatmap[data-power="on"] .halo .ring-neon {
     opacity: 1;
   }
 
-  .viz-options .halo .ring-metal {
+  .halo .ring-metal {
     transition: opacity 0.35s ease, stroke 0.2s ease;
   }
 
-  .viz-options[data-power="on"] .halo .ring-metal {
+  #g_heatmap[data-power="on"] .halo .ring-metal {
     opacity: 0;
   }
 
-  .viz-options .halo .dot {
+  .halo .dot {
     fill: #4a5260;
     transition: fill 0.35s ease;
   }
 
-  .viz-options[data-power="on"] .halo .dot {
+  #g_heatmap[data-power="on"] .halo .dot {
     fill: #39ff8f;
   }
 
-  .viz-options .powerLabel {
+  .powerLabel {
     font-size: 11px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -2645,48 +3072,304 @@
     transition: color 0.35s ease;
   }
 
-  .viz-options[data-power="on"] .powerLabel {
+  #g_heatmap[data-power="on"] .powerLabel {
     color: #39ff8f;
+  }
+
+  /* ====== VIZ HOST / VIEWPORT / STRIP ====== */
+  .vizHost {
+    height: 120px;
+    position: relative;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .vizViewport {
+    position: relative;
+    height: 100%;
+    border: 1px solid var(--ui-border);
+    border-radius: 10px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    min-width: 0;
+  }
+
+  .vizViewport.constrained {
+    overflow-x: auto;
+  }
+
+  .edgeFade {
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 28px;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    z-index: 10;
+  }
+
+  .edgeFade.left {
+    left: 0;
+    background: linear-gradient(90deg, var(--ui-panel) 0%, transparent 100%);
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+  }
+
+  .edgeFade.right {
+    right: 0;
+    background: linear-gradient(270deg, var(--ui-panel) 0%, transparent 100%);
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+  }
+
+  .vizViewport.hasLeftOverflow .edgeFade.left {
+    opacity: 1;
+  }
+
+  .vizViewport.hasRightOverflow .edgeFade.right {
+    opacity: 1;
+  }
+
+  .vizStrip {
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+  }
+
+  /* ====== GROUP CONTAINER ====== */
+  .groupContainer {
+    --expandedWidth: 200px;
+    width: 44px;
+    height: 100%;
+    flex: 0 0 auto;
+    position: relative;
+    overflow: hidden;
+    border-right: 1px solid var(--ui-border);
+    transition: width 0.18s ease, box-shadow 0.18s ease;
+  }
+
+  .groupContainer:last-child {
+    border-right: none;
+  }
+
+  .groupContainer.expanded {
+    width: var(--expandedWidth);
+    /* inset accent line avoids layout shift from border-left */
+    box-shadow: inset 2px 0 0 rgba(57, 255, 143, 0.25);
+  }
+
+  /* ====== STUB GLYPH — always at left edge, always visible ====== */
+  .stubGlyph {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 44px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 9px;
+    z-index: 2;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  /* ====== STUB — transparent click target ====== */
+  .groupStub {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    cursor: pointer;
+    border-radius: inherit;
+    transition: background 0.2s ease;
+  }
+
+  .groupStub:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  /* When expanded: stub shrinks to glyph column so controls stay clickable */
+  .groupContainer.expanded .groupStub {
+    right: auto;
+    width: 44px;
+  }
+
+  /* ====== EXPANDED CONTENT — fades in right of stub ====== */
+  .groupExpanded {
+    position: absolute;
+    left: 44px;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 10px 12px 8px 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.14s ease;
+  }
+
+  .groupContainer.expanded .groupExpanded {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Title appears to the right of the glyph, above the controls */
+  .groupTitle {
+    margin: 0.2rem 0 0.7rem;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ui-text-dim);
+    white-space: nowrap;
+  }
+
+  /* ====== GLYPH — SPECTRUM CURVES (wired to data-lta/sta/peak) ====== */
+  .glyphLta,
+  .glyphSta,
+  .glyphPeak {
+    opacity: 0.2;
+    transition: opacity 0.2s ease;
+  }
+
+  #g_curves[data-lta="on"] .glyphLta {
+    opacity: 1;
+  }
+
+  #g_curves[data-sta="on"] .glyphSta {
+    opacity: 1;
+  }
+
+  #g_curves[data-peak="on"] .glyphPeak {
+    opacity: 1;
+  }
+
+  /* ====== GLYPH — SMOOTHING (wired to data-smooth="0|1|2|3") ====== */
+  .gSmooth {
+    fill: none;
+    stroke: var(--lime);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  #g_smooth[data-smooth="0"] .gSmooth[data-level="0"] {
+    opacity: 0.85;
+  }
+
+  #g_smooth[data-smooth="1"] .gSmooth[data-level="1"] {
+    opacity: 0.85;
+  }
+
+  #g_smooth[data-smooth="2"] .gSmooth[data-level="2"] {
+    opacity: 0.85;
+  }
+
+  #g_smooth[data-smooth="3"] .gSmooth[data-level="3"] {
+    opacity: 0.85;
+  }
+
+  /* ====== GLYPH — HEATMAP (wired to data-power) ====== */
+  .glyphRingMetal {
+    transition: opacity 0.35s ease;
+  }
+
+  .glyphRingNeon {
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+
+  .glyphDot {
+    fill: #4a5260;
+    transition: fill 0.35s ease;
+  }
+
+  #g_heatmap[data-power="on"] .glyphRingNeon {
+    opacity: 1;
+  }
+
+  #g_heatmap[data-power="on"] .glyphRingMetal {
+    opacity: 0;
+  }
+
+  #g_heatmap[data-power="on"] .glyphDot {
+    fill: var(--green);
+  }
+
+  /* ====== GLYPH — SIGNAL TAP (wired to data-sel) ====== */
+  .glyphTapLine {
+    stroke: #4a5260;
+    stroke-width: 1.3;
+    stroke-linecap: round;
+  }
+
+  .glyphTapBlock {
+    fill: #2a3037;
+    stroke: #4a5260;
+    stroke-width: 1;
+  }
+
+  .glyphTapNode {
+    fill: rgb(17, 20, 25);
+    stroke: #4a5260;
+    stroke-width: 1.4;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+  }
+
+  #g_tap[data-sel="pre"] .glyphTapNode[data-pos="pre"] {
+    fill: var(--indigo);
+    stroke: var(--indigo);
+  }
+
+  #g_tap[data-sel="post"] .glyphTapNode[data-pos="post"] {
+    fill: var(--indigo);
+    stroke: var(--indigo);
   }
 
   /* ====== SIGNAL TAP SELECTOR (EQ Source) ====== */
 
-  .viz-options .sigTapGroup {
+  .sigTapGroup {
     display: block;
   }
 
-  .viz-options .sigTap {
+  .sigTap {
     display: block;
   }
 
-  .viz-options .sigLine {
+  .sigLine {
     stroke: #4a5260;
     stroke-width: 1.3;
   }
 
   /* Active signal segment — lights up on the selected side */
-  .viz-options .sigSegActive {
+  .sigSegActive {
     stroke: #7b8fff;
     stroke-width: 1.3;
     opacity: 0;
     transition: opacity 0.2s ease;
   }
 
-  .viz-options .sigTapGroup[data-sel="pre"] .sigSegActive.pre {
+  .sigTapGroup[data-sel="pre"] .sigSegActive.pre {
     opacity: 1;
   }
 
-  .viz-options .sigTapGroup[data-sel="post"] .sigSegActive.post {
+  .sigTapGroup[data-sel="post"] .sigSegActive.post {
     opacity: 1;
   }
 
-  .viz-options .eqBlock {
+  .eqBlock {
     fill: #2a3037;
     stroke: #4a5260;
     stroke-width: 1;
   }
 
-  .viz-options .eqBlockCurve {
+  .eqBlockCurve {
     fill: none;
     stroke: #00ffa3;
     stroke-width: 1;
@@ -2694,7 +3377,7 @@
     opacity: 0.5;
   }
 
-  .viz-options .eqBlockLabel {
+  .eqBlockLabel {
     fill: #6b7785;
     font-size: 7px;
     font-family: system-ui;
@@ -2705,30 +3388,30 @@
   }
 
   /* Tap groups */
-  .viz-options .tap {
+  .tap {
     cursor: pointer;
   }
 
-  .viz-options .tapNode {
+  .tapNode {
     fill: rgb(17, 20, 25);
     stroke: #4a5260;
     stroke-width: 1.5;
     transition: fill 0.2s ease, stroke 0.2s ease;
   }
 
-  .viz-options .tapStem {
+  .tapStem {
     stroke: #4a5260;
     stroke-width: 1;
     stroke-dasharray: 2 2;
     transition: stroke 0.2s ease;
   }
 
-  .viz-options .tapHead {
+  .tapHead {
     fill: #4a5260;
     transition: fill 0.2s ease;
   }
 
-  .viz-options .tapLabel {
+  .tapLabel {
     fill: #6b7785;
     font-size: 8px;
     font-family: system-ui;
@@ -2740,60 +3423,60 @@
   }
 
   /* Hover */
-  .viz-options .tap:hover .tapNode {
+  .tap:hover .tapNode {
     stroke: #7b8fff;
   }
 
-  .viz-options .tap:hover .tapStem {
+  .tap:hover .tapStem {
     stroke: #2e3580;
   }
 
-  .viz-options .tap:hover .tapHead {
+  .tap:hover .tapHead {
     fill: #2e3580;
   }
 
-  .viz-options .tap:hover .tapLabel {
+  .tap:hover .tapLabel {
     fill: #9aa4af;
   }
 
   /* Active — driven by data-sel on parent */
-  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapNode {
+  .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapNode {
     fill: #7b8fff;
     stroke: #7b8fff;
     filter: url(#tapGlow);
   }
 
-  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapStem {
+  .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapStem {
     stroke: #7b8fff;
     stroke-dasharray: none;
   }
 
-  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapHead {
+  .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapHead {
     fill: #7b8fff;
     filter: url(#tapGlow);
   }
 
-  .viz-options .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapLabel {
+  .sigTapGroup[data-sel="pre"] .tap[data-pos="pre"] .tapLabel {
     fill: #dde0ff;
   }
 
-  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapNode {
+  .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapNode {
     fill: #7b8fff;
     stroke: #7b8fff;
     filter: url(#tapGlow);
   }
 
-  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapStem {
+  .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapStem {
     stroke: #7b8fff;
     stroke-dasharray: none;
   }
 
-  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapHead {
+  .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapHead {
     fill: #7b8fff;
     filter: url(#tapGlow);
   }
 
-  .viz-options .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapLabel {
+  .sigTapGroup[data-sel="post"] .tap[data-pos="post"] .tapLabel {
     fill: #dde0ff;
   }
 

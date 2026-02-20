@@ -27,6 +27,13 @@
   --analyzer-pre: rgba(120, 160, 255, 0.18);
   --analyzer-post: rgba(120, 255, 190, 0.16);
 
+  /* Demo viz-options tokens (for collapsible groups) */
+  --teal: #00d4b8;
+  --lime: #a8ff00;
+  --amber: #f0a800;
+  --green: #39ff8f;
+  --indigo: #7b8fff;
+
   /* Focus */
   --focus-ring: rgba(255, 255, 255, 0.25);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
