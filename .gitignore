@@ -39,3 +39,6 @@ coverage/
 
 # Vendor (build-time only)
 vendor/
+
+# Cline
+.cline/tmp

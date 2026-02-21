@@ -1,3 +1,28 @@
+## [0.1.4] - 2026-02-22
+
+### Added
+
+- __Collapsible Visualization Options bar__ under the EQ plot:
+  - Progressive disclosure groups with compact “collapsed” state indicators.
+  - Responsive layout behavior (auto-collapse when space is constrained).
+  - Scroll/drag support when the options overflow.
+
+### Changed
+
+- __EQ page refactor__ (no functional change intended):
+  - `EqPage.svelte` decomposed into focused sub-components under `client/src/pages/eq/**`.
+  - Plot math extracted into `client/src/pages/eq/plot/eqPlotMath.ts`.
+  - Visualization options moved into `client/src/pages/eq/vizOptions/` with `vizLayoutManager.ts`.
+  - Spectrum overlay engine factored into `client/src/pages/eq/spectrum/spectrumVizController.ts`.
+  - Overlay UI extracted into `client/src/pages/eq/EqOverlays.svelte` + `client/src/state/eqUiOverlayStore.ts`.
+
+- __Developer documentation__ updated to reflect the new EQ page structure and spectrum rendering ownership:
+  - `docs/end-user/troubleshooting.md`
+  - `docs/developer/frontend.md`
+  - `docs/developer/data-flow.md`
+
+---
+
 ## [0.1.3] - 2026-02-19
 
 ### Added
@@ -35,8 +60,6 @@
 ### Notes
 - Heatmap is a real-time overlay, not a time-history spectrogram (no ring buffer or scrolling rows).
 - STA/LTA/Peak analyzer series remain available alongside the heatmap.
-
----
 
 ## [0.1.2] - 2026-02-16
 

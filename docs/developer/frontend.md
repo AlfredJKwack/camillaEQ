@@ -34,6 +34,13 @@ client/src/
 │   ├── PresetsPage.svelte
 │   └── PipelinePage.svelte
 │
+│   └── eq/                 # EQ page sub-components (keeps EqPage small)
+│       ├── left/           # Plot + left panel
+│       ├── right/          # Right side band list + master band
+│       ├── spectrum/       # Spectrum polling + canvas visualization controller
+│       ├── vizOptions/     # Visualization options bar + layout manager
+│       └── plot/           # Plot math helpers (freq ↔ x, gain ↔ y)
+│
 ├── components/            # Reusable UI components
 │   ├── Nav.svelte
 │   ├── KnobDial.svelte
@@ -84,6 +91,10 @@ client/src/
     └── theme.css          # CSS custom properties
 ```
 
+Notes:
+- `EqPage.svelte` is primarily composition/layout now; most UI logic is in `pages/eq/**`.
+- Visualization options (spectrum mode, smoothing, heatmap, token visuals) live in `pages/eq/vizOptions/vizOptionsStore.ts`.
+
 ---
 
 ## Routing
@@ -131,9 +142,9 @@ client/src/
 - **Lifecycle:** Re-initialized on config load/preset load
 - **Key functions:**
   - `initializeFromConfig()` - Extract bands from DSP config
-  - `updateBand()` - Optimistic band update
-  - `uploadToDSP()` - Debounced upload with convergence
-  - `setFocusedBand()` - UI-only focus state
+  - `setBandFreq()` / `setBandGain()` / `setBandQ()` - Optimistic updates (with clamping)
+  - Debounced upload with convergence happens internally (upload → re-download → sync)
+  - `selectBand()` - Track selected band index (UI focus mode)
 
 **pipelineEditor.ts**
 - **Type:** Helper functions + callback
@@ -211,65 +222,47 @@ interface FilterBlockVm {
 ---
 
 ### SVG Rendering Pipeline
+```
+eqStore.ts
+    │
+    ├─► $bands updates
+    │
+    ├─► derived stores recompute
+    │   - sumCurvePath
+    │   - perBandCurvePaths
+    │
+    ▼
+EqPlotArea.svelte
+    │
+    └─► Bind the generated SVG path strings to <path> elements
+```
 
-```
-EqPage.svelte
-    │
-    ▼
-$bands store updates
-    │
-    ▼
-Reactive block triggers render
-    │
-    ▼
-EqSvgRenderer.generateCurves()
-    │
-    ├─► For each band:
-    │   │
-    │   ├─► Calculate biquad response (filterResponse.ts)
-    │   │   └─► RBJ equations, magnitude at 200 points
-    │   │
-    │   └─► Convert to SVG path string
-    │
-    ├─► Sum all band responses (dB addition)
-    │
-    └─► Generate sum curve path
-        │
-        └─► Return { sumCurve, perBandCurves }
-            │
-            └─► Bind to <path> elements in Svelte template
-```
+Implementation detail:
+- Path generation is done by `ui/rendering/EqSvgRenderer.ts` (pure functions).
 
 ---
 
 ### Canvas Rendering Pipeline
-
 ```
-EqPage.svelte (requestAnimationFrame loop)
+EqPlotArea.svelte
     │
-    ▼
-SpectrumCanvasRenderer.render()
+    ├─► onMount(): createSpectrumVizController({ canvas, getDsp, getPlotSize, ... })
     │
-    ├─► Get latest spectrum data from analyzer
+    ├─► reactive statements push config into controller:
+    │   - spectrumMode (pre/post)
+    │   - analyzer visibility (STA/LTA/Peak)
+    │   - smoothing mode
+    │   - heatmap config
     │
-    ├─► Check staleness (>500ms since last update)
-    │   └─► If stale, fade opacity to 30%
-    │
-    ├─► Apply fractional-octave smoothing (if enabled)
-    │   └─► Weighted average across neighboring bins
-    │
-    ├─► Clear canvas
-    │
-    ├─► For each enabled layer (STA/LTA/Peak):
-    │   │
-    │   └─► SpectrumAnalyzerLayer.draw()
-    │       │
-    │       ├─► Convert dBFS → screen Y (log scale)
-    │       ├─► Convert bin index → screen X (log scale)
-    │       ├─► Draw line (color/width per series)
-    │       └─► Composite to canvas
-    │
-    └─► Render complete (no flush needed, immediate mode)
+    └─► controller polling loop (setInterval)
+        │
+        ├─► dsp.getSpectrumData()
+        ├─► parseSpectrumData()
+        ├─► optional fractional-octave smoothing
+        ├─► SpectrumAnalyzer.update() (STA/LTA/Peak)
+        ├─► update canvas layers (analyzer lines + heatmap)
+        ├─► SpectrumCanvasRenderer.render()
+        └─► stale detection: fade canvas if no data >500ms
 ```
 
 **Performance constraints:**
@@ -456,7 +449,7 @@ interface PipelineConfig {
 ### Add New Visualization Layer
 1. Implement `CanvasVisualizationLayer` interface
 2. Register in `SpectrumCanvasRenderer`
-3. Add UI toggle in `EqPage`
+3. Add UI toggle + store wiring in `pages/eq/vizOptions/*` (VizOptions bar + vizOptionsStore)
 
 ### Add New Filter Type
 1. Add to `knownTypes.ts` (`isKnownEditableFilter()`)

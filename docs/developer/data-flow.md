@@ -147,27 +147,29 @@ SpectrumAnalyzer.update(bins)
     │   └─► Peak: hold for 2s, decay at 12 dB/s
     │
     ▼
-EqPage requests render
+EqPlotArea.svelte drives canvas rendering
     │
-    ▼
-SpectrumCanvasRenderer.render()
+    ├─► onMount(): createSpectrumVizController({ canvas, getDsp, getPlotSize, ... })
     │
-    ├─► Check if data is stale (>500ms old)
-    │   └─► If stale, fade to 30% opacity
+    ├─► reactive config updates:
+    │   - spectrumMode (pre/post)
+    │   - analyzer visibility (STA/LTA/Peak)
+    │   - smoothingMode
+    │   - heatmap config
     │
-    ├─► Get enabled series (STA/LTA/Peak)
-    │
-    ├─► Apply fractional-octave smoothing (if enabled)
-    │   └─► Per-bin weighted average across neighbors
-    │
-    ├─► Render each enabled layer
-    │   └─► SpectrumAnalyzerLayer.draw()
-    │       │
-    │       ├─► Convert dBFS → screen Y
-    │       ├─► Convert bin index → screen X (log scale)
-    │       └─► Draw line with series-specific color/width
-    │
-    └─► Composite layers to canvas
+    └─► controller polling loop (setInterval)
+        │
+        ├─► Check if data is stale (>500ms old)
+        │   └─► If stale, fade to 30% opacity
+        │
+        ├─► Apply fractional-octave smoothing (if enabled)
+        │   └─► Per-bin weighted average across neighbors
+        │
+        ├─► Render enabled analyzer/heatmap layers
+        │   ├─► SpectrumAnalyzerLayer.render() (STA/LTA/Peak)
+        │   └─► SpectrumHeatmapLayer.render() (optional)
+        │
+        └─► SpectrumCanvasRenderer.render()
 ```
 
 **No-allocation rule:**

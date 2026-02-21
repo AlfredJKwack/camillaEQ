@@ -190,8 +190,12 @@
 **Checks:**
 
 1. **Verify at least one analyzer series is enabled:**
-   - On EQ page, check **STA**, **LTA**, or **PEAK** toggles
-   - Overlay is disabled when all toggles are OFF
+   - On the EQ page, open the **Visualization Options** bar (below the plot)
+   - In **Spectrum Curves**, enable at least one of: **STA**, **LTA**, **Peak**
+   - The overlay is disabled when **all** analyzer series are OFF **and** **Heatmap** is OFF
+
+   Notes:
+   - The Visualization Options groups can be collapsed; expand the group to see its controls.
 
 2. **Verify connection status:**
    - Must be "Connected" (green) or "Degraded" (yellow)
@@ -204,7 +208,7 @@
 **Solutions:**
 
 **Analyzer series all disabled:**
-- Enable at least one toggle (STA/LTA/PEAK)
+- Enable at least one toggle (STA/LTA/Peak) in **Visualization Options → Spectrum Curves**
 
 **Spectrum socket not connected:**
 - See [Connection Status Shows "Degraded"](#connection-status-shows-degraded)
@@ -593,8 +597,11 @@
 - Example: `--bins 128`
 
 **Disable spectrum:**
-- Turn off all analyzer series toggles (STA/LTA/PEAK)
-- Spectrum overlay stops polling
+- On the EQ page, open **Visualization Options** and:
+  - Turn **STA**, **LTA**, and **Peak** OFF (Spectrum Curves)
+  - Turn **Heatmap** OFF (Heatmap)
+
+This stops spectrum polling and disables the overlay.
 
 ---
 
