@@ -44,7 +44,10 @@
 
 **Static Asset Serving:**
 - **Development:** Vite dev server (port 5173) proxies API calls to Fastify (port 3000)
-- **Production:** Planned to serve `client/dist` from Fastify using `@fastify/static` (not yet implemented)
+- **Production:** Implemented as single-process runtime
+  - Client built to `client/dist`
+  - Copied into `server/dist/client`
+  - Fastify serves `server/dist/client` with SPA fallback
 
 **Non-responsibilities:**
 - Does NOT proxy WebSocket spectrum data (browser connects directly to CamillaDSP)

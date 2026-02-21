@@ -185,14 +185,16 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
               <line class="sigLine" x1="118" y1="30" x2="184" y2="30"/>
               <line class="sigSegActive post" x1="118" y1="30" x2="184" y2="30"/>
 
-              <g class="tap" data-pos="pre" on:click={() => ($spectrumMode = 'pre')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && ($spectrumMode = 'pre')}>
+              <g class="tap" data-pos="pre" on:click={() => ($spectrumMode = 'pre')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && ($spectrumMode = 'pre')} aria-label="Analyze signal before EQ (input)">
+                <title>Analyze signal before EQ (input)</title>
                 <line class="tapStem" x1="42" y1="10" x2="42" y2="24.5"/>
                 <circle class="tapNode" cx="42" cy="30" r="5.5"/>
                 <circle class="tapHead" cx="42" cy="7" r="3.5"/>
                 <text class="tapLabel" x="42" y="46">PRE</text>
               </g>
 
-              <g class="tap" data-pos="post" on:click={() => ($spectrumMode = 'post')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && ($spectrumMode = 'post')}>
+              <g class="tap" data-pos="post" on:click={() => ($spectrumMode = 'post')} role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && ($spectrumMode = 'post')} aria-label="Analyze signal after EQ (output)">
+                <title>Analyze signal after EQ (output)</title>
                 <line class="tapStem" x1="148" y1="10" x2="148" y2="24.5"/>
                 <circle class="tapNode" cx="148" cy="30" r="5.5"/>
                 <circle class="tapHead" cx="148" cy="7" r="3.5"/>
@@ -280,10 +282,10 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
               </svg>
             </div>
 
-            <button class="chip waveSwitch" data-on={$showLTA} data-mode="lta" on:click={() => ($showLTA = !$showLTA)}>LTA</button>
-            <button class="chip waveSwitch" data-on={$showSTA} data-mode="sta" on:click={() => ($showSTA = !$showSTA)}>STA</button>
-            <button class="chip waveSwitch" data-on={$showPeak} data-mode="peak" on:click={() => ($showPeak = !$showPeak)}>Peak</button>
-            <button class="button button--icon" id="resetBtn" aria-label="Reset averages" title="Reset" on:click={() => dispatch('resetAverages')}>
+            <button class="chip waveSwitch" data-on={$showLTA} data-mode="lta" on:click={() => ($showLTA = !$showLTA)} title="Long-term average (slow)">LTA</button>
+            <button class="chip waveSwitch" data-on={$showSTA} data-mode="sta" on:click={() => ($showSTA = !$showSTA)} title="Short-term average (fast)">STA</button>
+            <button class="chip waveSwitch" data-on={$showPeak} data-mode="peak" on:click={() => ($showPeak = !$showPeak)} title="Peak hold">Peak</button>
+            <button class="button button--icon" id="resetBtn" aria-label="Reset averages" title="Reset STA/LTA/Peak averages" on:click={() => dispatch('resetAverages')}>
               <svg class="resetIcon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
                 <path d="M20 12a8 8 0 1 1-2.1-5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 <path d="M19.8 3.8v3.9h-3.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -314,10 +316,10 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
         <div class="groupExpanded">
           <div class="groupTitle">Curve Smoothing</div>
           <div class="row">
-            <button class="chip option" class:active={$smoothingMode === 'off'} on:click={() => ($smoothingMode = 'off')}>Off</button>
-            <button class="chip option" class:active={$smoothingMode === '1/12'} on:click={() => ($smoothingMode = '1/12')}>1/12 Oct</button>
-            <button class="chip option" class:active={$smoothingMode === '1/6'} on:click={() => ($smoothingMode = '1/6')}>1/6 Oct</button>
-            <button class="chip option" class:active={$smoothingMode === '1/3'} on:click={() => ($smoothingMode = '1/3')}>1/3 Oct</button>
+            <button class="chip option" class:active={$smoothingMode === 'off'} on:click={() => ($smoothingMode = 'off')} title="No smoothing (raw spectrum)">Off</button>
+            <button class="chip option" class:active={$smoothingMode === '1/12'} on:click={() => ($smoothingMode = '1/12')} title="1/12-octave smoothing (most detail)">1/12 Oct</button>
+            <button class="chip option" class:active={$smoothingMode === '1/6'} on:click={() => ($smoothingMode = '1/6')} title="1/6-octave smoothing (balanced)">1/6 Oct</button>
+            <button class="chip option" class:active={$smoothingMode === '1/3'} on:click={() => ($smoothingMode = '1/3')} title="1/3-octave smoothing (smoothest)">1/3 Oct</button>
           </div>
         </div>
       </div>
@@ -415,6 +417,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
               class:active={$showPerBandCurves}
               aria-pressed={$showPerBandCurves}
               on:click={() => ($showPerBandCurves = !$showPerBandCurves)}
+              title="Show per-band response curves"
             >
               Per-band
             </button>
@@ -423,10 +426,11 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
               class:active={$showBandwidthMarkers}
               aria-pressed={$showBandwidthMarkers}
               on:click={() => ($showBandwidthMarkers = !$showBandwidthMarkers)}
+              title="Show bandwidth (Q) markers"
             >
               BW
             </button>
-            <span class="knob-wrapper-inline" style="--knob-arc: var(--indigo);">
+            <span class="knob-wrapper-inline" style="--knob-arc: var(--indigo);" title="Band fill opacity (Shift = fine adjust)" aria-label="Band fill opacity">
               <KnobDial 
                 value={$bandFillOpacity}
                 min={0}
