@@ -12,7 +12,9 @@ The system consists of three cooperating processes:
 
 **Process B: Web UI Server (This Project)**
 - **Development:** Vite dev server proxies `/api` and `/health` to Fastify (port 3000)
-- **Production (planned):** Serve static frontend assets from `client/dist` via Fastify
+- **Production:** Single Node.js process serves both API and the built UI static assets
+  - Client build output `client/dist` is copied to `server/dist/client` during build
+  - Fastify serves `server/dist/client` with SPA fallback
 - Provides minimal REST API:
   - `/health` - liveness check
   - `/api/version` - build info
@@ -383,3 +385,9 @@ Even though LAN-only, maintain security baseline:
 - `npm test` - Runs all tests (server + client)
 - `npm run test:server` - Server tests only (Jest)
 - `npm run test:client` - Client tests only (Vitest)
+
+## Note on Document Drift
+
+Some details (especially in the Deployment Architecture section) may drift as the runtime model evolves.
+
+**Current as-built reality:** production runs as a single Node.js process that serves both the API and the built UI assets (copied into `server/dist/client`).

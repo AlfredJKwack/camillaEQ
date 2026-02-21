@@ -3,6 +3,8 @@
 ## Current Focus
 **MVP-29 Complete** (2026-02-16) - Single-process runtime + ready-to-run releases (server serves API + built UI from one Node process).
 
+**Current focus (maintenance):** keep documentation + memory-bank aligned with the implemented runtime (single-process production, AutoEQ library, preset API response shapes).
+
 ## Recently Completed
 
 **MVP-29: Single-Process Runtime & Ready-to-Run Releases** (2026-02-16)
@@ -263,6 +265,7 @@ None identified.
 - Future enhancements per backlog
 - User feedback integration
 - Consider AutoEQ library updates (re-run import script)
+- Periodically re-sync docs + memory-bank with implementation details when behavior changes
 
 ## Context References
 - **`docs/`** - Complete persona-based documentation (updated for MVP-28)

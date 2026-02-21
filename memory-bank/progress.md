@@ -84,6 +84,14 @@
 ## Known Issues
 None at this stage.
 
+## Maintenance Notes
+- Keep memory-bank and docs aligned with implementation details as they evolve.
+- Notable as-built items to keep in sync:
+  - Production runtime is single-process: Fastify serves API + built UI from `server/dist/client`.
+  - Preset API response shapes:
+    - `GET /api/configs` returns a flat `ConfigMetadata[]` array.
+    - `PUT /api/configs/:id` returns `{ success: true }`.
+
 ## Backlog
 Items deferred to future iterations:
 - Multi-channel pipeline editor enhancements
