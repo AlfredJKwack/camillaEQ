@@ -8,6 +8,7 @@
     describeEllipseArcPath,
     labelShiftFactor,
   } from './tokenUtils';
+  import { freqToX, gainToY } from '../../pages/eq/plot/eqPlotMath';
 
   // Props
   export let bands: EqBand[];
@@ -24,19 +25,6 @@
     tokenPointerUp: { event: PointerEvent };
     tokenWheel: { bandIndex: number; event: WheelEvent };
   }>();
-
-  // Coordinate mapping functions
-  function freqToX(freq: number, width: number): number {
-    const fMin = 20;
-    const fMax = 20000;
-    const xNorm = (Math.log10(freq) - Math.log10(fMin)) / (Math.log10(fMax) - Math.log10(fMin));
-    return xNorm * width;
-  }
-
-  function gainToY(gain: number): number {
-    const gainRange = 48; // -24 to +24
-    return 200 - (gain / gainRange) * 400;
-  }
 
   // Event handlers that dispatch to parent
   function handleTokenPointerDown(event: PointerEvent, bandIndex: number) {

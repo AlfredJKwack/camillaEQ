@@ -1,15 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-describe('EqPage MVP-4 Implementation', () => {
+describe('EqPage Refactored Structure', () => {
   it('component file exists and can be imported', async () => {
-    // Verify the component module can be loaded
     const module = await import('./EqPage.svelte');
     expect(module).toBeDefined();
     expect(module.default).toBeDefined();
   });
 
-  it('contains required zone class names in source', async () => {
-    // Read the component source to verify structure
+  it('is a composition root with minimal responsibility', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
@@ -19,21 +17,68 @@ describe('EqPage MVP-4 Implementation', () => {
     const componentPath = path.join(__dirname, 'EqPage.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
+    // Verify composition of three main panels
+    expect(source).toContain('EqLeftPanel');
+    expect(source).toContain('EqRightPanel');
+    expect(source).toContain('EqOverlays');
+    
+    // Verify minimal layout structure
+    expect(source).toContain('eq-layout');
+    expect(source).toContain('grid-template-columns');
+    expect(source).toContain('grid-template-rows: auto 1fr auto');
+    
+    // Verify DSP initialization logic
+    expect(source).toContain('initializeFromConfig');
+    expect(source).toContain('connectionState');
+    
+    // Verify viz options initialization
+    expect(source).toContain('initializeVizOptions');
+    expect(source).toContain('setupVizOptionsPersistence');
+  });
+
+  it('passes required props to child components', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify props passed to EqRightPanel
+    expect(source).toContain('bands={$bands}');
+    expect(source).toContain('filterNames={$filterNames}');
+    expect(source).toContain('bandOrderNumbers={$bandOrderNumbers}');
+    expect(source).toContain('selectedBandIndex={$selectedBandIndex}');
+    expect(source).toContain('preampGain={$preampGain}');
+  });
+});
+
+describe('EqLeftPanel Component', () => {
+  it('component exists and contains layout zones', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'eq/left/EqLeftPanel.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
     // Verify 4-zone structure present
     expect(source).toContain('eq-octaves-area');
     expect(source).toContain('eq-regions-area');
-    expect(source).toContain('eq-plot-area');
     expect(source).toContain('eq-freqscale-area');
     
-    // Verify gain scale column exists
-    expect(source).toContain('eq-gainscale');
-    expect(source).toContain('gain-label');
+    // Verify it composes EqPlotArea
+    expect(source).toContain('EqPlotArea');
     
-    // Verify alignment wrappers use 2-column grid
+    // Verify it composes VizOptionsBar
+    expect(source).toContain('VizOptionsBar');
+    
+    // Verify alignment wrappers
     expect(source).toContain('eq-zone-spacer');
-    
-    // Verify EqTokensLayer component is used (tokens now in separate component)
-    expect(source).toContain('EqTokensLayer');
   });
 
   it('implements decade-based frequency tick generation', async () => {
@@ -43,28 +88,75 @@ describe('EqPage MVP-4 Implementation', () => {
     
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const componentPath = path.join(__dirname, 'eq/left/EqLeftPanel.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
-    // Verify decade tick logic exists
+    // Verify decade tick logic imported
     expect(source).toContain('generateFrequencyTicks');
     expect(source).toContain('majors');
-    expect(source).toContain('minors');
   });
 
-  it('implements log10 frequency mapping', async () => {
+  it('uses plot math functions', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
     
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const componentPath = path.join(__dirname, 'eq/left/EqLeftPanel.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
-    // Verify base-10 log mapping
-    expect(source).toContain('Math.log10');
+    // Verify plot math imports
     expect(source).toContain('freqToX');
+    expect(source).toContain('formatFreq');
+    expect(source).toContain('calcOctaveWidths');
+    expect(source).toContain('calcRegionWidths');
+  });
+});
+
+describe('EqPlotArea Component', () => {
+  it('component exists and contains plot structure', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'eq/left/EqPlotArea.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify plot structure
+    expect(source).toContain('eq-plot-area');
+    expect(source).toContain('eq-plot');
+    expect(source).toContain('eq-gainscale');
+    expect(source).toContain('gain-label');
+    expect(source).toContain('spectrum-canvas');
+    
+    // Verify EqTokensLayer component is used
+    expect(source).toContain('EqTokensLayer');
+    expect(source).toContain('on:tokenPointerDown');
+    expect(source).toContain('on:tokenPointerMove');
+    expect(source).toContain('on:tokenPointerUp');
+    expect(source).toContain('on:tokenWheel');
+  });
+
+  it('uses spectrum viz controller', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'eq/left/EqPlotArea.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify spectrum controller usage
+    expect(source).toContain('createSpectrumVizController');
+    expect(source).toContain('spectrumController');
+    expect(source).toContain('setEnabled');
+    expect(source).toContain('setSpectrumMode');
+    expect(source).toContain('setSmoothingMode');
+    expect(source).toContain('setHeatmapConfig');
   });
 
   it('implements gain axis labels', async () => {
@@ -74,7 +166,7 @@ describe('EqPage MVP-4 Implementation', () => {
     
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const componentPath = path.join(__dirname, 'eq/left/EqPlotArea.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
     // Verify gain label ticks defined
@@ -83,8 +175,38 @@ describe('EqPage MVP-4 Implementation', () => {
   });
 });
 
-describe('EqPage MVP-11 Layout Refinement', () => {
-  it('contains new 3-row subgrid layout structure', async () => {
+describe('EqPlotMath Module', () => {
+  it('module exists and exports required functions', async () => {
+    const module = await import('./eq/plot/eqPlotMath');
+    
+    expect(module.freqToX).toBeDefined();
+    expect(module.xToFreq).toBeDefined();
+    expect(module.gainToY).toBeDefined();
+    expect(module.yToGain).toBeDefined();
+    expect(module.gainToYPercent).toBeDefined();
+    expect(module.generateFrequencyTicks).toBeDefined();
+    expect(module.formatFreq).toBeDefined();
+    expect(module.calcOctaveWidths).toBeDefined();
+    expect(module.calcRegionWidths).toBeDefined();
+  });
+
+  it('implements log10 frequency mapping', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const modulePath = path.join(__dirname, 'eq/plot/eqPlotMath.ts');
+    const source = fs.readFileSync(modulePath, 'utf-8');
+
+    // Verify base-10 log mapping
+    expect(source).toContain('Math.log10');
+  });
+});
+
+describe('Layout Refinement (MVP-11)', () => {
+  it('EqPage contains 3-row subgrid layout structure', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
@@ -94,45 +216,45 @@ describe('EqPage MVP-11 Layout Refinement', () => {
     const componentPath = path.join(__dirname, 'EqPage.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
-    // Verify new layout containers
+    // Verify layout container
     expect(source).toContain('eq-layout');
+    expect(source).toContain('grid-template-rows: auto 1fr auto');
+  });
+
+  it('EqLeftPanel uses subgrid', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'eq/left/EqLeftPanel.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify subgrid structure
     expect(source).toContain('eq-left');
-    expect(source).toContain('eq-left-top');
-    expect(source).toContain('eq-left-middle');
-    expect(source).toContain('eq-left-bottom');
-    expect(source).toContain('eq-right');
+    expect(source).toContain('grid-template-rows: subgrid');
+    expect(source).toContain('grid-row: 1 / span 3');
+  });
+
+  it('EqRightPanel contains band grid with subgrid', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'eq/right/EqRightPanel.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify band grid structure
     expect(source).toContain('band-grid');
-    
-    // Verify band column sections
-    expect(source).toContain('band-top');
-    expect(source).toContain('band-middle');
-    expect(source).toContain('band-bottom');
-    
-    // Verify CSS subgrid usage
     expect(source).toContain('grid-template-rows: subgrid');
     expect(source).toContain('grid-row: 1 / span 3');
   });
 });
 
-describe('EqPage MVP-12 Informative Tokens', () => {
-  it('uses EqTokensLayer component', async () => {
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const componentPath = path.join(__dirname, 'EqPage.svelte');
-    const source = fs.readFileSync(componentPath, 'utf-8');
-
-    // Verify EqTokensLayer component is used
-    expect(source).toContain('EqTokensLayer');
-    expect(source).toContain('on:tokenPointerDown');
-    expect(source).toContain('on:tokenPointerMove');
-    expect(source).toContain('on:tokenPointerUp');
-    expect(source).toContain('on:tokenWheel');
-  });
-
+describe('Informative Tokens (MVP-12)', () => {
   it('EqTokensLayer contains token enhancement elements', async () => {
     const fs = await import('fs');
     const path = await import('path');
@@ -158,94 +280,89 @@ describe('EqPage MVP-12 Informative Tokens', () => {
     expect(source).toContain('describeEllipseArcPath');
     expect(source).toContain('labelShiftFactor');
     
-    // Verify single group transform for scaling compensation (circles instead of ellipses)
+    // Verify transform for scaling compensation
     expect(source).toContain('tokenTransform');
     expect(source).toContain('transform={tokenTransform}');
     
-    // Verify we now use circles instead of ellipses (perfect circles in local coords)
+    // Verify we use circles
     expect(source).toContain('<circle');
     expect(source).toContain('r={');
   });
 });
 
-describe('EqPage MVP-30 Heatmap Controls', () => {
-  it('contains new group-based viz-options with demo visual language', async () => {
+describe('Heatmap Controls (MVP-30)', () => {
+  it('VizOptionsBar contains group-based structure', async () => {
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
     
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const componentPath = path.join(__dirname, 'EqPage.svelte');
+    const componentPath = path.join(__dirname, 'eq/vizOptions/VizOptionsBar.svelte');
     const source = fs.readFileSync(componentPath, 'utf-8');
 
     // Verify group-based structure
-    expect(source).toContain('viz-options .group');
-    expect(source).toContain('<h3>Spectrum Signal Tap</h3>');
-    expect(source).toContain('<h3>Spectrum Curves</h3>');
-    expect(source).toContain('<h3>Curve Smoothing</h3>');
-    expect(source).toContain('<h3>Heatmap</h3>');
+    expect(source).toContain('groupContainer');
+    expect(source).toContain('groupTitle');
+    expect(source).toContain('Spectrum Signal Tap');
+    expect(source).toContain('Spectrum Curves');
+    expect(source).toContain('Curve Smoothing');
+    expect(source).toContain('Heatmap');
     
-    // Verify Signal Tap (replaces Spectrum Source image buttons)
+    // Verify Signal Tap
     expect(source).toContain('sigTapGroup');
-    expect(source).toContain('class="sigTap"');
     expect(source).toContain('class="tap"');
     expect(source).toContain('data-pos="pre"');
     expect(source).toContain('data-pos="post"');
-    expect(source).toContain('data-sel={spectrumMode}');
-    expect(source).toContain('class="eqBlock"');
-    expect(source).toContain('class="sigLine"');
-    expect(source).toContain('class="sigSegActive pre"');
-    expect(source).toContain('class="sigSegActive post"');
     
-    // Verify waveStack SVG for analyzer visualization
+    // Verify waveStack SVG
     expect(source).toContain('waveStack');
     expect(source).toContain('waveSwitch');
-    expect(source).toContain('data-mode="lta"');
-    expect(source).toContain('data-mode="sta"');
-    expect(source).toContain('data-mode="peak"');
     
-    // Verify smoothing changed from select to chip buttons
+    // Verify smoothing chip buttons
     expect(source).toContain('class="chip option"');
-    expect(source).toContain('smoothingMode === \'off\'');
-    expect(source).toContain('smoothingMode === \'1/12\'');
-    expect(source).toContain('smoothingMode === \'1/6\'');
-    expect(source).toContain('smoothingMode === \'1/3\'');
     
-    // Verify heatmap power toggle (replaces checkbox)
+    // Verify heatmap power toggle
     expect(source).toContain('heatmapToggle');
     expect(source).toContain('class="halo"');
-    expect(source).toContain('powerLabel');
-    expect(source).toContain('data-power={heatmapEnabled');
     
-    // Verify disclosure chip for heatmap settings (replaces gear button)
+    // Verify disclosure chip
     expect(source).toContain('disclosureChip');
-    expect(source).toContain('data-open={heatmapSettingsOpen}');
-    expect(source).toContain('disabled={!heatmapEnabled}');
-    expect(source).toContain('handleHeatmapSettingsClick');
+    expect(source).toContain('toggleHeatmapSettings');
+  });
+
+  it('EqOverlays contains HeatmapSettings', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
     
-    // Verify HeatmapSettings component still used
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, 'eq/EqOverlays.svelte');
+    const source = fs.readFileSync(componentPath, 'utf-8');
+
+    // Verify HeatmapSettings component
     expect(source).toContain('HeatmapSettings');
-    expect(source).toContain('heatmapSettingsOpen');
-    
-    // Verify tuning parameters exist
+    expect(source).toContain('heatmapSettingsState');
     expect(source).toContain('heatmapMaskMode');
     expect(source).toContain('heatmapHighPrecision');
     expect(source).toContain('heatmapAlphaGamma');
     expect(source).toContain('heatmapMagnitudeGain');
     expect(source).toContain('heatmapGateThreshold');
     expect(source).toContain('heatmapMaxAlpha');
+  });
+});
+
+describe('Overlay State Management', () => {
+  it('eqUiOverlayStore exports overlay functions', async () => {
+    const module = await import('../state/eqUiOverlayStore');
     
-    // Verify heatmap layer imports and instantiation
-    expect(source).toContain('SpectrumHeatmapLayer');
-    expect(source).toContain('heatmapLayer');
-    
-    // Verify visual tuning is passed to layer
-    expect(source).toContain('visualTuning');
-    
-    // Verify hidden legacy controls group exists
-    expect(source).toContain('showPerBandCurves');
-    expect(source).toContain('showBandwidthMarkers');
-    expect(source).toContain('bandFillOpacity');
+    expect(module.showFaderTooltip).toBeDefined();
+    expect(module.hideFaderTooltip).toBeDefined();
+    expect(module.updateFaderTooltipPosition).toBeDefined();
+    expect(module.openFilterTypePicker).toBeDefined();
+    expect(module.closeFilterTypePicker).toBeDefined();
+    expect(module.toggleHeatmapSettings).toBeDefined();
+    expect(module.closeHeatmapSettings).toBeDefined();
   });
 });
