@@ -330,10 +330,17 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
            style="--expandedWidth:210px">
 
         <div class="stubGlyph">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <circle class="glyphRingMetal" cx="12" cy="12" r="7"   stroke="#5a6370"       fill="none" stroke-width="1.6"/>
-            <circle class="glyphRingNeon"  cx="12" cy="12" r="7"   stroke="var(--green)"  fill="none" stroke-width="1.3"/>
-            <circle class="glyphDot"       cx="12" cy="12" r="2.5"/>
+          <!-- Glyph: gradient grid — dark-to-bright encodes heatmap intensity, wired to data-power -->
+          <svg class="glyphHeatmap" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3"  y="3"  width="5" height="5" rx=".8" fill="var(--orange)" opacity=".12"/>
+            <rect x="10" y="3"  width="5" height="5" rx=".8" fill="var(--orange)" opacity=".28"/>
+            <rect x="17" y="3"  width="5" height="5" rx=".8" fill="var(--orange)" opacity=".50"/>
+            <rect x="3"  y="10" width="5" height="5" rx=".8" fill="var(--orange)" opacity=".28"/>
+            <rect x="10" y="10" width="5" height="5" rx=".8" fill="var(--orange)" opacity=".55"/>
+            <rect x="17" y="10" width="5" height="5" rx=".8" fill="var(--orange)" opacity=".80"/>
+            <rect x="3"  y="17" width="5" height="5" rx=".8" fill="var(--orange)" opacity=".50"/>
+            <rect x="10" y="17" width="5" height="5" rx=".8" fill="var(--orange)" opacity=".80"/>
+            <rect x="17" y="17" width="5" height="5" rx=".8" fill="var(--orange)" opacity="1"/>
           </svg>
         </div>
 
@@ -353,14 +360,14 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
                       <stop offset="100%" stop-color="#1c2028" stop-opacity=".22"/>
                     </radialGradient>
                     <linearGradient id="neonGrad" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%"   stop-color="#5affa0"/>
-                      <stop offset="50%"  stop-color="#39ff8f"/>
-                      <stop offset="100%" stop-color="#00e06b"/>
+                      <stop offset="0%"   stop-color="#ffb060"/>
+                      <stop offset="50%"  stop-color="#ff7a00"/>
+                      <stop offset="100%" stop-color="#e06000"/>
                     </linearGradient>
                     <radialGradient id="bloomGrad" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%"   stop-color="#39ff8f" stop-opacity=".22"/>
-                      <stop offset="55%"  stop-color="#39ff8f" stop-opacity=".07"/>
-                      <stop offset="100%" stop-color="#39ff8f" stop-opacity="0"/>
+                      <stop offset="0%"   stop-color="#ff8c28" stop-opacity=".22"/>
+                      <stop offset="55%"  stop-color="#ff8c28" stop-opacity=".07"/>
+                      <stop offset="100%" stop-color="#ff8c28" stop-opacity="0"/>
                     </radialGradient>
                     <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
                       <feGaussianBlur stdDeviation="1.5" result="blur"/>
@@ -396,14 +403,40 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
 
       <!-- ===== TOKEN VISUALS ===== -->
       <div class="groupContainer expanded" id="g_tokens" data-group="tokens"
-           style="--expandedWidth:230px">
+           data-curves={$showPerBandCurves ? 'on' : 'off'}
+           data-bw={$showBandwidthMarkers ? 'on' : 'off'}
+           style="--expandedWidth:230px; --tokenFill:{$bandFillOpacity}">
 
         <div class="stubGlyph">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 16 Q8 8 12 12 T20 10" fill="none" stroke="var(--indigo)" stroke-width="1.8" stroke-linecap="round"/>
-            <circle cx="12" cy="12" r="2.5" fill="var(--indigo)"/>
-            <line x1="8" y1="18" x2="8" y2="20" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="16" y1="18" x2="16" y2="20" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round"/>
+          <!--
+            Glyph geometry: paths are the designer-provided filter-curve-01 (primary/gentler),
+            filter-curve-02 (secondary/steeper), and single-band-token circle, all in viewBox 0 0 22 22.
+            Both curves share transform="matrix(0.816941,0,0,1,2.00812,4.19545)".
+            In SVG coords the curve baseline lands at y≈15.2, x from ≈2 to ≈20.
+          -->
+          <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+            <!-- baseline (SVG-space coords derived from the shared transform) -->
+            <line class="tokGlyph-base" x1="2.01" y1="15.19" x2="20.0" y2="15.19"/>
+
+            <!-- shaded area under primary curve; fill-opacity driven by --tokenFill -->
+            <g transform="matrix(0.816941,0,0,1,2.00812,4.19545)">
+              <!-- Close the curve back along y=11 (the baseline in local space) via implicit Z -->
+              <path class="tokGlyph-shade" d="M0,11 C3.047,11 4.286,6 7.333,6 C9.754,6 11.11,11.01 14.028,10.997 C15.929,10.989 18.3,10.965 22,11 Z"/>
+            </g>
+
+            <!-- secondary curve (filter-curve-02): visible when Per-band is ON [data-curves="on"] -->
+            <g transform="matrix(0.816941,0,0,1,2.00812,4.19545)">
+              <path class="tokGlyph-curveB" d="M0,11 C4.437,11 7.583,11 9.869,11 C15.091,11.001 14.804,2.581 16.113,2.573 C17.373,2.565 17.28,10.996 22,11"/>
+            </g>
+
+            <!-- primary curve (filter-curve-01): always visible -->
+            <g transform="matrix(0.816941,0,0,1,2.00812,4.19545)">
+              <path class="tokGlyph-curveA" d="M0,11 C3.047,11 4.286,6 7.333,6 C9.754,6 11.11,11.01 14.028,10.997 C15.929,10.989 18.3,10.965 22,11"/>
+            </g>
+
+            <!-- solo-edit token dot (single-band-token): hidden until Solo mode is implemented -->
+            <!-- Future hook: set data-solo="on" on #g_tokens to reveal via .tokGlyph-dot selector -->
+            <circle class="tokGlyph-dot" cx="7.93" cy="10.723" r="1.49"/>
           </svg>
         </div>
 
@@ -798,7 +831,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
   }
 
   .heatmapToggle:hover .powerLabel {
-    color: #2a7a50;
+    color: #7a3a00;
   }
 
   .halo {
@@ -860,7 +893,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
   }
 
   #g_heatmap[data-power="on"] .halo .dot {
-    fill: #39ff8f;
+    fill: var(--orange);
   }
 
   .powerLabel {
@@ -873,7 +906,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
   }
 
   #g_heatmap[data-power="on"] .powerLabel {
-    color: #39ff8f;
+    color: var(--orange);
   }
 
   .sigTapGroup {
@@ -1063,30 +1096,71 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
     opacity: 0.85;
   }
 
-  .glyphRingMetal {
-    transition: opacity 0.35s ease;
+  /* ── Heatmap glyph ── */
+  .glyphHeatmap {
+    opacity: 0.3;
+    transition: opacity 0.28s ease;
   }
 
-  .glyphRingNeon {
-    opacity: 0;
-    transition: opacity 0.35s ease;
-  }
-
-  .glyphDot {
-    fill: #4a5260;
-    transition: fill 0.35s ease;
-  }
-
-  #g_heatmap[data-power="on"] .glyphRingNeon {
+  #g_heatmap[data-power="on"] .glyphHeatmap {
     opacity: 1;
   }
 
-  #g_heatmap[data-power="on"] .glyphRingMetal {
-    opacity: 0;
+
+  /* ── Token visuals glyph ── */
+
+  /* Baseline */
+  .tokGlyph-base {
+    stroke: #4a5260;
+    stroke-width: 1;
+    stroke-linecap: round;
   }
 
-  #g_heatmap[data-power="on"] .glyphDot {
-    fill: var(--green);
+  /* Primary (gentler) curve — always visible */
+  .tokGlyph-curveA {
+    fill: none;
+    stroke: var(--indigo);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    opacity: 0.95;
+  }
+
+  /* Secondary (steeper/offset) curve — visible only when Per-band is ON */
+  .tokGlyph-curveB {
+    fill: none;
+    stroke: var(--teal);
+    stroke-width: 1.3;
+    stroke-linecap: round;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+
+  #g_tokens[data-curves="on"] .tokGlyph-curveB {
+    opacity: 0.95;
+  }
+
+  /* Shaded area under primary curve; fill-opacity driven by --tokenFill (bandFillOpacity) */
+  .tokGlyph-shade {
+    fill: var(--indigo);
+    fill-opacity: var(--tokenFill, 0.4);
+    transition: fill-opacity 0.18s ease;
+  }
+
+  /*
+   * Solo-edit token dot — hidden by default.
+   * Future hook: add [data-solo="on"] to #g_tokens when the
+   * "edit one band, mute others" feature is implemented.
+   */
+  .tokGlyph-dot {
+    fill: var(--indigo);
+    stroke: #0e1116;
+    stroke-width: 0.6;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+
+  #g_tokens[data-solo="on"] .tokGlyph-dot {
+    opacity: 1;
   }
 
   .glyphTapLine {
