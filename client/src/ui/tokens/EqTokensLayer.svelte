@@ -89,7 +89,7 @@
     
     // MVP-14: Focus mode dimming
     {@const isSelected = selectedBandIndex === i}
-    {@const shouldDim = focusMode && !isSelected}
+    {@const shouldDim = (focusMode && !isSelected) || !band.enabled}
     {@const showLabels = !focusMode || isSelected}
     
     <g 
