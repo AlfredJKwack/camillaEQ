@@ -63,6 +63,7 @@ All UI state must eventually converge to what CamillaDSP confirms.
 - EQ bands array (frequency, gain, Q, type, enabled)
 - Focused band (UI-only)
 - Dragging state (UI-only)
+- `soloActiveBandIndex` — readable store (`number | null`); non-null while a solo-edit session is active; consumed by `EqTokensLayer` to dim non-active tokens
 
 **Lifecycle:** Re-initialized on:
 - Connection established
@@ -75,6 +76,12 @@ All UI state must eventually converge to what CamillaDSP confirms.
 - Extracts bands from DSP config via `extractEqBandsFromConfig()`
 - After upload, re-downloads DSP config and re-extracts
 - Preserves UI-only state (focused, dragging) across re-initialization
+
+**Solo-edit session:**
+- `startSoloEditSession(bandIndex)` — builds a reduced DSP config containing only the active band's filter and uploads it; sets `soloActiveBandIndex`; no-ops if already in session or upload fails
+- `endSoloEditSession()` — restores the full config (with any parameter edits applied during solo), uploads it, clears `soloActiveBandIndex`, and writes the recovery cache; no-ops if no session is active
+- Muting the active band calls `endSoloEditSession()` first (restores all filters), then applies the persistent mute
+- Session does **not** modify `filterNames` or band order — the UI grid remains stable throughout
 
 ---
 
@@ -112,12 +119,13 @@ All UI state must eventually converge to what CamillaDSP confirms.
 
 **Storage key:** `camillaEQ.vizOptions`
 
-**State persisted (15 settings):**
+**State persisted (16 settings):**
 - Spectrum mode (pre/post)
 - Smoothing mode (off, 1/12, 1/6, 1/3)
 - Analyzer series (showSTA, showLTA, showPeak)
 - EQ view options (showPerBandCurves, showBandwidthMarkers, bandFillOpacity)
 - Heatmap (enabled, maskMode, highPrecision, visual tuning parameters)
+- `soloWhileEditing` (boolean, default `false`) — whether the Solo toggle is active
 
 **Lifecycle:**
 - Loaded on EqPage mount
@@ -303,6 +311,16 @@ But we need to remember **where** it was, so re-enabling puts it back in the rig
 - Updated when pipeline reordered (remap step keys)
 - Cleared when filter deleted
 - Cleared when step deleted
+
+**Stable-order invariant (`filterEnablement.ts`):**
+
+Both `disableFilterEverywhere` and `enableFilterEverywhere` reconstruct the **full ordered filter name list** (active + disabled, in original position order) before computing any index arithmetic.
+
+This is necessary because:
+- The pipeline step only contains *active* filters; indices inside that list are compressed (e.g. position 2 of 5, with gaps for disabled filters, is position 1 in the pipeline array).
+- Storing or restoring using the compressed-list index causes silent off-by-one errors when ≥2 filters are already disabled.
+
+By rebuilding the full list first, the index recorded in the overlay and the insertion point used on restore both refer to the same original position space, so band-grid order is preserved regardless of how many bands are muted and in what order they are unmuted.
 
 ---
 

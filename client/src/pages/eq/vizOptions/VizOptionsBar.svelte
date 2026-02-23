@@ -28,6 +28,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
   export let showPerBandCurves: Writable<boolean>;
   export let showBandwidthMarkers: Writable<boolean>;
   export let bandFillOpacity: Writable<number>;
+  export let soloWhileEditing: Writable<boolean>;
 
   const dispatch = createEventDispatcher<{
     resetAverages: void;
@@ -54,7 +55,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
           { id: 'g_curves', priority: 1, expandedWidth: 200, el: gCurvesEl },
           { id: 'g_smooth', priority: 2, expandedWidth: 190, el: gSmoothEl },
           { id: 'g_heatmap', priority: 3, expandedWidth: 210, el: gHeatmapEl },
-          { id: 'g_tokens', priority: 5, expandedWidth: 230, el: gTokensEl },
+          { id: 'g_tokens', priority: 5, expandedWidth: 270, el: gTokensEl },
         ];
         
         vizLayoutManager = new VizLayoutManager(
@@ -405,7 +406,8 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
       <div class="groupContainer expanded" id="g_tokens" data-group="tokens"
            data-curves={$showPerBandCurves ? 'on' : 'off'}
            data-bw={$showBandwidthMarkers ? 'on' : 'off'}
-           style="--expandedWidth:230px; --tokenFill:{$bandFillOpacity}">
+           data-solo={$soloWhileEditing ? 'on' : 'off'}
+           style="--expandedWidth:270px; --tokenFill:{$bandFillOpacity}">
 
         <div class="stubGlyph">
           <!--
@@ -436,7 +438,7 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
 
             <!-- solo-edit token dot (single-band-token): hidden until Solo mode is implemented -->
             <!-- Future hook: set data-solo="on" on #g_tokens to reveal via .tokGlyph-dot selector -->
-            <circle class="tokGlyph-dot" cx="7.93" cy="10.723" r="1.49"/>
+            <circle class="tokGlyph-dot" cx="7.93" cy="8" r="3"/>
           </svg>
         </div>
 
@@ -462,6 +464,15 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
               title="Show bandwidth (Q) markers"
             >
               BW
+            </button>
+            <button
+              class="chip option"
+              class:active={$soloWhileEditing}
+              aria-pressed={$soloWhileEditing}
+              on:click={() => ($soloWhileEditing = !$soloWhileEditing)}
+              title="Solo selected band while editing (mutes all others)"
+            >
+              Solo
             </button>
             <span class="knob-wrapper-inline" style="--knob-arc: var(--indigo);" title="Band fill opacity (Shift = fine adjust)" aria-label="Band fill opacity">
               <KnobDial 
@@ -1152,9 +1163,9 @@ Uses VizLayoutManager for responsive layout with smart expansion/collapse behavi
    * "edit one band, mute others" feature is implemented.
    */
   .tokGlyph-dot {
-    fill: var(--indigo);
-    stroke: #0e1116;
-    stroke-width: 0.6;
+    fill: #0e1116;
+    stroke: var(--teal);
+    stroke-width: 0.8;
     opacity: 0;
     transition: opacity 0.18s ease;
   }

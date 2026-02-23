@@ -18,6 +18,7 @@
     showPerBandCurves,
     showBandwidthMarkers,
     bandFillOpacity,
+    soloWhileEditing,
   } from '../vizOptions/vizOptionsStore';
 
   // Calculate octave and region column widths
@@ -103,6 +104,7 @@
         {showPerBandCurves}
         {showBandwidthMarkers}
         {bandFillOpacity}
+        {soloWhileEditing}
       />
       <div class="viz-options-spacer"></div>
     </div>

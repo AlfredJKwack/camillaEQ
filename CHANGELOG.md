@@ -1,3 +1,27 @@
+## [0.1.5] - 2026-03-08
+
+### Added
+
+- **Solo while editing** (Token Visuals group in the Visualization Options bar):
+  - The new **Solo** toggle enables a temporary single-band preview mode: when selected, all other bands are temporarily removed from the DSP pipeline so you can hear the effect of one filter in isolation.
+  - Muting the active soloed band also ends the session cleanly before the mute is applied.
+  - When editing in solo mode all other bands become disabled (grayed out) and the soloed band is highlighted in the band grid.
+  - The Solo preference (on/off) is persisted in `localStorage` alongside other viz-options.
+
+### Fixed
+
+- **Band mute/unmute order stability for 3+ bands** (`filterEnablement.ts`):
+  - Muting a 3rd or subsequent band could record an incorrect original position in the overlay (compressed-list index compared to original-space overlay indices), causing the band-grid order to shift visibly.
+  - Re-enabling bands in any order other than mute order could insert them at wrong positions (ignored still-disabled gaps ahead of the restored filter), further reordering the band grid.
+  - Both `disableFilterEverywhere` and `enableFilterEverywhere` now reconstruct the full ordered name list before doing any index arithmetic, ensuring the pipeline order is always preserved regardless of how many bands are muted and in what order they are unmuted.
+  - 7 regression tests added covering 3-band and 5-band mute/unmute scenarios.
+
+### Changed
+
+- `vizOptionsPersistence.ts`: Added `soloWhileEditing` boolean to the persisted viz-options schema (default `false`).
+
+---
+
 ## [0.1.4] - 2026-02-22
 
 ### Added

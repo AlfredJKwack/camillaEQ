@@ -3,7 +3,7 @@ import { FastifyInstance } from 'fastify';
 export function registerVersionRoutes(app: FastifyInstance): void {
   app.get('/api/version', async () => {
     return {
-      version: '0.1.4',
+      version: '0.1.5',
       buildHash: process.env.BUILD_HASH || 'dev',
       buildTime: process.env.BUILD_TIME || new Date().toISOString(),
     };

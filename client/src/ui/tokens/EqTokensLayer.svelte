@@ -18,6 +18,7 @@
   export let plotHeight: number;
   export let shiftPressed: boolean;
   export let focusMode: boolean = false; // MVP-14: dim unselected tokens in focus mode
+  export let soloActiveBandIndex: number | null = null; // MVP-31: dim non-active tokens during solo
 
   const dispatch = createEventDispatcher<{
     tokenPointerDown: { bandIndex: number; event: PointerEvent };
@@ -89,7 +90,7 @@
     
     // MVP-14: Focus mode dimming
     {@const isSelected = selectedBandIndex === i}
-    {@const shouldDim = (focusMode && !isSelected) || !band.enabled}
+    {@const shouldDim = (focusMode && !isSelected) || !band.enabled || (soloActiveBandIndex !== null && soloActiveBandIndex !== i)}
     {@const showLabels = !focusMode || isSelected}
     
     <g 

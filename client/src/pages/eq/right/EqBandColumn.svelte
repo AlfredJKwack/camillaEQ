@@ -9,6 +9,8 @@
     setBandQ,
     toggleBandEnabled,
     selectBand,
+    startSoloSession,
+    soloActiveBandIndex,
   } from '../../../state/eqStore';
   import {
     showFaderTooltip,
@@ -16,6 +18,7 @@
     hideFaderTooltip,
     openFilterTypePicker,
   } from '../../../state/eqUiOverlayStore';
+  import { soloWhileEditing } from '../vizOptions/vizOptionsStore';
   
   export let band: EqBand;
   export let bandIndex: number;
@@ -111,13 +114,16 @@
   
   function handleSelect() {
     selectBand(bandIndex);
+    startSoloSession(bandIndex, $soloWhileEditing);
   }
   
   $: supportsGain = band.type === 'Peaking' || band.type === 'LowShelf' || band.type === 'HighShelf';
+  $: isSoloDimmed = $soloActiveBandIndex !== null && $soloActiveBandIndex !== bandIndex;
 </script>
 
 <div 
   class="band-column band" 
+  class:solo-dimmed={isSoloDimmed}
   style="--band-color: var(--band-{(bandIndex % 10) + 1});" 
   data-enabled={band.enabled}
   data-selected={selected}
@@ -384,5 +390,12 @@
   .knob-wrapper.disabled {
     pointer-events: none;
     opacity: 0.5;
+  }
+
+  /* Solo-edit session: dim non-active band columns */
+  .band-column.solo-dimmed {
+    opacity: 0.2;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
   }
 </style>

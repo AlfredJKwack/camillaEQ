@@ -145,6 +145,9 @@ Notes:
   - `setBandFreq()` / `setBandGain()` / `setBandQ()` - Optimistic updates (with clamping)
   - Debounced upload with convergence happens internally (upload → re-download → sync)
   - `selectBand()` - Track selected band index (UI focus mode)
+  - `startSoloEditSession(bandIndex)` - Begin solo preview: uploads a reduced config (active band only), sets `soloActiveBandIndex`
+  - `endSoloEditSession()` - Restore full config, clear `soloActiveBandIndex`, persist recovery cache
+- **Exported readable:** `soloActiveBandIndex` (`number | null`) — consumed by `EqTokensLayer` to apply dimming to non-active tokens during a solo session
 
 **pipelineEditor.ts**
 - **Type:** Helper functions + callback

@@ -32,6 +32,7 @@ describe('vizOptionsPersistence', () => {
       heatmapMagnitudeGain: 2.5,
       heatmapGateThreshold: 0.05,
       heatmapMaxAlpha: 0.95,
+      soloWhileEditing: false,
     });
   });
 
@@ -53,6 +54,7 @@ describe('vizOptionsPersistence', () => {
       heatmapMagnitudeGain: 3.0,
       heatmapGateThreshold: 0.1,
       heatmapMaxAlpha: 0.8,
+      soloWhileEditing: true,
     };
 
     saveVizOptions(customState);
@@ -79,6 +81,7 @@ describe('vizOptionsPersistence', () => {
       heatmapMagnitudeGain: 2.5,
       heatmapGateThreshold: 0.05,
       heatmapMaxAlpha: 0.95,
+      soloWhileEditing: false,
     };
 
     saveVizOptions(invalidState);
@@ -105,6 +108,7 @@ describe('vizOptionsPersistence', () => {
       heatmapMagnitudeGain: 0.1, // Out of range [0.5..4.0]
       heatmapGateThreshold: 0.5, // Out of range [0.0..0.2]
       heatmapMaxAlpha: 1.5, // Out of range [0.2..1.0]
+      soloWhileEditing: false,
     };
 
     saveVizOptions(invalidState);
@@ -172,6 +176,7 @@ describe('vizOptionsPersistence', () => {
       heatmapMagnitudeGain: 3.0,
       heatmapGateThreshold: 0.1,
       heatmapMaxAlpha: 0.8,
+      soloWhileEditing: false,
     };
 
     saveVizOptions(customState);
@@ -284,6 +289,7 @@ describe('vizOptionsPersistence', () => {
       heatmapMagnitudeGain: 3.0,
       heatmapGateThreshold: 0.1,
       heatmapMaxAlpha: 0.8,
+      soloWhileEditing: true,
     };
 
     saveVizOptions(customState);

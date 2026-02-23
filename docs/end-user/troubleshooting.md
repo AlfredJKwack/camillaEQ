@@ -328,6 +328,28 @@
 
 ---
 
+### Solo Session Not Ending
+
+**Symptoms:**
+- All non-active band tokens remain dimmed after you expect the EQ to have been restored
+- Spectrum or perceived audio sounds like only one band is active
+
+**What this means:**
+- A "solo while editing" session is still active
+- The session ends when you deselect the active band, mute it, or turn off the **Solo** toggle
+
+**Solutions:**
+
+1. **Click away from the active token** (click an empty area of the EQ plot) to deselect it — the session ends immediately.
+2. **Turn off the Solo toggle** in Visualization Options → Token Visuals.
+3. **Mute the active band** (power button ⏻ on the selected band column) — this also ends the solo session and then persistently mutes that band.
+
+If the UI still shows all bands dimmed after the above:
+- Reload the page (hard reload: Cmd+Shift+R / Ctrl+Shift+R)
+- Reconnecting re-downloads the current CamillaDSP config, which restores all bands
+
+---
+
 ### Disabled Filters Not Restoring
 
 **Symptoms:**
