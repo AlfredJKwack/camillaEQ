@@ -39,17 +39,21 @@ export function disableFilterEverywhere(
       continue;
     }
     
-    // Calculate original position by accounting for already-disabled filters
     const stepKey = getStepKey(step.channels, stepIndex);
     const alreadyDisabled = getDisabledFiltersForStep(stepKey);
     
-    // Count how many disabled filters have indices before our current position
-    const disabledBefore = alreadyDisabled.filter((loc) => loc.index <= index).length;
+    // Reconstruct the full ordered name list (enabled names + disabled-at-original-positions)
+    // to find the correct original index of filterName in the pre-disable order.
+    // Comparing compressed-list indices to original-space overlay indices directly is wrong
+    // when 2+ filters are already disabled (causes drift from the 3rd mute onwards).
+    const fullNames: string[] = [...names];
+    for (const loc of alreadyDisabled) {
+      const insertIdx = Math.max(0, Math.min(fullNames.length, loc.index));
+      fullNames.splice(insertIdx, 0, loc.filterName);
+    }
+    const originalIndex = fullNames.indexOf(filterName);
     
-    // Original index = current index in compressed array + count of disabled filters that were before it
-    const originalIndex = index + disabledBefore;
-    
-    // Remove from names array
+    // Remove from enabled names array
     names.splice(index, 1);
     (updated.pipeline[stepIndex] as any).names = names;
     
@@ -97,9 +101,15 @@ export function enableFilterEverywhere(
         
         const names = (updated.pipeline[stepIndex] as any).names || [];
         
-        // Insert at original index (clamped to valid range)
-        const clampedIndex = Math.max(0, Math.min(names.length, location.index));
-        names.splice(clampedIndex, 0, filterName);
+        // Compute how many other disabled filters for this step had an original
+        // index less than location.index and are STILL disabled (i.e., still absent
+        // from names[]).  Those gaps must be subtracted to get the correct insertion
+        // point into the current compressed (enabled-only) names array.
+        const disabledBefore = getDisabledFiltersForStep(location.stepKey)
+          .filter(loc => loc.filterName !== filterName && loc.index < location.index)
+          .length;
+        const insertIndex = Math.max(0, Math.min(names.length, location.index - disabledBefore));
+        names.splice(insertIndex, 0, filterName);
         (updated.pipeline[stepIndex] as any).names = names;
         
         break;

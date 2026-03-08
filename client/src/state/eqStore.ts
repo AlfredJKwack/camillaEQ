@@ -78,23 +78,33 @@ const debouncedUpload = debounceCancelable(async () => {
       lastConfig = confirmedConfig;
       updateDspConfig(confirmedConfig); // Sync global dspStore
       
-      // Re-extract EQ bands from confirmed config to ensure UI reflects what DSP accepted
-      const reExtracted = extractEqBandsFromConfig(confirmedConfig);
-      extractedData = reExtracted;
-      bands.set(reExtracted.bands);
-      filterNames.set(reExtracted.filterNames);
-      bandOrderNumbers.set(reExtracted.orderNumbers);
-      preampGain.set(reExtracted.preampGain);
-      
-      // Persist confirmed config to server as latest state (write-through)
-      try {
-        await putLatestState(confirmedConfig);
-      } catch (error) {
-        console.warn('Failed to persist latest state to server:', error);
-        // Non-fatal: continue even if persistence fails
+      if (soloSessionActive) {
+        // During a solo session the pipeline is temporarily patched (only the
+        // active band is in names[]).  Re-extracting would collapse filterNames
+        // to a single entry, shifting band positions, changing colours etc.
+        // Instead we leave filterNames/bands/bandOrderNumbers unchanged and
+        // only update lastConfig so parameter edits are captured correctly.
+        uploadStatus.set({ state: 'success' });
+      } else {
+        // Re-extract EQ bands from confirmed config to ensure UI reflects
+        // what DSP accepted.
+        const reExtracted = extractEqBandsFromConfig(confirmedConfig);
+        extractedData = reExtracted;
+        bands.set(reExtracted.bands);
+        filterNames.set(reExtracted.filterNames);
+        bandOrderNumbers.set(reExtracted.orderNumbers);
+        preampGain.set(reExtracted.preampGain);
+        
+        // Persist confirmed config to server as latest state (write-through)
+        try {
+          await putLatestState(confirmedConfig);
+        } catch (error) {
+          console.warn('Failed to persist latest state to server:', error);
+          // Non-fatal: continue even if persistence fails
+        }
+        
+        uploadStatus.set({ state: 'success' });
       }
-      
-      uploadStatus.set({ state: 'success' });
       
       // Clear success state after 2 seconds
       setTimeout(() => {
@@ -175,8 +185,14 @@ export function clearEqState(): void {
   extractedData = null;
   bands.set([]);
   filterNames.set([]);
+  bandOrderNumbers.set([]);
   preampGain.set(0);
   uploadStatus.set({ state: 'idle' });
+  // Reset solo session (don't restore — config is gone)
+  soloSessionActive = false;
+  soloSnapshot = null;
+  soloActiveBandIndex.set(null);
+  _testDspOverride = null;
 }
 
 /**
@@ -234,7 +250,7 @@ export function setBandType(index: number, type: EqBand['type']) {
   debouncedUpload.call();
 }
 
-export function toggleBandEnabled(index: number) {
+export async function toggleBandEnabled(index: number): Promise<void> {
   const dspInstance = getDspInstance();
   if (!dspInstance || !lastConfig || !extractedData) {
     console.error('Cannot toggle band: no DSP instance or config');
@@ -251,6 +267,14 @@ export function toggleBandEnabled(index: number) {
   // Get current enabled state
   const currentBands = get(bands);
   const isCurrentlyEnabled = currentBands[index]?.enabled ?? false;
+
+  // Solo-mute interaction: muting the active soloed band ends the solo session
+  // first, so the full pipeline is restored before the persistent mute is applied.
+  // (Non-active bands are already non-interactive via solo-dimmed pointer-events:none.)
+  if (soloSessionActive && isCurrentlyEnabled && index === get(soloActiveBandIndex)) {
+    await endSoloEditSession();
+    // lastConfig and extractedData are now the restored (pre-solo) state.
+  }
 
   try {
     // Toggle by disabling/enabling everywhere in pipeline
@@ -284,6 +308,179 @@ export function toggleBandEnabled(index: number) {
       message: error instanceof Error ? error.message : 'Failed to toggle band',
     });
   }
+}
+
+// ─── MVP-31: Solo session state ────────────────────────────────────────────
+
+let soloSessionActive = false;
+/** Snapshot of pipeline names[] per Filter step, captured at session start. */
+let soloSnapshot: { stepIndex: number; names: string[] }[] | null = null;
+
+/**
+ * The band index that is currently being soloed, or null when no session is
+ * active.  UI components subscribe to this to dim non-active bands/tokens/curves.
+ */
+export const soloActiveBandIndex = writable<number | null>(null);
+
+// Test-only DSP override (null in production)
+let _testDspOverride: any = null;
+
+/** Returns the DSP instance, honouring any test override. */
+function _resolveDspInstance() {
+  return (_testDspOverride ?? getDspInstance()) as { config: any; uploadConfig: () => Promise<boolean> } | null;
+}
+
+/**
+ * Test helper: inject a mock DSP instance and reset EQ state so tests
+ * start with a clean slate (no stale lastConfig from a previous test).
+ * Must only be called from test code.
+ */
+export function _injectDspForTesting(dsp: any): void {
+  debouncedUpload.cancel();
+  lastConfig = null;
+  extractedData = null;
+  bands.set([]);
+  filterNames.set([]);
+  bandOrderNumbers.set([]);
+  preampGain.set(0);
+  uploadStatus.set({ state: 'idle' });
+  soloSessionActive = false;
+  soloSnapshot = null;
+  soloActiveBandIndex.set(null);
+  _testDspOverride = dsp;
+}
+
+/** Returns whether a solo-edit session is currently active. */
+export function isSoloSessionActive(): boolean {
+  return soloSessionActive;
+}
+
+/**
+ * Start a solo-edit session: mute every band except `bandIndex`, upload the
+ * temporary config directly (no debounce, no putLatestState), and set the
+ * session-active flag.  A no-op when:
+ *  - no config has been loaded (`lastConfig` / `extractedData` are null), or
+ *  - no DSP instance is available, or
+ *  - the upload to CamillaDSP fails.
+ *
+ * If a session is already active the existing one is ended first (band switch).
+ */
+export async function startSoloEditSession(bandIndex: number): Promise<void> {
+  if (!lastConfig || !extractedData) return;
+  const dspInstance = _resolveDspInstance();
+  if (!dspInstance) return;
+
+  // Band-switch: end the current session silently before starting a new one
+  if (soloSessionActive) {
+    await endSoloEditSession();
+  }
+
+  const activeName = extractedData.filterNames[bandIndex];
+  if (!activeName) return; // invalid band index
+
+  // Deep-clone the config so we can patch pipeline names[] directly.
+  // This avoids writing to the disabled-filters localStorage overlay, which would
+  // cause extractEqBandsFromConfig to include the muted bands in the band list.
+  const updatedConfig = JSON.parse(JSON.stringify(lastConfig)) as CamillaDSPConfig;
+  const pipeline = (updatedConfig.pipeline as any[] | undefined) ?? [];
+
+  // Snapshot of each Filter step's original names[] so we can restore later
+  const snapshot: { stepIndex: number; names: string[] }[] = [];
+  let changed = false;
+
+  for (let i = 0; i < pipeline.length; i++) {
+    const step = pipeline[i];
+    if (step.type !== 'Filter' || !Array.isArray(step.names)) continue;
+
+    snapshot.push({ stepIndex: i, names: [...step.names] });
+
+    // Keep only the active filter in this step's names[]
+    const newNames: string[] = step.names.includes(activeName) ? [activeName] : [];
+    if (newNames.length !== step.names.length) {
+      step.names = newNames;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    dspInstance.config = updatedConfig;
+    const success = await dspInstance.uploadConfig();
+    if (!success) return; // upload failed — do not activate session
+
+    // Update lastConfig only — do NOT re-extract.
+    // All bands remain in filterNames/bands/bandOrderNumbers so the UI stays
+    // stable (positions, order numbers, colours unchanged).  The debouncedUpload
+    // guard (soloSessionActive) will also skip re-extraction on subsequent edits.
+    lastConfig = updatedConfig;
+  }
+
+  soloSnapshot = snapshot;
+  soloSessionActive = true;
+  soloActiveBandIndex.set(bandIndex); // signals UI to dim non-active bands
+}
+
+/**
+ * End the current solo-edit session: restore all bands to their pre-session
+ * enabled state, upload the restored config directly, and persist to the
+ * server via putLatestState (recovery cache).  A no-op when no session is
+ * active.
+ */
+export async function endSoloEditSession(): Promise<void> {
+  if (!soloSessionActive) return;
+  soloSessionActive = false;
+  soloActiveBandIndex.set(null); // clear UI dimming immediately
+
+  if (!soloSnapshot || !lastConfig) {
+    soloSnapshot = null;
+    return;
+  }
+
+  const dspInstance = _resolveDspInstance();
+  if (!dspInstance) {
+    soloSnapshot = null;
+    return;
+  }
+
+  // Restore pipeline names[] from snapshot
+  const updatedConfig = JSON.parse(JSON.stringify(lastConfig)) as CamillaDSPConfig;
+  const pipeline = (updatedConfig.pipeline as any[] | undefined) ?? [];
+
+  for (const snap of soloSnapshot) {
+    if (pipeline[snap.stepIndex]) {
+      pipeline[snap.stepIndex].names = snap.names;
+    }
+  }
+
+  soloSnapshot = null;
+
+  dspInstance.config = updatedConfig;
+  await dspInstance.uploadConfig();
+  lastConfig = updatedConfig;
+  const extracted = extractEqBandsFromConfig(updatedConfig);
+  extractedData = extracted;
+  bands.set(extracted.bands);
+  filterNames.set(extracted.filterNames);
+  bandOrderNumbers.set(extracted.orderNumbers);
+
+  // Persist the restored (real) config to the server as a recovery point
+  try {
+    await putLatestState(lastConfig);
+  } catch {
+    // Non-fatal
+  }
+}
+
+/**
+ * UI convenience wrappers — check the soloWhileEditing toggle before
+ * calling the underlying session functions.
+ */
+export function startSoloSession(bandIndex: number, soloEnabled: boolean): void {
+  if (!soloEnabled) return;
+  void startSoloEditSession(bandIndex);
+}
+
+export function endSoloSession(): void {
+  void endSoloEditSession();
 }
 
 export function selectBand(index: number | null) {

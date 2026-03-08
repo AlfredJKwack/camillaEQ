@@ -37,6 +37,7 @@ export const heatmapMaxAlpha = writable<number>(0.95);
 export const showPerBandCurves = writable<boolean>(false);
 export const showBandwidthMarkers = writable<boolean>(true);
 export const bandFillOpacity = writable<number>(0.4);
+export const soloWhileEditing = writable<boolean>(false);
 
 // Derived: spectrum visualization needed (analyzer OR heatmap)
 export const spectrumVizEnabled = derived(
@@ -58,6 +59,7 @@ export function initializeVizOptions(): void {
   showPerBandCurves.set(saved.showPerBandCurves);
   showBandwidthMarkers.set(saved.showBandwidthMarkers);
   bandFillOpacity.set(saved.bandFillOpacity);
+  soloWhileEditing.set(saved.soloWhileEditing);
   heatmapEnabled.set(saved.heatmapEnabled);
   heatmapMaskMode.set(saved.heatmapMaskMode);
   heatmapHighPrecision.set(saved.heatmapHighPrecision);
@@ -95,6 +97,7 @@ export function setupVizOptionsPersistence(): () => void {
       showPerBandCurves: null as any,
       showBandwidthMarkers: null as any,
       bandFillOpacity: null as any,
+      soloWhileEditing: null as any,
       heatmapEnabled: null as any,
       heatmapMaskMode: null as any,
       heatmapHighPrecision: null as any,
@@ -119,6 +122,7 @@ export function setupVizOptionsPersistence(): () => void {
     state.showPerBandCurves = readValue(showPerBandCurves);
     state.showBandwidthMarkers = readValue(showBandwidthMarkers);
     state.bandFillOpacity = readValue(bandFillOpacity);
+    state.soloWhileEditing = readValue(soloWhileEditing);
     state.heatmapEnabled = readValue(heatmapEnabled);
     state.heatmapMaskMode = readValue(heatmapMaskMode);
     state.heatmapHighPrecision = readValue(heatmapHighPrecision);
@@ -139,6 +143,7 @@ export function setupVizOptionsPersistence(): () => void {
   unsubscribers.push(showPerBandCurves.subscribe(saveAll));
   unsubscribers.push(showBandwidthMarkers.subscribe(saveAll));
   unsubscribers.push(bandFillOpacity.subscribe(saveAll));
+  unsubscribers.push(soloWhileEditing.subscribe(saveAll));
   unsubscribers.push(heatmapEnabled.subscribe(saveAll));
   unsubscribers.push(heatmapMaskMode.subscribe(saveAll));
   unsubscribers.push(heatmapHighPrecision.subscribe(saveAll));

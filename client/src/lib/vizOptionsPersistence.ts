@@ -24,6 +24,7 @@ export interface VizOptionsState {
   showPerBandCurves: boolean;
   showBandwidthMarkers: boolean;
   bandFillOpacity: number;
+  soloWhileEditing: boolean;
   
   // Heatmap settings
   heatmapEnabled: boolean;
@@ -52,6 +53,7 @@ const DEFAULT_VIZ_OPTIONS: VizOptionsState = {
   showPerBandCurves: false,
   showBandwidthMarkers: true,
   bandFillOpacity: 0.4,
+  soloWhileEditing: false,
   
   // Heatmap defaults
   heatmapEnabled: false,
@@ -93,6 +95,7 @@ function validateVizOptions(state: Partial<VizOptionsState>): VizOptionsState {
   if (typeof state.showPeak === 'boolean') validated.showPeak = state.showPeak;
   if (typeof state.showPerBandCurves === 'boolean') validated.showPerBandCurves = state.showPerBandCurves;
   if (typeof state.showBandwidthMarkers === 'boolean') validated.showBandwidthMarkers = state.showBandwidthMarkers;
+  if (typeof state.soloWhileEditing === 'boolean') validated.soloWhileEditing = state.soloWhileEditing;
   if (typeof state.heatmapEnabled === 'boolean') validated.heatmapEnabled = state.heatmapEnabled;
   if (typeof state.heatmapHighPrecision === 'boolean') validated.heatmapHighPrecision = state.heatmapHighPrecision;
   

@@ -148,6 +148,12 @@ A fresh CamillaDSP install often starts with an empty or minimal config.
 - **Power button (⏻):** Disable/enable band
 - **Filter icon:** Change filter type (Peaking, Shelf, Pass, etc.)
 
+**Visualization Options:**
+- **Spectrum Curves:** Long term average (LTA) and short term average (STA) spectrum curves as well as Peak.
+- **Curve Smoothing:** Smoothing options for the LTA and STA curves.
+- **Heatmap:** Shows the frequency response of the EQ in a heatmap. 
+- The **Solo** toggle (in the **Token Visuals** group) lets you hear a single band in isolation temporarily while editing it.
+
 ### 3. Changes Upload Automatically
 
 CamillaEQ uploads your changes to CamillaDSP after a 200ms pause in editing (debounced).

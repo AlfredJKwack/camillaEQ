@@ -11,7 +11,10 @@
     setBandGain,
     setBandQ,
     selectBand,
+    startSoloSession,
+    endSoloSession,
     preampGain,
+    soloActiveBandIndex,
   } from '../../../state/eqStore';
   import {
     spectrumMode,
@@ -30,6 +33,7 @@
     showBandwidthMarkers,
     bandFillOpacity,
     spectrumVizEnabled,
+    soloWhileEditing,
   } from '../vizOptions/vizOptionsStore';
   import {
     createSpectrumVizController,
@@ -136,6 +140,7 @@
       if (e.key === 'Shift') {
         shiftPressed = true;
       } else if (e.key === 'Escape' && $selectedBandIndex !== null) {
+        endSoloSession();
         selectBand(null);
       }
     };
@@ -231,6 +236,7 @@
   function handlePlotBackgroundClick(event: MouseEvent) {
     const target = event.target as Element;
     if (target.tagName === 'svg' || target.classList.contains('eq-plot')) {
+      endSoloSession();
       selectBand(null);
     }
   }
@@ -261,6 +267,7 @@
     };
     
     selectBand(bandIndex);
+    startSoloSession(bandIndex, $soloWhileEditing);
     setActiveEditing();
   }
   
@@ -490,7 +497,7 @@
               fill="none"
               stroke="var(--band-{(i % 10) + 1})"
               stroke-width="1.25"
-              opacity="0.4"
+              opacity={$soloActiveBandIndex !== null && $soloActiveBandIndex !== i ? 0.08 : 0.4}
               class="eq-curve-band"
             />
           {/each}
@@ -555,6 +562,7 @@
         bands={$bands}
         bandOrderNumbers={$bandOrderNumbers}
         selectedBandIndex={$selectedBandIndex}
+        soloActiveBandIndex={$soloActiveBandIndex}
         {plotWidth}
         {plotHeight}
         {shiftPressed}
