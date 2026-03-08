@@ -51,19 +51,14 @@ You're not just editing parameters—you're *seeing* what the audio will sound l
 
 ---
 
-## The Killer Feature: Built-In Spectrum Analyzer
+## The Killer Features
 
+### Built-In Spectrum Analyzer 
 CamillaEQ includes a **real-time spectrum analyzer** that runs at ~10 Hz and displays your audio signal behind the EQ curve.
+This isn't a native CamillaDSP feature. It's a clever abuse of CamillaDSP's filter bank capabilities: we generate a log-spaced bandpass filter configuration and read the output levels. It's not perfect, but it provides *immediate visual feedback* while you're tuning. This makes EQ tuning feel **alive**. You adjust a band, and you *see* the spectrum change instantly.
 
-This isn't a native CamillaDSP feature. It's a clever abuse of CamillaDSP's filter bank capabilities: we generate a log-spaced bandpass filter configuration and read the output levels. It's not perfect, but it provides *immediate visual feedback* while you're tuning.
-
-You can see:
-- **Pre-EQ** (what's coming in)
-- **Post-EQ** (what's going out)
-- **Short-term and long-term averages**
-- **Peak hold with decay**
-
-This makes EQ tuning feel **alive**. You adjust a band, and you *see* the spectrum change instantly.
+### Muting of filter bands
+In CamillaEQ you can mute and unmute individual filter bands at any time. You can also enable "solo" mode which will temporarily mute all bands except the one your're editing any given band. This provides you with the ability to clearly identify the effect of a single filter on the whole. 
 
 ---
 
