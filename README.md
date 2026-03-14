@@ -58,7 +58,7 @@ CamillaEQ includes a **real-time spectrum analyzer** that runs at ~10 Hz and dis
 This isn't a native CamillaDSP feature. It's a clever abuse of CamillaDSP's filter bank capabilities: we generate a log-spaced bandpass filter configuration and read the output levels. It's not perfect, but it provides *immediate visual feedback* while you're tuning. This makes EQ tuning feel **alive**. You adjust a band, and you *see* the spectrum change instantly.
 
 ### Muting of filter bands
-In CamillaEQ you can mute and unmute individual filter bands at any time. You can also enable "solo" mode which will temporarily mute all bands except the one your're editing any given band. This provides you with the ability to clearly identify the effect of a single filter on the whole. 
+In CamillaEQ you can mute and unmute individual filter bands at any time, even when they're part of a filter group. You can also enable "solo" mode which will temporarily mute all bands except the one your're editing. This provides you with the ability to clearly identify the effect of a single filter on the whole. 
 
 ---
 
@@ -167,20 +167,23 @@ You'll see a live spectrum analyzer and be able to adjust EQ bands, even without
 
 ## Project Status
 
-**Current Release:** v0.1.1
+**Current Release:** v0.1.5
 
 CamillaEQ is **production-ready** but still evolving. The core features—EQ editing, spectrum analyzer, preset management, and pipeline editing—are stable and tested.
 
 **What works:**
 - ✅ Full CamillaDSP control (config upload, volume, reload)
 - ✅ Real-time spectrum analyzer with smoothing and averaging
-- ✅ Interactive EQ with 7 filter types (peaking, shelves, HPF/LPF, bandpass, notch)
+- ✅ Interactive EQ with 7 filter types (incl. peaking, shelves, HPF/LPF, bandpass, notch)
 - ✅ Pipeline editor (reorder filters, edit mixers, add/remove blocks)
 - ✅ Preset library with search and keyboard navigation
 - ✅ Auto-reconnect with exponential backoff
 - ✅ Degraded mode (EQ works even if spectrum socket fails)
 
-**Known limitations:**
+**What's on the backlog:**
+Check ou the [enhancements](https://github.com/AlfredJKwack/camillaEQ/issues?q=is%3Aissue%20state%3Aopen%20label%3Aenhancement) tag from the issues for an up to date view of what's being considered for upcoming versions.
+
+**Intentional limitations:**
 - Spectrum analyzer is approximate (bandpass filter bank, not FFT)
 - No multi-tab coordination (last-write-wins)
 - No authentication (designed for trusted LAN)
